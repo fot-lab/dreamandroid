@@ -1,8 +1,10 @@
 # Architecture Review — Issue Index
 
-> 版本: 4.0
+> 版本: 5.0
 > 更新日期: 2026-06-15
-> 共 52 项问题 | Fully Fixed: 23 | Partially Fixed: 7 | Newly Discovered: 18 | Resolution Planned: 4
+> 文件夹重命名: review → ReviewDocs
+
+> **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
 ## 1. 问题总表
 
@@ -36,6 +38,8 @@
 | UILA-COMP-0003 | P2 | 错误处理不一致 | Partially Fixed | [detail/UILA-COMP-0003.md](detail/UILA-COMP-0003.md) |
 | UILA-COMP-0004 | P2 | 无 DI 框架 | Partially Fixed | [detail/UILA-COMP-0004.md](detail/UILA-COMP-0004.md) |
 | UILA-COMP-0005 | P2 | UI 层直接 HTTP | Newly Discovered | [detail/UILA-COMP-0005.md](detail/UILA-COMP-0005.md) |
+| UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (ModelListScreen 4704 + ModelRunScreen 3706 行) | Partially Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
+| UILA-COMP-0007 | P1 | ModelRunScreen (4704行) 遗留代码分析与拆分 | Newly Discovered | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
 | HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Partially Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
 | HTTP-CLNT-0002 | P1 | Health check 每次新建 client | Fully Fixed | [detail/HTTP-CLNT-0002.md](detail/HTTP-CLNT-0002.md) |
 | HTTP-CLNT-0003 | P2 | 超时配置不一致 | Partially Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
@@ -61,40 +65,4 @@
 | DFLW-INTG-0014 | P3 | Add to Queue 静默失败 | Fully Fixed | [detail/DFLW-INTG-0014.md](detail/DFLW-INTG-0014.md) |
 | DFLW-INTG-0015 | P3 | 无效 Seed 静默忽略 | Fully Fixed | [detail/DFLW-INTG-0015.md](detail/DFLW-INTG-0015.md) |
 
-## 2. 统计
 
-| 按状态 | 数量 |
-|--------|------|
-| Fully Fixed | 23 |
-| Partially Fixed | 7 |
-| Newly Discovered | 18 |
-| Resolution Planned | 4 |
-| **总计** | **52** |
-
-| 按优先级 | 数量 |
-|----------|------|
-| P0 | 10 |
-| P1 | 25 |
-| P2 | 13 |
-| P3 | 4 |
-
-| 按前缀 | 数量 | 说明 |
-|--------|------|------|
-| BKND-PROC | 6 | Backend Process |
-| BKLC-BPAS | 10 | Backend Lifecycle Bypass |
-| QUEU-SYST | 7 | Queue System |
-| UILA-COMP | 5 | UI Component |
-| HTTP-CLNT | 4 | HTTP Client |
-| DATA-STOR | 2 | Data Storage |
-| CORO-EXEC | 2 | Coroutine Execution |
-| MODU-SPLT | 1 | Module Split |
-| DFLW-INTG | 15 | Data Flow Integrity |
-
-## 3. 变更记录
-
-| 日期 | 描述 |
-|------|------|
-| 2026-06-15 | v1.0: 从 ArchitectureReview.md v5.0 拆分 52 个问题 |
-| 2026-06-15 | v2.0: 迁移至 XXX-XXX-NNN 等长编码 |
-| 2026-06-15 | v3.0: 迁移至 XXXX-XXXX-NNNN 等长编码，删除 ArchitectureReview.md |
-| 2026-06-15 | v4.0: 状态重命名 (Fully Fixed / Partially Fixed / Newly Discovered / Resolution Planned)；状态仅维护在 index.md，detail 文件移除状态行 |

@@ -1,0 +1,103 @@
+# UILA-COMP-0006: 超大 Kotlin 文件拆分 (ModelListScreen + ModelRunScreen + 其他)
+
+> 优先级: P1
+> 创建日期: 2026-06-15
+
+## 描述
+
+全项目 75 个 `.kt` 文件共 24,673 行。其中超大文件严重阻碍 Agent 理解和修改：
+
+| 文件 | 行数 | 说明 |
+|------|------|------|
+| `ui/screens/ModelRunScreen.kt` | 4704 | 占总量 19.1%，最大单文件 |
+| `ui/screens/ModelListScreen.kt` | 3706 | 占总量 15.0% |
+| `ui/screens/GenerateScreen.kt` | 955 | |
+| `data/TagAutocompleteRepository.kt` | 891 | |
+| `ui/screens/InpaintScreen.kt` | 816 | |
+| `data/Model.kt` | 769 | |
+| `ui/screens/BrowseScreen.kt` | 688 | |
+| `ui/components/PromptTagTextField.kt` | 684 | |
+| `service/BackgroundGenerationService.kt` | 665 | |
+| `ui/screens/HistoryFilterUI.kt` | 643 | |
+| `ui/orchestrator/AppContent.kt` | 627 | |
+| `ui/screens/UpscaleScreen.kt` | 543 | |
+| `ui/screens/QueueScreen.kt` | 514 | |
+
+## 根因
+
+1. 历史债务：功能迭代中所有逻辑堆砌在单一 Composable 文件内
+2. `ModelRunScreen` 和 `ModelListScreen` 混合了状态管理、UI 渲染、转换逻辑、对话框、后端交互
+
+## 拆分目标
+
+每个文件 ≤ 500 行，按功能域隔离，Agent 可在 1 次上下文中完整理解单文件。
+
+## 执行进度
+
+### ✅ Phase 1: MainActivity 拆分 (已完成)
+
+- 拆分为 4 模块 9 文件（orchestrator/backend/queue/frontend）
+- `MainActivity.kt`: 1825 → 108 行 (-94%)
+- 已 commit: `67166b5`
+
+### ✅ Phase 2: ModelListScreen 拆分 (已完成)
+
+**拆分结果** (1 主文件 + 5 子文件):
+
+| 文件 | 行数 | 内容 |
+|------|------|------|
+| `ModelListScreen.kt` | 1643 (原3707) | 主 Composable + 状态管理 + Settings 抽屉 |
+| `model/ModelUtils.kt` | 63 | `ExtractByteProgress`, `LoRAFile`, `formatBytes`, `formatFileSize`, `getFileNameFromUri`, `getCleanFileName` |
+| `model/ModelConversion.kt` | 427 | `convertCustomModel`, `extractNpuModel`, `importEmbedding`, `CountingInputStream` |
+| `model/ModelComponents.kt` | 358 | `ModelCard`, `TabPageIndicator`, `AddCustomModelButton`, `AddCustomNpuModelButton`, `DeleteConfirmDialog`, `InfoChip` |
+| `model/ModelSettings.kt` | 264 | `AppearanceSection`, `SettingNavCard`, `SwitchSettingRow`, `ThemeSwatch` |
+| `model/ModelDialogs.kt` | 1023 | `FileManagerDialog`, `CustomNpuModelDialog`, `CustomUpscaleModelDialog`, `CustomModelDialog`, `EmbeddingManagerDialog` |
+
+- `ModelListScreen.kt`: 3707 → **1643 行** (-56%)
+- 总代码量: 3707 → 3778 (+71 行 for import boilerplate)
+- Lint: **0 errors**
+
+> **注意**: `ModelListScreen.kt` 仍含内联 Settings 抽屉 (~700行)，可进一步提取但涉及大量 `scope`/`snackbarHostState` 闭包传递，建议后续迭代处理。
+
+### ✅ Phase 3: ModelRunScreen 拆分 (已完成)
+
+参见 [UILA-COMP-0007](UILA-COMP-0007.md) 详细分析。
+
+**拆分结果** (1 主文件 + 3 子文件):
+
+| 文件 | 行数 | 内容 |
+|------|------|------|
+| `ModelRunScreen.kt` | 4470 (原4704) | 主 Composable + 全部状态 + 内嵌页面/对话框 |
+| `run/ModelRunUtils.kt` | 99 | 工具函数 + GenerationParameters + 常量 |
+| `run/ModelRunBackend.kt` | 125 | 后端生命周期帮助函数 |
+| `run/ModelRunSatellites.kt` | 167 | UpscalerSelectDialog, UpscalerModelCard, PromptCountLabel |
+
+- `ModelRunScreen.kt`: 4704 → **4470 行** (-234)
+- Lint: **0 errors**
+- 进一步拆分受限于 UILA-COMP-0002 (无 ViewModel/StateHolder)
+
+### ⏳ Phase 4: 其他大型文件 (未开始)
+
+按行数降序处理: GenerateScreen(955) → TagAutocompleteRepository(891) → InpaintScreen(816) → ...
+
+## ModelRunScreen 预分析结构
+
+| 区域 | 行范围 | 预估行数 | 提取目标文件 |
+|------|--------|---------|-------------|
+| Import + 类型定义 | 1-200 | ~200 | ModelRunUtils.kt |
+| ModelRunScreen 主 Composable | 200-1000 | ~800 | 保留(瘦身后) |
+| 生成参数区域 | 1000-1600 | ~600 | ModelRunGenerate.kt |
+| Inpaint 区域 | 1600-2200 | ~600 | ModelRunInpaint.kt |
+| Upscale 区域 | 2200-2600 | ~400 | ModelRunUpscale.kt |
+| 结果展示区域 | 2600-3100 | ~500 | ModelRunResult.kt |
+| 模型加载/后端交互 | 3100-3700 | ~600 | ModelRunBackend.kt |
+| 对话框/底部栏 | 3700-4200 | ~500 | ModelRunDialogs.kt |
+| Preview + 辅助 | 4200-4704 | ~500 | ModelRunPreview.kt |
+
+## 变更历史
+
+| 日期 | 变更 |
+|------|------|
+| 2026-06-15 | 创建：记录全项目 Kotlin 文件行数统计 + 拆分执行进度 |
+| 2026-06-15 | Phase 1 (MainActivity) 完成；Phase 2 (ModelListScreen) 创建 model/ 子包 5 文件 |
+| 2026-06-15 | Phase 2 完成：ModelListScreen.kt 重写为 1643 行，引用 model.* 包，lint 0 errors |
