@@ -1,10 +1,12 @@
 # Architecture Review — Issue Index
 
-> 版本: 5.0
+> 版本: 6.0
 > 更新日期: 2026-06-15
 > 文件夹重命名: review → ReviewDocs
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
+
+> **总体规划**: 参见 [PLAN-ROAD-0001](detail/PLAN-ROAD-0001.md)
 
 ## 1. 问题总表
 
@@ -38,8 +40,8 @@
 | UILA-COMP-0003 | P2 | 错误处理不一致 | Partially Fixed | [detail/UILA-COMP-0003.md](detail/UILA-COMP-0003.md) |
 | UILA-COMP-0004 | P2 | 无 DI 框架 | Partially Fixed | [detail/UILA-COMP-0004.md](detail/UILA-COMP-0004.md) |
 | UILA-COMP-0005 | P2 | UI 层直接 HTTP | Newly Discovered | [detail/UILA-COMP-0005.md](detail/UILA-COMP-0005.md) |
-| UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (ModelListScreen 4704 + ModelRunScreen 3706 行) | Partially Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
-| UILA-COMP-0007 | P1 | ModelRunScreen (4704行) 遗留代码分析与拆分 | Newly Discovered | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
+| UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (Phase 4 完成 ModelRunScreen, 剩余 GenerateScreen 等) | Partially Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
+| UILA-COMP-0007 | P1 | ModelRunScreen (4704行) 遗留代码分析与拆分 (Phase 4 完成: 4471→610) | Partially Fixed | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
 | HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Partially Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
 | HTTP-CLNT-0002 | P1 | Health check 每次新建 client | Fully Fixed | [detail/HTTP-CLNT-0002.md](detail/HTTP-CLNT-0002.md) |
 | HTTP-CLNT-0003 | P2 | 超时配置不一致 | Partially Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
