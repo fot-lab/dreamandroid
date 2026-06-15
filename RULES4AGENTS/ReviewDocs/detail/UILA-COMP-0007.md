@@ -223,9 +223,131 @@ ModelRunScreen 的 ~170 个状态变量和所有 inner functions (PromptPage, Re
 
 核心瓶颈是 **UILA-COMP-0002** (无法单独测试): 需要引入 ViewModel/StateHolder 模式将状态与 UI 解耦，然后才能进一步拆分页面和对话框。
 
-## 5. 变更历史
+## 5. Phase 4 — 引入 ModelRunState 状态持有类完成全面拆分
+
+### 5.1 核心思路
+
+Phase 3 只减少了 234 行的根因是 ~170 个状态变量的紧密耦合。Phase 4 引入 `ModelRunState` — 一个 `@Stable` 类，将所有 mutable 状态集中管理：
+
+```kotlin
+@Stable
+class ModelRunState {
+    // Generation state
+    var currentBitmap by mutableStateOf<Bitmap?>(null)
+    var intermediateBitmap by mutableStateOf<Bitmap?>(null)
+    // ... ~60 个属性
+}
+```
+
+这**不是** AndroidX ViewModel，而是纯 Compose 的 state hoisting 模式。主 Composable 中 `remember { ModelRunState() }` 创建实例，然后将 `state` 传递给提取的 Composable：
+
+```kotlin
+@Composable
+fun ModelRunScreen(...) {
+    val state = remember { ModelRunState() }
+    // ...
+    PromptPage(state = state, ...)
+    ResultPage(state = state, ...)
+    HistoryPage(state = state, ...)
+}
+```
+
+### 5.2 目标文件结构 (Phase 4)
+
+```
+ui/screens/run/
+├── ModelRunState.kt          ~200行  @Stable 状态持有类 (所有 mutableStateOf)
+├── ModelRunUtils.kt          ~99行   (保留) 工具函数 + GenerationParameters
+├── ModelRunBackend.kt        ~125行  (保留) 后端生命周期
+├── ModelRunSatellites.kt     ~167行  (保留 → 合并到 Dialogs)
+├── ModelRunPrompt.kt         ~1074行 PromptPage() Composable
+├── ModelRunResult.kt         ~390行  ResultPage() Composable
+├── ModelRunHistory.kt        ~281行  HistoryPage() Composable
+├── ModelRunGeneration.kt     ~300行  生成触发 + batch loop + 状态观察
+├── ModelRunDialogs.kt        ~1100行 所有对话框 (exit/upscaler/history/share/import等)
+```
+
+`ModelRunScreen.kt`: **4471 → ~400 行** — 状态实例化 + Scaffold 编排。
+
+### 5.3 预估行数变化
+
+| 文件 | 旧行数 | 新行数 |
+|------|--------|--------|
+| ModelRunScreen.kt | 4471 | ~400 |
+| run/ModelRunState.kt | — | ~200 |
+| run/ModelRunPrompt.kt | — | ~1074 |
+| run/ModelRunResult.kt | — | ~390 |
+| run/ModelRunHistory.kt | — | ~281 |
+| run/ModelRunGeneration.kt | — | ~300 |
+| run/ModelRunDialogs.kt | — | ~1100 |
+| run/ModelRunUtils.kt | 99 | 99 |
+| run/ModelRunBackend.kt | 125 | 125 |
+| run/ModelRunSatellites.kt | 167 | (合并到 Dialogs, 删除) |
+| **总计** | **4862** | **~3969** (-893, 含 import boilerplate) |
+
+### 5.4 关键收益
+
+- `ModelRunScreen.kt` 从 4471 → ~400 行 (**-91%**)
+- 每文件职责单一，Agent 可直接阅读目标文件
+- 状态持有类提供单一真相源，避免参数爆炸
+- 对话框文件可独立测试和修改
+
+## 6. Phase 4 执行结果
+
+### 6.1 实际文件结构
+
+```
+ui/screens/run/
+├── ModelRunState.kt          179行  @Stable 状态持有类 (~60 mutableStateOf 属性)
+├── ModelRunUtils.kt          99行   (保留) 工具函数 + GenerationParameters + 常量
+├── ModelRunBackend.kt        125行  (保留) 后端生命周期
+├── ModelRunPrompt.kt         673行  ModelRunPromptPage() + AdvancedSettingsDialog()
+├── ModelRunResult.kt         233行  ModelRunResultPage()
+├── ModelRunHistory.kt        226行  ModelRunHistoryPage() + HistoryFilterBar()
+├── ModelRunGeneration.kt     627行  生成逻辑 (saveAllFields, 参数回调, handleServiceState, startBatchGeneration, crop/inpaint, image save, cleanup)
+├── ModelRunDialogs.kt        673行  所有对话框 (exit/opencl/resolution/history/share/import/upscaler) + UpscalerSelectDialog + UpscalerModelCard + PromptCountLabel + BlockingOverlays
+```
+
+`ModelRunScreen.kt`: **4471 → 610 行 (-86%)** — 状态实例化 + Scaffold 编排 + Dialog 调用。
+
+### 6.2 行数变化
+
+| 文件 | 旧行数 | 新行数 | 变化 |
+|------|--------|--------|------|
+| ModelRunScreen.kt | 4471 | 610 | -3861 (-86%) |
+| run/ModelRunState.kt | — | 179 | +179 |
+| run/ModelRunPrompt.kt | — | 673 | +673 |
+| run/ModelRunResult.kt | — | 233 | +233 |
+| run/ModelRunHistory.kt | — | 226 | +226 |
+| run/ModelRunGeneration.kt | — | 627 | +627 |
+| run/ModelRunDialogs.kt | — | 673 | +673 |
+| run/ModelRunUtils.kt | 99 | 99 | 0 |
+| run/ModelRunBackend.kt | 125 | 125 | 0 |
+| run/ModelRunSatellites.kt | 167 | **删除** | -167 |
+| **总计** | **4862** | **3445** | **-1417 (-29%)** |
+
+### 6.3 Phase 4 vs 原始方案对比
+
+| 指标 | Phase 3 | Phase 4 | 改进 |
+|------|---------|---------|------|
+| ModelRunScreen 行数 | 4471 | 610 | **-86%** |
+| 含状态变量的 Composable | 1 巨大 Composable | 1 编排器 + 8 子文件 | 完全拆分 |
+| 测试可行性 (UILA-COMP-0002) | 不可测 | State holder 独立可测 | ✅ |
+| Agent 可读性 | 需读 4471 行 | 按功能读 100-700 行文件 | ✅ |
+| 状态管理 | ~170 个闭包变量 | 1 个 @Stable 类 | ✅ |
+
+### 6.4 关键设计决策
+
+1. **ModelRunState @Stable 而非 ViewModel**: 纯 Compose 的 state hoisting 模式，无需 AndroidX lifecycle 依赖。所有提取的 Composable 通过 `state: ModelRunState` 参数访问状态，避免百参数签名。
+2. **Generation 提取为 top-level 函数而非 Composable**: 生成逻辑 (batch loop + retry/timeout) 本质是 suspend 函数，放在 coroutine scope 上更合适。
+3. **Dialog 合并**: `ModelRunSatellites.kt` 的 3 个 Composable (UpscalerSelectDialog, UpscalerModelCard, PromptCountLabel) 合并入 `ModelRunDialogs.kt`，统一对话框入口。
+4. **保留 bypass 路径**: `BackgroundGenerationService` + `BackendService` 的 LEGACY 兼容路径完整保留，标注为"交互式生成"模式。
+
+## 7. 变更历史
 
 | 日期 | 变更 |
 |------|------|
 | 2026-06-15 | 创建: ModelRunScreen 功能分析和拆分方案 |
 | 2026-06-15 | Phase 3 执行: 提取 3 文件 (Utils/Backend/Satellites), 共 391 行, lint 0 errors |
+| 2026-06-15 | Phase 4 设计: ModelRunState 状态持有类方案，目标 -91% 主文件行数 |
+| 2026-06-15 | Phase 4 执行: 创建 6 新文件 (State/Prompt/Result/History/Generation/Dialogs), 删除 Satellites, ModelRunScreen 4471→610 (-86%), 总代码 -1417 行 |

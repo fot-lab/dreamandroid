@@ -63,7 +63,7 @@
 
 参见 [UILA-COMP-0007](UILA-COMP-0007.md) 详细分析。
 
-**拆分结果** (1 主文件 + 3 子文件):
+**第一阶段** (1 主文件 + 3 子文件):
 
 | 文件 | 行数 | 内容 |
 |------|------|------|
@@ -72,11 +72,33 @@
 | `run/ModelRunBackend.kt` | 125 | 后端生命周期帮助函数 |
 | `run/ModelRunSatellites.kt` | 167 | UpscalerSelectDialog, UpscalerModelCard, PromptCountLabel |
 
-- `ModelRunScreen.kt`: 4704 → **4470 行** (-234)
 - Lint: **0 errors**
 - 进一步拆分受限于 UILA-COMP-0002 (无 ViewModel/StateHolder)
 
-### ⏳ Phase 4: 其他大型文件 (未开始)
+### ✅ Phase 4: ModelRunScreen 深度拆分 (已完成)
+
+参见 [UILA-COMP-0007](UILA-COMP-0007.md) §6 详细结果。
+
+**第二阶段** — 引入 `ModelRunState` @Stable 状态持有类 + 全面提取:
+
+| 文件 | 行数 | 内容 |
+|------|------|------|
+| `ModelRunScreen.kt` | 610 (原4471) | 编排器: 状态实例化 + Scaffold + Pager + Dialog 调用 |
+| `run/ModelRunState.kt` | 179 | @Stable 状态持有类 (~60 mutableStateOf) |
+| `run/ModelRunPrompt.kt` | 673 | ModelRunPromptPage() + AdvancedSettingsDialog() |
+| `run/ModelRunResult.kt` | 233 | ModelRunResultPage() |
+| `run/ModelRunHistory.kt` | 226 | ModelRunHistoryPage() + HistoryFilterBar() |
+| `run/ModelRunGeneration.kt` | 627 | 生成逻辑 (saveAllFields, handleServiceState, startBatchGeneration, crop/inpaint, cleanup) |
+| `run/ModelRunDialogs.kt` | 673 | 所有对话框 (含原 Satellites 合并) |
+| `run/ModelRunUtils.kt` | 99 | (保留) 工具函数 |
+| `run/ModelRunBackend.kt` | 125 | (保留) 后端生命周期 |
+| `run/ModelRunSatellites.kt` | **删除** | 合并入 Dialogs |
+
+- `ModelRunScreen.kt`: 4471 → **610 行 (-86%)**
+- ModelRun 模块总代码: 4862 → **3445 行 (-29%)**
+- Lint: **0 errors**
+
+### ⏳ Phase 5: 其他大型文件 (待开始)
 
 按行数降序处理: GenerateScreen(955) → TagAutocompleteRepository(891) → InpaintScreen(816) → ...
 
