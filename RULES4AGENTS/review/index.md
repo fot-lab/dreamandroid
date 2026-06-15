@@ -1,0 +1,100 @@
+# Architecture Review — Issue Index
+
+> 版本: 4.0
+> 更新日期: 2026-06-15
+> 共 52 项问题 | Fully Fixed: 23 | Partially Fixed: 7 | Newly Discovered: 18 | Resolution Planned: 4
+
+## 1. 问题总表
+
+| ID | P | 问题摘要 | 状态 | 详情 |
+|----|---|---------|------|------|
+| BKND-PROC-0001 | P0 | 进程所有权混乱：BackendService/UpscaleBackendManager 未删除 | Partially Fixed | [detail/BKND-PROC-0001.md](detail/BKND-PROC-0001.md) |
+| BKND-PROC-0002 | P1 | 状态机不统一（两个 StateFlow） | Fully Fixed | [detail/BKND-PROC-0002.md](detail/BKND-PROC-0002.md) |
+| BKND-PROC-0003 | P1 | 切换逻辑泄漏到 UI | Partially Fixed | [detail/BKND-PROC-0003.md](detail/BKND-PROC-0003.md) |
+| BKND-PROC-0004 | P1 | prepareRuntimeDir 代码重复 | Newly Discovered | [detail/BKND-PROC-0004.md](detail/BKND-PROC-0004.md) |
+| BKND-PROC-0005 | P1 | Upscale 无前台通知保护 | Newly Discovered | [detail/BKND-PROC-0005.md](detail/BKND-PROC-0005.md) |
+| BKND-PROC-0006 | P0 | 僵尸进程风险 | Fully Fixed | [detail/BKND-PROC-0006.md](detail/BKND-PROC-0006.md) |
+| BKLC-BPAS-0001 | P0 | ModelRunScreen startForegroundService 绕过 | Newly Discovered | [detail/BKLC-BPAS-0001.md](detail/BKLC-BPAS-0001.md) |
+| BKLC-BPAS-0002 | P0 | ModelRunScreen ACTION_RESTART 绕过 | Newly Discovered | [detail/BKLC-BPAS-0002.md](detail/BKLC-BPAS-0002.md) |
+| BKLC-BPAS-0003 | P1 | ModelRunScreen cleanup() stopService 绕过 | Newly Discovered | [detail/BKLC-BPAS-0003.md](detail/BKLC-BPAS-0003.md) |
+| BKLC-BPAS-0004 | P1 | ModelRunScreen BackgroundGenerationService 绕过 | Newly Discovered | [detail/BKLC-BPAS-0004.md](detail/BKLC-BPAS-0004.md) |
+| BKLC-BPAS-0005 | P1 | UpscaleBackendManager 重复启动逻辑 | Newly Discovered | [detail/BKLC-BPAS-0005.md](detail/BKLC-BPAS-0005.md) |
+| BKLC-BPAS-0006 | P1 | UpscaleBackendManager 重复 stop 逻辑 | Newly Discovered | [detail/BKLC-BPAS-0006.md](detail/BKLC-BPAS-0006.md) |
+| BKLC-BPAS-0007 | P1 | UpscaleBackendManager 独立状态流 | Newly Discovered | [detail/BKLC-BPAS-0007.md](detail/BKLC-BPAS-0007.md) |
+| BKLC-BPAS-0008 | P1 | MainActivity 直接使用 UpscaleBackendManager | Fully Fixed | [detail/BKLC-BPAS-0008.md](detail/BKLC-BPAS-0008.md) |
+| BKLC-BPAS-0009 | P1 | BackendService.prepareRuntimeDir 重复 | Newly Discovered | [detail/BKLC-BPAS-0009.md](detail/BKLC-BPAS-0009.md) |
+| BKLC-BPAS-0010 | P2 | BackendService flavor 检查不一致 | Newly Discovered | [detail/BKLC-BPAS-0010.md](detail/BKLC-BPAS-0010.md) |
+| QUEU-SYST-0001 | P0 | per-task Service 开销大 | Fully Fixed | [detail/QUEU-SYST-0001.md](detail/QUEU-SYST-0001.md) |
+| QUEU-SYST-0002 | P0 | 队列循环依赖 UI 生命周期 | Fully Fixed | [detail/QUEU-SYST-0002.md](detail/QUEU-SYST-0002.md) |
+| QUEU-SYST-0003 | P1 | 静态 companion 共享状态 | Fully Fixed | [detail/QUEU-SYST-0003.md](detail/QUEU-SYST-0003.md) |
+| QUEU-SYST-0004 | P2 | busy-wait 在 UI 层 | Fully Fixed | [detail/QUEU-SYST-0004.md](detail/QUEU-SYST-0004.md) |
+| QUEU-SYST-0005 | P1 | 队列无持久化（进程杀丢 PENDING） | Newly Discovered | [detail/QUEU-SYST-0005.md](detail/QUEU-SYST-0005.md) |
+| QUEU-SYST-0006 | P2 | SSE 解析不可复用 | Fully Fixed | [detail/QUEU-SYST-0006.md](detail/QUEU-SYST-0006.md) |
+| QUEU-SYST-0007 | P2 | 大 Bitmap 未主动回收 | Newly Discovered | [detail/QUEU-SYST-0007.md](detail/QUEU-SYST-0007.md) |
+| UILA-COMP-0001 | P0 | God Object：AppContent() ~1800 行 | Newly Discovered | [detail/UILA-COMP-0001.md](detail/UILA-COMP-0001.md) |
+| UILA-COMP-0002 | P1 | 无法单独测试 | Newly Discovered | [detail/UILA-COMP-0002.md](detail/UILA-COMP-0002.md) |
+| UILA-COMP-0003 | P2 | 错误处理不一致 | Partially Fixed | [detail/UILA-COMP-0003.md](detail/UILA-COMP-0003.md) |
+| UILA-COMP-0004 | P2 | 无 DI 框架 | Partially Fixed | [detail/UILA-COMP-0004.md](detail/UILA-COMP-0004.md) |
+| UILA-COMP-0005 | P2 | UI 层直接 HTTP | Newly Discovered | [detail/UILA-COMP-0005.md](detail/UILA-COMP-0005.md) |
+| HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Partially Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
+| HTTP-CLNT-0002 | P1 | Health check 每次新建 client | Fully Fixed | [detail/HTTP-CLNT-0002.md](detail/HTTP-CLNT-0002.md) |
+| HTTP-CLNT-0003 | P2 | 超时配置不一致 | Partially Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
+| HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Newly Discovered | [detail/HTTP-CLNT-0004.md](detail/HTTP-CLNT-0004.md) |
+| DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Newly Discovered | [detail/DATA-STOR-0001.md](detail/DATA-STOR-0001.md) |
+| DATA-STOR-0002 | P2 | SharedPreferences 碎片化 | Partially Fixed | [detail/DATA-STOR-0002.md](detail/DATA-STOR-0002.md) |
+| CORO-EXEC-0001 | P0 | runBlocking 主线程阻塞 | Newly Discovered | [detail/CORO-EXEC-0001.md](detail/CORO-EXEC-0001.md) |
+| CORO-EXEC-0002 | P1 | 协程 Scope 泄漏（3 处） | Newly Discovered | [detail/CORO-EXEC-0002.md](detail/CORO-EXEC-0002.md) |
+| MODU-SPLT-0001 | P3 | 单模块无编译隔离 | Newly Discovered | [detail/MODU-SPLT-0001.md](detail/MODU-SPLT-0001.md) |
+| DFLW-INTG-0001 | P0 | saveGeneratedImage 返回值被忽略 | Fully Fixed | [detail/DFLW-INTG-0001.md](detail/DFLW-INTG-0001.md) |
+| DFLW-INTG-0002 | P2 | HistoryManager 文件-DB 写入不一致 | Fully Fixed | [detail/DFLW-INTG-0002.md](detail/DFLW-INTG-0002.md) |
+| DFLW-INTG-0003 | P1 | SseStreamParser: flow{} 内 withContext 反模式 | Fully Fixed | [detail/DFLW-INTG-0003.md](detail/DFLW-INTG-0003.md) |
+| DFLW-INTG-0004 | P1 | SseStreamParser: readLine() 阻塞不响应取消 | Fully Fixed | [detail/DFLW-INTG-0004.md](detail/DFLW-INTG-0004.md) |
+| DFLW-INTG-0005 | P1 | Health check 双路径策略不一致 | Fully Fixed | [detail/DFLW-INTG-0005.md](detail/DFLW-INTG-0005.md) |
+| DFLW-INTG-0006 | P1 | 生成异常双路径策略不一致 | Fully Fixed | [detail/DFLW-INTG-0006.md](detail/DFLW-INTG-0006.md) |
+| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | Resolution Planned | [detail/DFLW-INTG-0007.md](detail/DFLW-INTG-0007.md) |
+| DFLW-INTG-0008 | P2 | RecordRepository JSON 损坏全丢 | Fully Fixed | [detail/DFLW-INTG-0008.md](detail/DFLW-INTG-0008.md) |
+| DFLW-INTG-0009 | P3 | RecordRepository 并发写入不安全 | Fully Fixed | [detail/DFLW-INTG-0009.md](detail/DFLW-INTG-0009.md) |
+| DFLW-INTG-0010 | P1 | processingActive 双重数据源 | Fully Fixed | [detail/DFLW-INTG-0010.md](detail/DFLW-INTG-0010.md) |
+| DFLW-INTG-0011 | P2 | QueueController.stop() 竞态 | Fully Fixed | [detail/DFLW-INTG-0011.md](detail/DFLW-INTG-0011.md) |
+| DFLW-INTG-0012 | P0 | 进程被杀 PENDING 全丢 | Resolution Planned | [detail/DFLW-INTG-0012.md](detail/DFLW-INTG-0012.md) |
+| DFLW-INTG-0013 | P2 | 生成参数双重加载 | Resolution Planned | [detail/DFLW-INTG-0013.md](detail/DFLW-INTG-0013.md) |
+| DFLW-INTG-0014 | P3 | Add to Queue 静默失败 | Fully Fixed | [detail/DFLW-INTG-0014.md](detail/DFLW-INTG-0014.md) |
+| DFLW-INTG-0015 | P3 | 无效 Seed 静默忽略 | Fully Fixed | [detail/DFLW-INTG-0015.md](detail/DFLW-INTG-0015.md) |
+
+## 2. 统计
+
+| 按状态 | 数量 |
+|--------|------|
+| Fully Fixed | 23 |
+| Partially Fixed | 7 |
+| Newly Discovered | 18 |
+| Resolution Planned | 4 |
+| **总计** | **52** |
+
+| 按优先级 | 数量 |
+|----------|------|
+| P0 | 10 |
+| P1 | 25 |
+| P2 | 13 |
+| P3 | 4 |
+
+| 按前缀 | 数量 | 说明 |
+|--------|------|------|
+| BKND-PROC | 6 | Backend Process |
+| BKLC-BPAS | 10 | Backend Lifecycle Bypass |
+| QUEU-SYST | 7 | Queue System |
+| UILA-COMP | 5 | UI Component |
+| HTTP-CLNT | 4 | HTTP Client |
+| DATA-STOR | 2 | Data Storage |
+| CORO-EXEC | 2 | Coroutine Execution |
+| MODU-SPLT | 1 | Module Split |
+| DFLW-INTG | 15 | Data Flow Integrity |
+
+## 3. 变更记录
+
+| 日期 | 描述 |
+|------|------|
+| 2026-06-15 | v1.0: 从 ArchitectureReview.md v5.0 拆分 52 个问题 |
+| 2026-06-15 | v2.0: 迁移至 XXX-XXX-NNN 等长编码 |
+| 2026-06-15 | v3.0: 迁移至 XXXX-XXXX-NNNN 等长编码，删除 ArchitectureReview.md |
+| 2026-06-15 | v4.0: 状态重命名 (Fully Fixed / Partially Fixed / Newly Discovered / Resolution Planned)；状态仅维护在 index.md，detail 文件移除状态行 |

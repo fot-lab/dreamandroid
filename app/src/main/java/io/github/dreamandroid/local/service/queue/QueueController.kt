@@ -1,0 +1,133 @@
+package io.github.dreamandroid.local.service.queue
+
+import android.content.Context
+import android.util.Log
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.Observer
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import io.github.dreamandroid.local.service.QueueRepository
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.withTimeoutOrNull
+
+/**
+ * Thin wrapper around [WorkManager] for queue lifecycle control.
+ *
+ * The [GenerationWorker] runs as a long-lived worker that sequentially
+ * processes pending tasks from [QueueRepository]. This controller provides:
+ * - [start]: enqueue worker if not already running
+ * - [stop]: cancel worker + cancel all pending tasks
+ * - [observeState]: Flow of WorkInfo for UI binding
+ */
+object QueueController {
+
+    private const val TAG = "QueueController"
+
+    /**
+     * Start (or resume) queue processing.
+     * Idempotent — if a worker is already running this is a no-op.
+     */
+    fun start(context: Context) {
+        val workManager = WorkManager.getInstance(context)
+
+        val workRequest = OneTimeWorkRequestBuilder<GenerationWorker>()
+            .addTag(GenerationWorker.WORK_TAG)
+            .setConstraints(
+                Constraints.Builder()
+                    // No network constraint since backend is localhost
+                    .build(),
+            )
+            .build()
+
+        workManager.enqueueUniqueWork(
+            GenerationWorker.WORK_TAG,
+            ExistingWorkPolicy.KEEP, // Don't start a new one if already running
+            workRequest,
+        )
+        Log.d(TAG, "Unique work enqueued with KEEP policy")
+    }
+
+    /**
+     * Stop all queue processing.
+     *
+     * **Order (race-free):**
+     * 1. Cancel the WorkManager worker
+     * 2. Wait for worker confirmation (CANCELLED state, 5s timeout)
+     * 3. Mark remaining PENDING tasks as CANCELLED
+     *
+     * Step 1→2→3 ensures the worker has finished its current task's cleanup
+     * (e.g. [GenerationWorker.resetTaskToPending]) before we cancel the queue.
+     * This prevents the worker resetting a task to PENDING *after* we've
+     * already cancelled everything.
+     */
+    suspend fun stop(context: Context) {
+        val workManager = WorkManager.getInstance(context)
+        val queueRepository = QueueRepository.getInstance(context)
+
+        // Step 1: Cancel the worker
+        workManager.cancelAllWorkByTag(GenerationWorker.WORK_TAG)
+        Log.d(TAG, "Worker cancellation requested")
+
+        // Step 2: Wait for worker to confirm cancellation (with timeout)
+        val confirmed = withTimeoutOrNull(5000L) {
+            workManager.getWorkInfosForUniqueWorkLiveData(GenerationWorker.WORK_TAG)
+                .asFlow()
+                .first { infos ->
+                    infos.all {
+                        it.state == WorkInfo.State.CANCELLED ||
+                        it.state == WorkInfo.State.SUCCEEDED ||
+                        it.state == WorkInfo.State.FAILED
+                    }
+                }
+        }
+        if (confirmed == null) {
+            Log.w(TAG, "Worker did not confirm cancellation within 5s — proceeding anyway")
+        } else {
+            Log.d(TAG, "Worker confirmed termination")
+        }
+
+        // Step 3: Now safe to cancel queue
+        queueRepository.cancelAllPending()
+        queueRepository.setProcessingActive(false)
+        Log.d(TAG, "Queue processing stopped")
+    }
+
+    /**
+     * Observe the WorkInfo for the queue worker.
+     * Emits only when a WorkInfo is available (null is filtered out).
+     */
+    fun observeState(context: Context): Flow<WorkInfo?> {
+        val workManager = WorkManager.getInstance(context)
+        return workManager.getWorkInfosForUniqueWorkLiveData(GenerationWorker.WORK_TAG)
+            .asFlow()
+            .mapNotNull { infos ->
+                // infos is List<WorkInfo>; we only care about the first (only) one
+                infos.firstOrNull()
+            }
+    }
+
+    /** Convert WorkInfo state to a user-friendly status string */
+    fun stateLabel(info: WorkInfo?): String = when (info?.state) {
+        WorkInfo.State.ENQUEUED -> "ENQUEUED"
+        WorkInfo.State.RUNNING -> "RUNNING"
+        WorkInfo.State.SUCCEEDED -> "DONE"
+        WorkInfo.State.FAILED -> "FAILED"
+        WorkInfo.State.BLOCKED -> "BLOCKED"
+        WorkInfo.State.CANCELLED -> "CANCELLED"
+        null -> "IDLE"
+    }
+}
+
+/** Convert LiveData to cold Flow via callbackFlow */
+private fun <T> LiveData<T>.asFlow(): Flow<T> = callbackFlow {
+    val observer = Observer<T> { value -> if (value != null) trySend(value) }
+    observeForever(observer)
+    awaitClose { removeObserver(observer) }
+}

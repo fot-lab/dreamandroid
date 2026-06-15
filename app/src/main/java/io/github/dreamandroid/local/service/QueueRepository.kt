@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.service
 
+import android.content.Context
 import android.graphics.Bitmap
 import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.data.BatchGroupDisplay
@@ -9,7 +10,29 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
-class QueueRepository {
+/**
+ * In-memory queue state management, shared between UI and WorkManager Worker.
+ *
+ * Accessed via [QueueRepository.getInstance] to ensure a single instance
+ * per process (Application-scoped singleton).
+ *
+ * WorkManager's GenerationWorker polls [getNextPending] to dequeue tasks,
+ * while the UI observes [tasks] and [processingActive] via collectAsState().
+ */
+class QueueRepository private constructor() {
+
+    companion object {
+        @Volatile
+        private var INSTANCE: QueueRepository? = null
+
+        /** Returns the process-wide singleton. Safe to call from any thread. */
+        fun getInstance(context: Context): QueueRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: QueueRepository().also { INSTANCE = it }
+            }
+        }
+    }
+
     private val _tasks = MutableStateFlow<List<GenerationTask>>(emptyList())
     val tasks: StateFlow<List<GenerationTask>> = _tasks
 
@@ -60,24 +83,33 @@ class QueueRepository {
                 aspectRatio = aspectRatio,
             )
         }
-        _tasks.value = _tasks.value + newTasks
+        _tasks.update { it + newTasks }
         return batchGroupId
     }
 
     fun removeTask(id: String) {
-        _tasks.value = _tasks.value.filterNot { it.id == id }
+        _tasks.update { it.filterNot { t -> t.id == id } }
     }
 
     fun removeBatch(batchGroupId: String) {
-        _tasks.value = _tasks.value.filterNot { it.batchGroupId == batchGroupId }
+        _tasks.update { it.filterNot { t -> t.batchGroupId == batchGroupId } }
     }
 
     fun updateTask(id: String, update: (GenerationTask) -> GenerationTask) {
-        _tasks.value = _tasks.value.map { if (it.id == id) update(it) else it }
+        _tasks.update { it.map { t -> if (t.id == id) update(t) else t } }
     }
 
     fun markTaskProcessing(id: String) {
         updateTask(id) { it.copy(status = TaskStatus.PROCESSING) }
+    }
+
+    /**
+     * Reset a PROCESSING task back to PENDING.
+     * Used when the backend becomes unavailable mid-generation —
+     * the task is not failed, only deferred until the backend returns.
+     */
+    fun resetTaskToPending(id: String) {
+        updateTask(id) { it.copy(status = TaskStatus.PENDING, progress = 0f) }
     }
 
     fun markTaskComplete(id: String, bitmap: Bitmap?, seed: Long?) {
@@ -114,10 +146,12 @@ class QueueRepository {
     }
 
     fun cancelAllPending() {
-        _tasks.value = _tasks.value.map { task ->
-            if (task.status == TaskStatus.PENDING) {
-                task.copy(status = TaskStatus.CANCELLED)
-            } else task
+        _tasks.update { tasks ->
+            tasks.map { task ->
+                if (task.status == TaskStatus.PENDING) {
+                    task.copy(status = TaskStatus.CANCELLED)
+                } else task
+            }
         }
     }
 
@@ -144,6 +178,6 @@ class QueueRepository {
     }
 
     fun clearCompleted() {
-        _tasks.value = _tasks.value.filterNot { it.status == TaskStatus.COMPLETED }
+        _tasks.update { it.filterNot { t -> t.status == TaskStatus.COMPLETED } }
     }
 }

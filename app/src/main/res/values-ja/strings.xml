@@ -50,6 +50,13 @@
     <string name="dark_mode_system">システム</string>
     <string name="dark_mode_light">ライト</string>
     <string name="dark_mode_dark">ダーク</string>
+    <string name="oled_black">OLED 純黒</string>
+    <string name="oled_black_hint">AMOLEDディスプレイで完全な黒背景を使用して電力を節約</string>
+    <string name="backend_settings">バックエンド</string>
+    <string name="generation_settings">生成</string>
+    <string name="health_check_settings">ヘルスチェック</string>
+    <string name="download_settings_section">ダウンロード</string>
+    <string name="version_label">バージョン：%1$s</string>
     <string name="theme_tangerine">オレンジ</string>
     <string name="theme_forest">フォレスト</string>
     <string name="theme_ocean">オーシャン</string>
@@ -155,6 +162,7 @@
     <string name="steps">ステップ数: %d</string>
     <string name="image_size">画像サイズ: %1$dx%2$d</string>
     <string name="random_seed">ランダムシード(任意)</string>
+    <string name="invalid_seed_format">無効なシード — 空または数値である必要があります</string>
     <string name="use_last_seed">最後に利用したシードを利用 (%s)</string>
     <string name="batch_count_label">生成枚数</string>
     <string name="batch_count">生成枚数: %d</string>
@@ -352,4 +360,10 @@
     <string name="custom_upscale_model_name_hint">アップスケールモデル名を入力</string>
     <string name="model_type_generation">生成</string>
     <string name="model_type_upscale">アップスケール</string>
+    <string name="save_info">パラメータを保存</string>
+    <string name="parameters_saved">パラメータを保存しました</string>
+    <string name="batch_save_params">パラメータ一括保存</string>
+    <plurals name="batch_save_params_confirm">
+        <item quantity="other">選択した %d 枚の画像のパラメータをレコードマネージャーに保存しますか？</item>
+    </plurals>
 </resources>

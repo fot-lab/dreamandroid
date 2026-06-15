@@ -15,6 +15,13 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+@Deprecated(
+    message = "Use BackendManager (io.github.dreamandroid.local.service.backend.BackendManager) instead",
+    replaceWith = ReplaceWith(
+        "BackendManager(context)",
+        "io.github.dreamandroid.local.service.backend.BackendManager",
+    ),
+)
 class BackendService : Service() {
     private var process: Process? = null
     private lateinit var runtimeDir: File

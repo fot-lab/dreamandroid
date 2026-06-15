@@ -6,6 +6,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -42,6 +44,10 @@ import io.github.dreamandroid.local.service.backend.BackendManager
  * GenerateScreen – image generation parameter configuration.
  * All generation parameters are managed by the parent (MainActivity) and passed down.
  * When the user clicks Generate, parameters are sent to the Queue for background processing.
+ *
+ * The screen is split into two sub-tabs:
+ *  - Parameters: parameter editing form
+ *  - Records:    saved prompt/parameter records from Queue & Gallery
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +79,8 @@ fun GenerateScreen(
     onHeightChange: (Int) -> Unit,
     // Queue interaction — sends current params to the queue
     onAddToQueue: (Int) -> Unit = {},
+    // Record Manager
+    recordRepository: RecordRepository? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -89,6 +97,9 @@ fun GenerateScreen(
     var negativePromptTokenMax by remember { mutableIntStateOf(77) }
     var promptOverflowOffset by remember { mutableIntStateOf(-1) }
     var negativePromptOverflowOffset by remember { mutableIntStateOf(-1) }
+
+    // ---- Sub-tab selection ----
+    var selectedGenerateTab by remember { mutableIntStateOf(0) }
 
     // ---- Queue add feedback ----
     var queueAddMessage by remember { mutableStateOf<String?>(null) }
@@ -191,6 +202,8 @@ fun GenerateScreen(
     }
 
     // ---- UI ----
+    val tabs = listOf("Parameters" to Icons.Default.Tune, "Records" to Icons.Default.Bookmarks)
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -199,15 +212,29 @@ fun GenerateScreen(
                 indication = null,
             ) { focusManager.clearFocus() },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        // ---- Sub-tab Row ----
+        TabRow(selectedTabIndex = selectedGenerateTab) {
+            tabs.forEachIndexed { index, (title, icon) ->
+                Tab(
+                    selected = selectedGenerateTab == index,
+                    onClick = { selectedGenerateTab = index },
+                    text = { Text(title) },
+                    icon = { Icon(icon, contentDescription = title) },
+                )
+            }
+        }
+
+        // ---- Tab Content ----
+        when (selectedGenerateTab) {
+            0 -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             Spacer(Modifier.height(4.dp))
 
             // ---- Batch Count (moved to top, above prompt) ----
@@ -626,6 +653,7 @@ fun GenerateScreen(
             }
 
             // Seed
+            val isSeedValid = seed.isEmpty() || seed.toLongOrNull() != null
             OutlinedTextField(
                 value = seed,
                 onValueChange = { onSeedChange(it); saveAllFields() },
@@ -634,6 +662,10 @@ fun GenerateScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
                 singleLine = true,
+                isError = !isSeedValid,
+                supportingText = if (!isSeedValid) {
+                    { Text(stringResource(R.string.invalid_seed_format), color = MaterialTheme.colorScheme.error) }
+                } else null,
                 trailingIcon = {
                     if (seed.isNotEmpty()) {
                         IconButton(onClick = { onSeedChange(""); saveAllFields() }) {
@@ -719,6 +751,205 @@ fun GenerateScreen(
             }
 
             Spacer(Modifier.height(16.dp))
+        } // end Parameters tab Column
+
+            1 -> {
+                val records by recordRepository?.records?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+                RecordsTabContent(
+                    records = records ?: emptyList(),
+                    onDeleteRecord = { id -> scope.launch { recordRepository?.deleteRecord(id) } },
+                    onLoadRecord = { record ->
+                        // Load record into parameter editor then switch to Parameters tab
+                        onPromptChange(record.prompt)
+                        onNegativePromptChange(record.negativePrompt)
+                        onStepsChange(record.steps.toFloat())
+                        onCfgChange(record.cfg)
+                        onSeedChange(record.seed?.toString() ?: "")
+                        onWidthChange(record.width)
+                        onHeightChange(record.height)
+                        onSchedulerChange(record.scheduler)
+                        selectedGenerateTab = 0
+                    },
+                )
+            }
+        } // end when(selectedGenerateTab)
+    } // end outer Column
+}
+
+// =========== Records Tab Content ===========
+
+@Composable
+private fun RecordsTabContent(
+    records: List<GenerateParameterRecord>,
+    onDeleteRecord: (String) -> Unit,
+    onLoadRecord: (GenerateParameterRecord) -> Unit,
+) {
+    if (records.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.Bookmarks,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "No saved records",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Save prompts from Queue or Gallery to see them here",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(records, key = { it.id }) { record ->
+            RecordCard(
+                record = record,
+                onDelete = { onDeleteRecord(record.id) },
+                onLoad = { onLoadRecord(record) },
+            )
+        }
+        item { Spacer(Modifier.height(80.dp)) }
+    }
+}
+
+@Composable
+private fun RecordCard(
+    record: GenerateParameterRecord,
+    onDelete: () -> Unit,
+    onLoad: () -> Unit,
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Record") },
+            text = { Text("Delete this saved parameter record?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Source chip + prompt
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Source badge
+                val sourceColor = when (record.source) {
+                    RecordSource.QUEUE -> MaterialTheme.colorScheme.primaryContainer
+                    RecordSource.GALLERY -> MaterialTheme.colorScheme.tertiaryContainer
+                }
+                val sourceTextColor = when (record.source) {
+                    RecordSource.QUEUE -> MaterialTheme.colorScheme.onPrimaryContainer
+                    RecordSource.GALLERY -> MaterialTheme.colorScheme.onTertiaryContainer
+                }
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = sourceColor,
+                ) {
+                    Text(
+                        text = record.source.name,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sourceTextColor,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = record.prompt.ifEmpty { "(empty prompt)" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // Params summary
+            Text(
+                text = record.paramsSummary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Load button
+                FilledTonalButton(
+                    onClick = onLoad,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                ) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = "Load to editor",
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Load", style = MaterialTheme.typography.labelMedium)
+                }
+                Spacer(Modifier.width(8.dp))
+                // Delete button
+                IconButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete record",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         }
     }
 }

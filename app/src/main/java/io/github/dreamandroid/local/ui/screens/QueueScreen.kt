@@ -36,6 +36,7 @@ fun QueueScreen(
     processingActive: Boolean,
     onRemoveTask: (String) -> Unit,
     onRemoveBatch: (String) -> Unit,
+    onSaveInfo: (GenerationTask) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
@@ -87,6 +88,7 @@ fun QueueScreen(
                     task = task,
                     processingActive = processingActive,
                     onRemove = { onRemoveTask(task.id) },
+                    onSaveInfo = { onSaveInfo(task) },
                     onToggleExpand = null,
                     isExpanded = false,
                 )
@@ -101,6 +103,7 @@ fun QueueScreen(
                     },
                     onRemoveTask = onRemoveTask,
                     onRemoveBatch = onRemoveBatch,
+                    onSaveInfo = onSaveInfo,
                 )
             }
         }
@@ -115,47 +118,83 @@ private fun TaskCard(
     task: GenerationTask,
     processingActive: Boolean,
     onRemove: () -> Unit,
+    onSaveInfo: () -> Unit = {},
     onToggleExpand: (() -> Unit)?,
     isExpanded: Boolean,
 ) {
     val statusColor = statusColor(task.status, processingActive)
+    val canSwipe = task.status != TaskStatus.PROCESSING
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onRemove()
-                true
-            } else false
+            when (value) {
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onRemove()
+                    true
+                }
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    onSaveInfo()
+                    false // don't dismiss — saving is a copy operation
+                }
+                else -> false
+            }
         },
     )
 
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            val color by animateColorAsState(
-                targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
-                    MaterialTheme.colorScheme.errorContainer
-                else Color.Transparent,
+            val target = dismissState.targetValue
+            // EndToStart = left-swipe delete (red)
+            // StartToEnd = right-swipe save (green)
+            val bgColor by animateColorAsState(
+                targetValue = when (target) {
+                    SwipeToDismissBoxValue.EndToStart ->
+                        MaterialTheme.colorScheme.errorContainer
+                    SwipeToDismissBoxValue.StartToEnd ->
+                        MaterialTheme.colorScheme.primaryContainer
+                    else -> Color.Transparent
+                },
                 animationSpec = tween(300),
                 label = "swipeBg",
             )
+            val iconTint by animateColorAsState(
+                targetValue = when (target) {
+                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
+                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.onPrimaryContainer
+                    else -> Color.Transparent
+                },
+                animationSpec = tween(300),
+                label = "swipeIcon",
+            )
+            val alignment = when (target) {
+                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                else -> Alignment.CenterEnd
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(color)
+                    .background(bgColor)
                     .padding(horizontal = 24.dp, vertical = 8.dp),
-                contentAlignment = Alignment.CenterEnd,
+                contentAlignment = alignment,
             ) {
                 Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error,
+                    imageVector = when (target) {
+                        SwipeToDismissBoxValue.StartToEnd -> Icons.Default.SaveAlt
+                        else -> Icons.Default.Delete
+                    },
+                    contentDescription = when (target) {
+                        SwipeToDismissBoxValue.StartToEnd -> "Save"
+                        else -> "Delete"
+                    },
+                    tint = iconTint,
                 )
             }
         },
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = task.status != TaskStatus.PROCESSING,
+        enableDismissFromStartToEnd = canSwipe,
+        enableDismissFromEndToStart = canSwipe,
     ) {
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -271,45 +310,78 @@ private fun BatchGroupCard(
     onToggleExpand: () -> Unit,
     onRemoveTask: (String) -> Unit,
     onRemoveBatch: (String) -> Unit,
+    onSaveInfo: (GenerationTask) -> Unit = {},
 ) {
+    val canSwipe = group.tasks.none { it.status == TaskStatus.PROCESSING }
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onRemoveBatch(group.batchGroupId)
-                true
-            } else false
+            when (value) {
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onRemoveBatch(group.batchGroupId)
+                    true
+                }
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    group.tasks.forEach { onSaveInfo(it) }
+                    false // don't dismiss — saving is a copy operation
+                }
+                else -> false
+            }
         },
     )
-
-    val canDismiss = group.tasks.none { it.status == TaskStatus.PROCESSING }
 
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            val color by animateColorAsState(
-                targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
-                    MaterialTheme.colorScheme.errorContainer
-                else Color.Transparent,
+            val target = dismissState.targetValue
+            val bgColor by animateColorAsState(
+                targetValue = when (target) {
+                    SwipeToDismissBoxValue.EndToStart ->
+                        MaterialTheme.colorScheme.errorContainer
+                    SwipeToDismissBoxValue.StartToEnd ->
+                        MaterialTheme.colorScheme.primaryContainer
+                    else -> Color.Transparent
+                },
                 animationSpec = tween(300),
                 label = "swipeBg",
             )
+            val iconTint by animateColorAsState(
+                targetValue = when (target) {
+                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
+                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.onPrimaryContainer
+                    else -> Color.Transparent
+                },
+                animationSpec = tween(300),
+                label = "swipeIcon",
+            )
+            val alignment = when (target) {
+                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                else -> Alignment.CenterEnd
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(color)
+                    .background(bgColor)
                     .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.CenterEnd,
+                contentAlignment = alignment,
             ) {
                 Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete batch",
-                    tint = MaterialTheme.colorScheme.error,
+                    imageVector = when (target) {
+                        SwipeToDismissBoxValue.StartToEnd -> Icons.Default.SaveAlt
+                        else -> Icons.Default.Delete
+                    },
+                    contentDescription = when (target) {
+                        SwipeToDismissBoxValue.StartToEnd -> "Save batch"
+                        else -> "Delete batch"
+                    },
+                    tint = iconTint,
                 )
             }
         },
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = canDismiss,
+        enableDismissFromStartToEnd = canSwipe,
+        enableDismissFromEndToStart = canSwipe,
     ) {
         ElevatedCard(
             modifier = Modifier
@@ -395,6 +467,7 @@ private fun BatchGroupCard(
                                 task = task,
                                 processingActive = processingActive,
                                 onRemove = { onRemoveTask(task.id) },
+                                onSaveInfo = { onSaveInfo(task) },
                                 onToggleExpand = null,
                                 isExpanded = false,
                             )

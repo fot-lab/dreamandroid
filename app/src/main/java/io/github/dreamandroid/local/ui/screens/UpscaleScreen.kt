@@ -42,8 +42,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
 import io.github.dreamandroid.local.BuildConfig
+import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.R
-import io.github.dreamandroid.local.service.UpscaleBackendManager
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.components.BlockingProgressOverlay
 import io.github.dreamandroid.local.ui.components.ErrorMessageCard
 import io.github.dreamandroid.local.ui.components.SmoothCircularWavyProgressIndicator
@@ -75,10 +76,14 @@ fun UpscaleScreen(modifier: Modifier = Modifier) {
     var sharedOffsetX by remember { mutableFloatStateOf(0f) }
     var sharedOffsetY by remember { mutableFloatStateOf(0f) }
 
-    // Use shared UpscaleBackendManager state
-    val upscaleBackendState by UpscaleBackendManager.state.collectAsState()
-    val isUpscaleBackendRunning = upscaleBackendState is UpscaleBackendManager.State.Running
-    val loadedUpscalerId = (upscaleBackendState as? UpscaleBackendManager.State.Running)?.upscalerId
+    // §17.3: Observe unified BackendManager.state (replaces UpscaleBackendManager.state)
+    val app = context.applicationContext as DreamAndroidApplication
+    val backendManager = app.backendManager
+    val upscaleBackendState by backendManager.state.collectAsState()
+    val isUpscaleBackendRunning = upscaleBackendState is BackendManager.State.Running
+        && (upscaleBackendState as BackendManager.State.Running).mode == BackendManager.Mode.Upscaler
+    val loadedUpscalerId = (upscaleBackendState as? BackendManager.State.Running)
+        ?.takeIf { it.mode == BackendManager.Mode.Upscaler }?.modelId
 
     // String resources hoisted to composable scope.
     val msgImageResolutionTooLarge = stringResource(R.string.image_resolution_too_large)

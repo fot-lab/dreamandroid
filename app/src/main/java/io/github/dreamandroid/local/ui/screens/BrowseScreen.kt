@@ -43,7 +43,10 @@ import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun BrowseScreen(modifier: Modifier = Modifier) {
+fun BrowseScreen(
+    modifier: Modifier = Modifier,
+    recordRepository: RecordRepository? = null,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val historyManager = remember { HistoryManager(context) }
@@ -58,6 +61,7 @@ fun BrowseScreen(modifier: Modifier = Modifier) {
     val selectedItems = remember { mutableStateListOf<HistoryItem>() }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
     var showBatchSaveDialog by remember { mutableStateOf(false) }
+    var showBatchSaveInfoDialog by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
     var showHistoryDetailDialog by remember { mutableStateOf<HistoryItem?>(null) }
     var isPreviewMode by remember { mutableStateOf(false) }
@@ -184,6 +188,65 @@ fun BrowseScreen(modifier: Modifier = Modifier) {
         )
     }
 
+    if (showBatchSaveInfoDialog && selectedItems.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showBatchSaveInfoDialog = false },
+            title = { Text(stringResource(R.string.batch_save_params)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.batch_save_params_confirm,
+                        selectedItems.size,
+                        selectedItems.size,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            var savedCount = 0
+                            selectedItems.toList().forEach { item ->
+                                try {
+                                    val record = GenerateParameterRecord(
+                                        prompt = item.params.prompt,
+                                        negativePrompt = item.params.negativePrompt,
+                                        modelId = item.modelId,
+                                        steps = item.params.steps,
+                                        cfg = item.params.cfg,
+                                        seed = item.params.seed,
+                                        width = item.params.width,
+                                        height = item.params.height,
+                                        scheduler = item.params.scheduler,
+                                        timestamp = item.timestamp,
+                                        source = RecordSource.GALLERY,
+                                    )
+                                    recordRepository?.addRecord(record)
+                                    savedCount++
+                                } catch (_: Exception) { }
+                            }
+                            selectedItems.clear()
+                            isSelectionMode = false
+                            showBatchSaveInfoDialog = false
+                            Toast.makeText(
+                                context,
+                                "$savedCount parameters saved",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.save_info))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBatchSaveInfoDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     // Single item delete dialog
     showHistoryDetailDialog?.let { item ->
         var showDelete by remember { mutableStateOf(false) }
@@ -232,6 +295,37 @@ fun BrowseScreen(modifier: Modifier = Modifier) {
                         modifier = Modifier.weight(1f),
                     )
                     Row {
+                        // Save Info — records params to RecordRepository
+                        IconButton(onClick = {
+                            scope.launch {
+                                val record = GenerateParameterRecord(
+                                    prompt = item.params.prompt,
+                                    negativePrompt = item.params.negativePrompt,
+                                    modelId = item.modelId,
+                                    steps = item.params.steps,
+                                    cfg = item.params.cfg,
+                                    seed = item.params.seed,
+                                    width = item.params.width,
+                                    height = item.params.height,
+                                    scheduler = item.params.scheduler,
+                                    timestamp = item.timestamp,
+                                    source = RecordSource.GALLERY,
+                                )
+                                recordRepository?.addRecord(record)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.parameters_saved),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.NoteAdd,
+                                stringResource(R.string.save_info),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        // Download — saves image bitmap to gallery
                         IconButton(onClick = {
                             scope.launch(Dispatchers.IO) {
                                 val bitmap = try {
@@ -395,6 +489,13 @@ fun BrowseScreen(modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconButton(onClick = { showBatchSaveInfoDialog = true }) {
+                            Icon(
+                                Icons.Default.NoteAdd,
+                                stringResource(R.string.save_info),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                         IconButton(onClick = { showBatchSaveDialog = true }) {
                             Icon(Icons.Default.SaveAlt, stringResource(R.string.save))
                         }

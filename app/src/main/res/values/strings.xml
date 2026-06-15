@@ -65,6 +65,13 @@
     <string name="dark_mode_system">System</string>
     <string name="dark_mode_light">Light</string>
     <string name="dark_mode_dark">Dark</string>
+    <string name="oled_black">OLED pure black</string>
+    <string name="oled_black_hint">Use true black background on AMOLED screens to save power</string>
+    <string name="backend_settings">Backend</string>
+    <string name="generation_settings">Generation</string>
+    <string name="health_check_settings">Health Check</string>
+    <string name="download_settings_section">Downloads</string>
+    <string name="version_label">Version: %1$s</string>
     <string name="theme_tangerine">Tangerine</string>
     <string name="theme_forest">Forest</string>
     <string name="theme_ocean">Ocean</string>
@@ -186,6 +193,7 @@
     <string name="steps">Steps: %d</string>
     <string name="image_size">Image Size: %1$dx%2$d</string>
     <string name="random_seed">Random Seed (Optional)</string>
+    <string name="invalid_seed_format">Invalid seed — must be empty or a number</string>
     <string name="use_last_seed">Use Last Seed (%s)</string>
     <string name="batch_count_label">Batch Count</string>
     <string name="batch_count">Batch Count: %d</string>
@@ -419,4 +427,11 @@
     <string name="no_generated_images_hint">Generate images first to see them here</string>
     <string name="image_saved_to_gallery">Saved to gallery</string>
     <string name="image_save_failed">Failed to save image</string>
+    <string name="save_info">Save Parameters</string>
+    <string name="parameters_saved">Parameters saved</string>
+    <string name="batch_save_params">Batch Save Parameters</string>
+    <plurals name="batch_save_params_confirm">
+        <item quantity="one">Save parameters from %d selected image to record manager?</item>
+        <item quantity="other">Save parameters from %d selected images to record manager?</item>
+    </plurals>
 </resources>

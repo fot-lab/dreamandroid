@@ -55,6 +55,13 @@
     <string name="dark_mode_system">시스템</string>
     <string name="dark_mode_light">라이트</string>
     <string name="dark_mode_dark">다크</string>
+    <string name="oled_black">OLED 순수 검정</string>
+    <string name="oled_black_hint">AMOLED 화면에서 전력 절약을 위해 완전 검정 배경 사용</string>
+    <string name="backend_settings">백엔드</string>
+    <string name="generation_settings">생성</string>
+    <string name="health_check_settings">헬스 체크</string>
+    <string name="download_settings_section">다운로드</string>
+    <string name="version_label">버전: %1$s</string>
     <string name="theme_tangerine">탠저린</string>
     <string name="theme_forest">포레스트</string>
     <string name="theme_ocean">오션</string>
@@ -169,6 +176,7 @@
     <string name="steps">스텝: %d</string>
     <string name="image_size">이미지 크기: %1$dx%2$d</string>
     <string name="random_seed">랜덤 시드(선택 사항)</string>
+    <string name="invalid_seed_format">잘못된 시드 — 비어 있거나 숫자여야 합니다</string>
     <string name="use_last_seed">마지막 시드 사용 (%s)</string>
     <string name="batch_count_label">배치 수</string>
     <string name="batch_count">배치 수: %d</string>
@@ -380,4 +388,10 @@
     <string name="custom_upscale_model_name_hint">업스케일 모델 이름 입력</string>
     <string name="model_type_generation">생성</string>
     <string name="model_type_upscale">업스케일</string>
+    <string name="save_info">매개변수 저장</string>
+    <string name="parameters_saved">매개변수가 저장되었습니다</string>
+    <string name="batch_save_params">매개변수 일괄 저장</string>
+    <plurals name="batch_save_params_confirm">
+        <item quantity="other">선택한 %d개 이미지의 매개변수를 레코드 관리자에 저장하시겠습니까?</item>
+    </plurals>
 </resources>

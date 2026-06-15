@@ -1,8 +1,5 @@
 package io.github.dreamandroid.local.service.queue
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
@@ -10,26 +7,26 @@ import android.graphics.Bitmap
 import android.os.IBinder
 import android.util.Base64
 import android.util.Log
-import androidx.core.app.NotificationCompat
 import io.github.dreamandroid.local.DreamAndroidApplication
-import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.core.model.GenerateParams
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.ui.screens.GenerationParameters
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.coroutines.coroutineContext
 
 /**
  * Persistent Foreground Service that sequentially processes the generation queue.
@@ -44,8 +41,6 @@ class QueueProcessingService : Service() {
 
     companion object {
         private const val TAG = "QueueProcService"
-        private const val CHANNEL_ID = "queue_processing_channel"
-        private const val NOTIFICATION_ID = 5
         const val ACTION_STOP = "io.github.dreamandroid.local.STOP_QUEUE"
     }
 
@@ -54,13 +49,8 @@ class QueueProcessingService : Service() {
     private val backendManager get() = (application as DreamAndroidApplication).backendManager
     private val historyManager by lazy { HistoryManager(applicationContext) }
 
-    // QueueRepository is still a plain class (not in Application DI yet)
-    // TODO: Move to Application DI in next phase
-    private val queueRepository = QueueRepository()
-
-    private val notificationManager by lazy {
-        getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-    }
+    // Use process-wide singleton shared with WorkManager Worker and UI
+    private val queueRepository get() = QueueRepository.getInstance(applicationContext)
 
     // ── State ──
 
@@ -77,7 +67,6 @@ class QueueProcessingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
         Log.d(TAG, "Service created")
     }
 
@@ -93,8 +82,8 @@ class QueueProcessingService : Service() {
         }
 
         startForeground(
-            NOTIFICATION_ID,
-            createNotification("Idle", 0)
+            QueueNotificationHelper.NOTIFICATION_ID,
+            QueueNotificationHelper.createNotification(this, "Idle", 0),
         )
 
         // Start processing loop if not already running
@@ -125,6 +114,12 @@ class QueueProcessingService : Service() {
         }
     }
 
+    /**
+     * Main processing loop. Strategy aligned with [GenerationWorker]:
+     * - Health check failure → pause-and-poll (not permanent error)
+     * - Backend crash → resetTaskToPending (not permanent error)
+     * - Cancellation → resetTaskToPending + re-throw
+     */
     private suspend fun processLoop() {
         while (coroutineContext.isActive) {
             val task = queueRepository.getNextPending()
@@ -140,11 +135,11 @@ class QueueProcessingService : Service() {
             queueRepository.markTaskProcessing(task.id)
             updateNotification("Processing: ${task.prompt.take(30)}...", 0)
 
-            // 1. Health Check with retry
-            if (!backendManager.healthCheckWithRetry()) {
-                Log.e(TAG, "Health check failed after retries for task ${task.id}")
-                queueRepository.markTaskError(task.id, AppError.Backend("Health check failed"))
-                continue
+            // 1. Health Check — pause and poll until backend online
+            // Aligned with GenerationWorker.waitForBackend() strategy (§16.C.1)
+            if (!waitForBackend()) {
+                // Service was cancelled while waiting
+                return
             }
 
             // 2. Build GenerateParams from task
@@ -172,18 +167,17 @@ class QueueProcessingService : Service() {
                             queueRepository.updateTaskProgress(task.id, progress)
                             updateNotification(
                                 "Generating: ${task.prompt.take(30)}...",
-                                (progress * 100).toInt()
+                                (progress * 100).toInt(),
                             )
                         }
                         is SseStreamParser.SseEvent.Complete -> {
                             val bitmap = base64ToBitmap(
                                 event.imageBase64,
                                 event.width,
-                                event.height
+                                event.height,
                             )
                             if (bitmap != null) {
-                                // Save to history via HistoryManager (handles file + Room transaction)
-                                val params = GenerationParameters(
+                                val genParams = GenerationParameters(
                                     steps = task.steps,
                                     cfg = task.cfg,
                                     seed = event.seed,
@@ -198,39 +192,78 @@ class QueueProcessingService : Service() {
                                     scheduler = task.scheduler,
                                     mode = GenerationMode.TXT2IMG,
                                 )
-                                historyManager.saveGeneratedImage(
+                                // Check save result — do NOT mark COMPLETED if save failed
+                                val historyItem = historyManager.saveGeneratedImage(
                                     modelId = task.modelId,
                                     bitmap = bitmap,
-                                    params = params,
+                                    params = genParams,
                                     mode = GenerationMode.TXT2IMG,
                                 )
-
-                                queueRepository.markTaskComplete(task.id, bitmap, event.seed)
-                                updateNotification(
-                                    "Complete: ${task.prompt.take(30)}...",
-                                    100
-                                )
-                                // Bitmap will be recycled by UI after consumption
+                                if (historyItem != null) {
+                                    queueRepository.markTaskComplete(task.id, bitmap, event.seed)
+                                    updateNotification(
+                                        "Complete: ${task.prompt.take(30)}...",
+                                        100,
+                                    )
+                                } else {
+                                    queueRepository.markTaskError(
+                                        task.id,
+                                        AppError.Storage("Failed to save generated image"),
+                                    )
+                                    bitmap.recycle()
+                                }
                             } else {
                                 queueRepository.markTaskError(
                                     task.id,
-                                    AppError.Parse("Failed to decode result bitmap")
+                                    AppError.Parse("Failed to decode result bitmap"),
                                 )
                             }
                         }
                         is SseStreamParser.SseEvent.Error -> {
                             queueRepository.markTaskError(
                                 task.id,
-                                AppError.Backend(event.message)
+                                AppError.Backend(event.message),
                             )
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                // User cancelled via ACTION_STOP → reset for retry
+                Log.d(TAG, "Service cancelled during generation — resetting task ${task.id}")
+                queueRepository.resetTaskToPending(task.id)
+                throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Generation failed for task ${task.id}", e)
-                queueRepository.markTaskError(task.id, AppError.from(e))
+                // Backend may have crashed — reset to PENDING for retry
+                // Aligned with GenerationWorker strategy (§16.C.2)
+                Log.e(TAG, "Generation interrupted for task ${task.id} (backend may be down)", e)
+                queueRepository.resetTaskToPending(task.id)
+                // Loop will re-enter waitForBackend() at the top of the next iteration
             }
         }
+    }
+
+    /**
+     * Blocks until the backend HTTP server responds to /health, or the service is cancelled.
+     * Aligned with [GenerationWorker.waitForBackend()] strategy (§16.C.1).
+     *
+     * @return true when backend is available; false if the service was cancelled
+     */
+    private suspend fun waitForBackend(): Boolean {
+        if (backendManager.healthCheck()) return true
+
+        Log.d(TAG, "Backend not available — pausing queue until backend comes online")
+        updateNotification("Waiting for backend...", 0)
+
+        while (coroutineContext.isActive) {
+            delay(3000L)
+            if (backendManager.healthCheck()) {
+                Log.d(TAG, "Backend is now available — resuming queue processing")
+                return true
+            }
+            Log.d(TAG, "Still waiting for backend...")
+        }
+
+        return false // Service cancelled
     }
 
     // ── Helpers ──
@@ -259,44 +292,21 @@ class QueueProcessingService : Service() {
 
     // ── Notification ──
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Queue Processing",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Background queue processing"
-        }
-        notificationManager.createNotificationChannel(channel)
-    }
-
-    private fun createNotification(title: String, progress: Int): Notification {
-        val openAppIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, openAppIntent, PendingIntent.FLAG_IMMUTABLE
-        )
-
+    private fun updateNotification(text: String, progress: Int) {
         val stopIntent = Intent(this, QueueProcessingService::class.java).apply {
             action = ACTION_STOP
         }
         val stopPendingIntent = PendingIntent.getService(
-            this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE
+            this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE,
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("DreamHub Queue")
-            .setContentText(title)
-            .setProgress(100, progress, progress == 0)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
-            .setContentIntent(pendingIntent)
-            .addAction(android.R.drawable.ic_media_pause, "Stop", stopPendingIntent)
-            .setOngoing(true)
-            .build()
-    }
-
-    private fun updateNotification(text: String, progress: Int) {
-        notificationManager.notify(NOTIFICATION_ID, createNotification(text, progress))
+        val notification = QueueNotificationHelper.createNotification(
+            context = this,
+            title = text,
+            progress = progress,
+            stopPendingIntent = stopPendingIntent,
+        )
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        nm.notify(QueueNotificationHelper.NOTIFICATION_ID, notification)
     }
 }
