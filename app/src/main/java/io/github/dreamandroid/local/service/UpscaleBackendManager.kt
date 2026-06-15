@@ -20,6 +20,13 @@ import kotlinx.coroutines.launch
  * Used by [ModelListTab] for load/unload, and by [UpscaleScreen] for status checks.
  * MainActivity consumes [state] to update [UpscaleTopBar] title warnings.
  */
+@Deprecated(
+    message = "Use BackendManager.startUpscaler() / BackendManager.stop() instead",
+    replaceWith = ReplaceWith(
+        "BackendManager(context)",
+        "io.github.dreamandroid.local.service.backend.BackendManager",
+    ),
+)
 object UpscaleBackendManager {
 
     sealed class State {

@@ -4,6 +4,7 @@ import android.app.Application
 import io.github.dreamandroid.local.data.HistoryMigration
 import io.github.dreamandroid.local.data.MigrationState
 import io.github.dreamandroid.local.data.db.AppDatabase
+import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.service.backend.RuntimeDirPreparer
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,10 @@ class DreamAndroidApplication : Application() {
             }
         }
     }
+
+    /** Process-wide singleton queue repository, shared between UI and WorkManager Worker. */
+    val queueRepository: QueueRepository
+        get() = QueueRepository.getInstance(this)
 
     // ── Migration State ──
 

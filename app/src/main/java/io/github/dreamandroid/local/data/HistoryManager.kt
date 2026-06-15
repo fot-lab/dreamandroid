@@ -67,6 +67,20 @@ class HistoryManager(private val context: Context) {
         return dir
     }
 
+    /**
+     * Save a generated image to the history store.
+     *
+     * **Write ordering (DB-first strategy):**
+     * 1. Insert into Room DB first (Single Source of Truth)
+     * 2. Write image file to disk
+     * 3. If file write fails, roll back the Room record to prevent orphan DB rows
+     *
+     * **Callers MUST check the return value.**
+     * A `null` return means the save failed (disk full, permission error, etc.)
+     * and the task should be marked ERROR, NOT COMPLETED.
+     *
+     * @return [HistoryItem] on success, `null` on failure (DB or file write error)
+     */
     suspend fun saveGeneratedImage(
         modelId: String,
         bitmap: Bitmap,
@@ -74,22 +88,16 @@ class HistoryManager(private val context: Context) {
         mode: GenerationMode,
         upscalerId: String? = null,
     ): HistoryItem? = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+        val historyDir = getHistoryDir(modelId)
+
+        val isUpscaled = upscalerId != null
+        val ext = if (isUpscaled) "jpg" else "png"
+        val relativePath = "history/$modelId/$timestamp.$ext"
+        val imageFile = File(historyDir, "$timestamp.$ext")
+
         try {
-            val timestamp = System.currentTimeMillis()
-            val historyDir = getHistoryDir(modelId)
-
-            val isUpscaled = upscalerId != null
-            val ext = if (isUpscaled) "jpg" else "png"
-            val imageFile = File(historyDir, "$timestamp.$ext")
-            imageFile.outputStream().use { out ->
-                if (isUpscaled) {
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                } else {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                }
-            }
-
-            val relativePath = "history/$modelId/$timestamp.$ext"
+            // Step 1: Insert into Room DB first (SSOT)
             val entity = HistoryEntity(
                 modelId = modelId,
                 timestamp = timestamp,
@@ -114,9 +122,28 @@ class HistoryManager(private val context: Context) {
                 useOpenCL = params.useOpenCL,
             )
             val id = dao.insert(entity)
+
+            // Step 2: Write image file to disk
+            try {
+                imageFile.outputStream().use { out ->
+                    if (isUpscaled) {
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                    } else {
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    }
+                }
+            } catch (fileEx: Exception) {
+                // File write failed → roll back Room record to prevent orphan DB rows
+                Log.e("HistoryManager", "File write failed, rolling back DB record", fileEx)
+                dao.deleteById(id)
+                return@withContext null
+            }
+
             HistoryItem.fromEntity(filesDir, entity.copy(id = id))
         } catch (e: Exception) {
+            // DB insert failed or other error → clean up any partial file
             Log.e("HistoryManager", "Failed to save image", e)
+            if (imageFile.exists()) imageFile.delete()
             null
         }
     }

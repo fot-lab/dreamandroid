@@ -36,21 +36,18 @@ import androidx.core.content.edit
 import java.io.File
 import io.github.dreamandroid.local.data.*
 import io.github.dreamandroid.local.navigation.BottomTab
-import io.github.dreamandroid.local.service.BackendService
-import io.github.dreamandroid.local.service.BackgroundGenerationService
 import io.github.dreamandroid.local.service.ModelDownloadService
 import io.github.dreamandroid.local.service.QueueRepository
-import io.github.dreamandroid.local.service.UpscaleBackendManager
+import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.queue.QueueController
 import io.github.dreamandroid.local.ui.screens.*
 import io.github.dreamandroid.local.ui.theme.DreamHubTheme
 import io.github.dreamandroid.local.ui.theme.LocalThemeController
 import io.github.dreamandroid.local.ui.theme.rememberThemeController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -161,9 +158,17 @@ private fun AppContent() {
     // ---- Shared state ----
     var selectedTab by remember { mutableStateOf(BottomTab.Models) }
     var selectedModelId by remember { mutableStateOf<String?>(null) }
-    val backendState by BackendService.backendState.collectAsState()
-    val isModelLoaded = backendState is BackendService.BackendState.Running
-    val isModelLoading = backendState is BackendService.BackendState.Starting
+
+    // §17.3: Unified backend lifecycle via BackendManager (single source of truth)
+    val app = context.applicationContext as DreamAndroidApplication
+    val backendManager = app.backendManager
+    val backendState by backendManager.state.collectAsState()
+    val isModelLoaded = backendState is BackendManager.State.Running
+        && (backendState as BackendManager.State.Running).mode == BackendManager.Mode.Diffusion
+    val isModelLoading = backendState is BackendManager.State.Starting
+        && (backendState as BackendManager.State.Starting).mode == BackendManager.Mode.Diffusion
+    val isUpscaleModelLoaded = backendState is BackendManager.State.Running
+        && (backendState as BackendManager.State.Running).mode == BackendManager.Mode.Upscaler
     val modelRepository = remember { ModelRepository(context) }
     var modelRefreshVersion by remember { mutableIntStateOf(0) }
 
@@ -184,165 +189,27 @@ private fun AppContent() {
     var genWidth by remember { mutableIntStateOf(512) }
     var genHeight by remember { mutableIntStateOf(512) }
 
-    // ---- Queue repository ---- 
-    val queueRepository = remember { QueueRepository() }
+    // ---- Queue repository (process-wide singleton, shared with WorkManager Worker) ----
+    val queueRepository = remember { QueueRepository.getInstance(context) }
+    val recordRepository = remember { RecordRepository(context) }
     val queueTasks by queueRepository.tasks.collectAsState()
     val queueProcessing by queueRepository.processingActive.collectAsState()
     val queueBatchGroups = remember(queueTasks) { queueRepository.getBatchGroups() }
 
-    // ---- Queue processing loop ----
-    // Watches the queue and processes pending tasks by starting
-    // BackgroundGenerationService for each one, health-checking first.
+    // ---- WorkManager queue control ----
+    // Observe WorkInfo for diagnostics only.
+    // processingActive is the single source of truth, managed exclusively
+    // by GenerationWorker (see §16.B.3 in PrdReqDoc.md).
     LaunchedEffect(Unit) {
-        while (isActive) {
-            val task = queueRepository.getNextPending()
-            if (task == null) {
-                delay(500)
-                continue
-            }
+        QueueController.observeState(context).collect { info ->
+            Log.d("MainActivity", "WorkInfo state: ${QueueController.stateLabel(info)}")
+        }
+    }
 
-            queueRepository.setProcessingActive(true)
-            queueRepository.markTaskProcessing(task.id)
-
-            try {
-                // ---- Health check ----
-                val healthCheckRetryInterval = BackgroundGenerationService.getHealthCheckRetryIntervalMs(context)
-                val healthCheckMaxFails = BackgroundGenerationService.getHealthCheckMaxFailures(context)
-                var backendHealthy = false
-                var consecutiveFailures = 0
-                while (!backendHealthy) {
-                    backendHealthy = withContext(Dispatchers.IO) {
-                        BackgroundGenerationService.checkBackendHealth()
-                    }
-                    if (!backendHealthy) {
-                        consecutiveFailures++
-                        Log.w("MainActivity", "Queue: health check failed ($consecutiveFailures/$healthCheckMaxFails)")
-                        if (consecutiveFailures >= healthCheckMaxFails) {
-                            Log.e("MainActivity", "Queue: restarting backend")
-                            try {
-                                withContext(Dispatchers.IO) {
-                                    context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-                                    delay(500)
-                                    context.stopService(Intent(context, BackendService::class.java).apply {
-                                        action = BackendService.ACTION_STOP
-                                    })
-                                    delay(2000)
-                                    val restartIntent = Intent(context, BackendService::class.java).apply {
-                                        putExtra("modelId", task.modelId)
-                                        putExtra("width", task.width)
-                                        putExtra("height", task.height)
-                                        putExtra("use_opencl", task.useOpenCL)
-                                    }
-                                    context.startForegroundService(restartIntent)
-                                }
-                                consecutiveFailures = 0
-                            } catch (e: Exception) {
-                                Log.e("MainActivity", "Queue: backend restart failed: ${e.message}", e)
-                                queueRepository.markTaskError(task.id, context.getString(R.string.backend_not_healthy))
-                                break
-                            }
-                        }
-                        delay(healthCheckRetryInterval)
-                    }
-                }
-                if (!backendHealthy) {
-                    continue // skip to next iteration, task already marked error
-                }
-
-                // ---- Start generation for this task ----
-                BackgroundGenerationService.forceResetIfStale()
-
-                val intent = Intent(context, BackgroundGenerationService::class.java).apply {
-                    putExtra("prompt", task.prompt)
-                    putExtra("negative_prompt", task.negativePrompt)
-                    putExtra("steps", task.steps)
-                    putExtra("cfg", task.cfg)
-                    task.seed?.let { putExtra("seed", it) }
-                    putExtra("width", task.width)
-                    putExtra("height", task.height)
-                    putExtra("effective_width", task.effectiveWidth)
-                    putExtra("effective_height", task.effectiveHeight)
-                    putExtra("denoise_strength", task.denoiseStrength)
-                    putExtra("use_opencl", task.useOpenCL)
-                    putExtra("scheduler", task.scheduler)
-                    putExtra("aspect_ratio", task.aspectRatio)
-                }
-                context.startForegroundService(intent)
-
-                // ---- Wait for completion/error with timeout ----
-                val result = withTimeoutOrNull(BackgroundGenerationService.getServiceWaitTimeoutMs(context)) {
-                    BackgroundGenerationService.generationState
-                        .first { it is BackgroundGenerationService.GenerationState.Complete ||
-                                 it is BackgroundGenerationService.GenerationState.Error }
-                }
-
-                when (result) {
-                    null -> { /* timeout — task will remain pending */ }
-                    is BackgroundGenerationService.GenerationState.Idle,
-                    is BackgroundGenerationService.GenerationState.Started,
-                    is BackgroundGenerationService.GenerationState.Progress -> { /* filtered out, unreachable */ }
-                    is BackgroundGenerationService.GenerationState.Complete -> {
-                        // Save to history
-                        val params = GenerationParameters(
-                            steps = task.steps,
-                            cfg = task.cfg,
-                            seed = task.seed,
-                            prompt = task.prompt,
-                            negativePrompt = task.negativePrompt,
-                            generationTime = null,
-                            width = task.width,
-                            height = task.height,
-                            runOnCpu = false,
-                            denoiseStrength = task.denoiseStrength,
-                            useOpenCL = task.useOpenCL,
-                            scheduler = task.scheduler,
-                        )
-                        withContext(Dispatchers.IO) {
-                            val historyManager = HistoryManager(context)
-                            result.bitmap?.let { bmp ->
-                                historyManager.saveGeneratedImage(
-                                    modelId = task.modelId,
-                                    bitmap = bmp,
-                                    params = params,
-                                    mode = GenerationMode.TXT2IMG,
-                                )
-                            }
-                        }
-                        queueRepository.markTaskComplete(task.id, result.bitmap, result.seed)
-                        BackgroundGenerationService.markBitmapConsumed()
-                    }
-                    is BackgroundGenerationService.GenerationState.Error -> {
-                        queueRepository.markTaskError(task.id, result.message)
-                        BackgroundGenerationService.resetState()
-                    }
-                    null -> {
-                        queueRepository.markTaskError(task.id, context.getString(R.string.generation_timeout))
-                        BackgroundGenerationService.resetState()
-                        context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-                    }
-                }
-
-                // ---- Wait for service to stop ----
-                val serviceWaitTimeout = BackgroundGenerationService.getServiceWaitTimeoutMs(context)
-                val waitStartTime = System.currentTimeMillis()
-                while (BackgroundGenerationService.isServiceRunning.value) {
-                    if (System.currentTimeMillis() - waitStartTime > serviceWaitTimeout) {
-                        Log.w("MainActivity", "Queue: service did not stop, forcing")
-                        context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-                        delay(500)
-                        break
-                    }
-                    delay(100)
-                }
-
-                BackgroundGenerationService.forceResetIfStale()
-
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Queue: unexpected error: ${e.message}", e)
-                queueRepository.markTaskError(task.id, e.message ?: "Unknown error")
-            } finally {
-                queueRepository.setProcessingActive(false)
-            }
+    // Auto-start queue processing when tasks are added (if not already running)
+    LaunchedEffect(queueTasks) {
+        if (queueRepository.hasPendingTasks() && !queueRepository.processingActive.value) {
+            QueueController.start(context)
         }
     }
 
@@ -357,10 +224,9 @@ private fun AppContent() {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf("") }
 
-    // ---- Upscale model state ----
-    val upscaleBackendState by UpscaleBackendManager.state.collectAsState()
-    val isUpscaleModelLoaded = upscaleBackendState is UpscaleBackendManager.State.Running
-    val selectedUpscalerId = (upscaleBackendState as? UpscaleBackendManager.State.Running)?.upscalerId
+    // ---- Upscale model state (§17.4: derived from unified backendManager.state) ----
+    val selectedUpscalerId = (backendState as? BackendManager.State.Running)
+        ?.takeIf { it.mode == BackendManager.Mode.Upscaler }?.modelId
     var upscalerPreferences by remember {
         mutableStateOf(context.getSharedPreferences("upscaler_prefs", Context.MODE_PRIVATE))
     }
@@ -387,55 +253,48 @@ private fun AppContent() {
     val msgModelConversionSuccess = stringResource(R.string.model_conversion_success)
     val msgModelConversionFailed = stringResource(R.string.model_conversion_failed)
 
-    // ---- Model load/unload ----
+    // ---- Model load/unload (§17.4: unified via BackendManager) ----
     fun loadModel(mId: String) {
         scope.launch {
-            if (backendState is BackendService.BackendState.Running) {
-                context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-                context.stopService(Intent(context, BackendService::class.java).apply {
-                    action = BackendService.ACTION_STOP
-                })
-                delay(500)
+            val result = backendManager.startDiffusion(mId, genWidth, genHeight, genUseOpenCL)
+            result.onSuccess {
+                selectedModelId = mId
+                snackbarHostState.showSnackbar(context.getString(R.string.loading_model_label))
+            }.onFailure { error ->
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.model_load_failed, error.message ?: "unknown")
+                )
             }
-            val intent = Intent(context, BackendService::class.java).apply {
-                putExtra("modelId", mId)
-                putExtra("width", genWidth)
-                putExtra("height", genHeight)
-                putExtra("use_opencl", genUseOpenCL)
-            }
-            context.startForegroundService(intent)
-            selectedModelId = mId
-            snackbarHostState.showSnackbar(context.getString(R.string.loading_model_label))
         }
     }
 
     fun unloadModel() {
         scope.launch {
-            context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-            context.stopService(Intent(context, BackendService::class.java).apply {
-                action = BackendService.ACTION_STOP
-            })
+            backendManager.stop()
             selectedModelId = null
             snackbarHostState.showSnackbar(context.getString(R.string.model_unloaded))
         }
     }
 
     fun loadUpscaleModel(upscalerId: String) {
-        // Stop diffusion backend if running (both use port 8081)
-        if (backendState is BackendService.BackendState.Running) {
-            context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-            context.stopService(Intent(context, BackendService::class.java).apply {
-                action = BackendService.ACTION_STOP
-            })
+        scope.launch {
+            val result = backendManager.startUpscaler(upscalerId)
+            result.onSuccess {
+                upscalerPreferences.edit {
+                    putString("upscaler_standalone_selected_upscaler", upscalerId)
+                }
+            }.onFailure { error ->
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.model_load_failed, error.message ?: "unknown")
+                )
+            }
         }
-        upscalerPreferences.edit {
-            putString("upscaler_standalone_selected_upscaler", upscalerId)
-        }
-        UpscaleBackendManager.start(context, upscalerId)
     }
 
     fun unloadUpscaleModel() {
-        UpscaleBackendManager.stop()
+        scope.launch {
+            backendManager.stop()
+        }
     }
 
     var showNoModelWarning by remember { mutableStateOf(false) }
@@ -784,7 +643,11 @@ private fun AppContent() {
                         },
                         onDeleteModel = { showDeleteConfirm = true },
                     )
-                    BottomTab.Queue -> QueueTopBar(drawerState = drawerState)
+                    BottomTab.Queue -> QueueTopBar(
+                        drawerState = drawerState,
+                        processingActive = queueProcessing,
+                        onStop = { scope.launch { QueueController.stop(context) } },
+                    )
                     BottomTab.Generate -> GenerateTopBar(
                         drawerState = drawerState,
                         modelId = selectedModelId,
@@ -837,6 +700,7 @@ private fun AppContent() {
                         processingActive = queueProcessing,
                         onRemoveTask = { queueRepository.removeTask(it) },
                         onRemoveBatch = { queueRepository.removeBatch(it) },
+                        recordRepository = recordRepository,
                     )
                     BottomTab.Generate -> TabGenerateScreen(
                         modelId = if (isModelLoaded) selectedModelId else null,
@@ -862,6 +726,7 @@ private fun AppContent() {
                         onWidthChange = { genWidth = it },
                         height = genHeight,
                         onHeightChange = { genHeight = it },
+                        recordRepository = recordRepository,
                         onAddToQueue = { count ->
                             val modelId = selectedModelId ?: return@TabGenerateScreen
                             queueRepository.addBatch(
@@ -889,7 +754,7 @@ private fun AppContent() {
                         },
                     )
                     BottomTab.Upscale -> UpscaleScreen()
-                    BottomTab.Browse -> BrowseScreen()
+                    BottomTab.Browse -> BrowseScreen(recordRepository = recordRepository)
                 }
             }
         }
@@ -1009,7 +874,11 @@ private fun ModelsTopBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QueueTopBar(drawerState: DrawerState) {
+private fun QueueTopBar(
+    drawerState: DrawerState,
+    processingActive: Boolean = false,
+    onStop: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     TopAppBar(
         title = {
@@ -1021,6 +890,17 @@ private fun QueueTopBar(drawerState: DrawerState) {
         navigationIcon = {
             IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Default.Menu, stringResource(R.string.settings))
+            }
+        },
+        actions = {
+            if (processingActive) {
+                IconButton(onClick = onStop) {
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = "Stop queue",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         },
     )
@@ -1224,7 +1104,7 @@ private fun ModelListTab(
 
                 items(downloadedUpscalers, key = { "upscaler_${it.id}" }) { upscaler ->
                     val isThisUpscalerLoaded = isUpscaleModelLoaded &&
-                        UpscaleBackendManager.loadedUpscalerId == upscaler.id
+                        selectedUpscalerId == upscaler.id
 
                     UpscaleModelCardInline(
                         upscaler = upscaler,
@@ -1464,6 +1344,7 @@ private fun TabGenerateScreen(
     height: Int,
     onHeightChange: (Int) -> Unit,
     onAddToQueue: (Int) -> Unit = {},
+    recordRepository: RecordRepository? = null,
 ) {
     GenerateScreen(
         modelId = modelId,
@@ -1490,6 +1371,7 @@ private fun TabGenerateScreen(
         height = height,
         onHeightChange = onHeightChange,
         onAddToQueue = onAddToQueue,
+        recordRepository = recordRepository,
     )
 }
 
@@ -1502,13 +1384,40 @@ private fun TabQueueScreen(
     processingActive: Boolean,
     onRemoveTask: (String) -> Unit,
     onRemoveBatch: (String) -> Unit,
+    recordRepository: RecordRepository? = null,
 ) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val onSaveInfo: (GenerationTask) -> Unit = { task ->
+        scope.launch {
+            val record = GenerateParameterRecord(
+                prompt = task.prompt,
+                negativePrompt = task.negativePrompt,
+                modelId = task.modelId,
+                steps = task.steps,
+                cfg = task.cfg,
+                seed = task.seed,
+                width = task.width,
+                height = task.height,
+                scheduler = task.scheduler,
+                timestamp = task.timestamp,
+                source = RecordSource.QUEUE,
+            )
+            recordRepository?.addRecord(record)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Parameters saved", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     QueueScreen(
         tasks = tasks,
         batchGroups = batchGroups,
         processingActive = processingActive,
         onRemoveTask = onRemoveTask,
         onRemoveBatch = onRemoveBatch,
+        onSaveInfo = onSaveInfo,
     )
 }
 
@@ -1518,54 +1427,290 @@ private fun TabQueueScreen(
 private fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val themeController = LocalThemeController.current
+    val appPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    val genPrefs = remember { GenerationPreferences(context) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Appearance
-        Text(stringResource(R.string.appearance), style = MaterialTheme.typography.titleMedium)
+        // ────── Appearance ──────
+        SectionHeader(stringResource(R.string.appearance))
 
+        // Dynamic Color
         var dynamicColor by remember { mutableStateOf(themeController.state.dynamicColor) }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.dynamic_color))
-                Text(
-                    stringResource(R.string.dynamic_color_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Switch(checked = dynamicColor, onCheckedChange = { checked ->
+        SwitchSetting(
+            title = stringResource(R.string.dynamic_color),
+            hint = stringResource(R.string.dynamic_color_hint),
+            checked = dynamicColor,
+            onCheckedChange = { checked ->
                 dynamicColor = checked
                 themeController.update { it.copy(dynamicColor = checked) }
-            })
-        }
+            },
+        )
 
+        // Dark Mode
         var darkMode by remember { mutableStateOf(themeController.state.darkMode) }
-        Text(stringResource(R.string.dark_mode))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(
+        ChipSetting(
+            title = stringResource(R.string.dark_mode),
+            options = listOf(
                 DarkModePreference.SYSTEM to stringResource(R.string.dark_mode_system),
                 DarkModePreference.LIGHT to stringResource(R.string.dark_mode_light),
                 DarkModePreference.DARK to stringResource(R.string.dark_mode_dark),
-            ).forEach { (mode, label) ->
-                FilterChip(
-                    selected = darkMode == mode,
-                    onClick = {
-                        darkMode = mode
-                        themeController.update { it.copy(darkMode = mode) }
+            ),
+            selected = darkMode,
+            onSelect = { mode ->
+                darkMode = mode
+                themeController.update { it.copy(darkMode = mode) }
+            },
+        )
+
+        // OLED Pure Black (only visible when not forced light)
+        if (darkMode != DarkModePreference.LIGHT) {
+            var oledBlack by remember { mutableStateOf(themeController.state.oledBlack) }
+            SwitchSetting(
+                title = stringResource(R.string.oled_black),
+                hint = stringResource(R.string.oled_black_hint),
+                checked = oledBlack,
+                onCheckedChange = { checked ->
+                    oledBlack = checked
+                    themeController.update { it.copy(oledBlack = checked) }
+                },
+            )
+        }
+
+        // Theme Preset
+        var themePreset by remember { mutableStateOf(themeController.state.preset) }
+        ChipSetting(
+            title = stringResource(R.string.theme_preset),
+            hint = stringResource(R.string.theme_preset_hint),
+            options = ThemePreset.entries.map { it to stringResource(it.nameRes) },
+            selected = themePreset,
+            onSelect = { preset ->
+                themePreset = preset
+                themeController.update { it.copy(preset = preset) }
+            },
+        )
+
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
+
+        // ────── Backend ──────
+        SectionHeader(stringResource(R.string.backend_settings))
+
+        var listenAll by remember { mutableStateOf(appPrefs.getBoolean("listen_on_all_addresses", false)) }
+        SwitchSetting(
+            title = stringResource(R.string.listen_on_all_addresses),
+            hint = stringResource(R.string.listen_on_all_addresses_hint),
+            checked = listenAll,
+            onCheckedChange = { checked ->
+                listenAll = checked
+                appPrefs.edit { putBoolean("listen_on_all_addresses", checked) }
+            },
+        )
+
+        var sdxlLowram by remember { mutableStateOf(appPrefs.getBoolean("sdxl_lowram", true)) }
+        SwitchSetting(
+            title = stringResource(R.string.sdxl_lowram),
+            hint = stringResource(R.string.sdxl_lowram_hint),
+            checked = sdxlLowram,
+            onCheckedChange = { checked ->
+                sdxlLowram = checked
+                appPrefs.edit { putBoolean("sdxl_lowram", checked) }
+            },
+        )
+
+        var enableLogCapture by remember { mutableStateOf(appPrefs.getBoolean("enable_log_capture", false)) }
+        SwitchSetting(
+            title = stringResource(R.string.capture_logs),
+            hint = stringResource(R.string.capture_logs_hint),
+            checked = enableLogCapture,
+            onCheckedChange = { checked ->
+                enableLogCapture = checked
+                appPrefs.edit { putBoolean("enable_log_capture", checked) }
+            },
+        )
+
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
+
+        // ────── Generation ──────
+        SectionHeader(stringResource(R.string.generation_settings))
+
+        var showDiffusion by remember { mutableStateOf(appPrefs.getBoolean("show_diffusion_process", false)) }
+        SwitchSetting(
+            title = stringResource(R.string.show_process),
+            hint = stringResource(R.string.show_process_hint),
+            checked = showDiffusion,
+            onCheckedChange = { checked ->
+                showDiffusion = checked
+                appPrefs.edit { putBoolean("show_diffusion_process", checked) }
+            },
+        )
+
+        if (showDiffusion) {
+            var diffusionStride by remember {
+                mutableIntStateOf(appPrefs.getInt("show_diffusion_stride", 1).coerceIn(1, 10))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.preview_stride))
+                    Text(
+                        stringResource(R.plurals.preview_stride_hint, diffusionStride, diffusionStride),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Slider(
+                    value = diffusionStride.toFloat(),
+                    onValueChange = { diffusionStride = it.roundToInt().coerceIn(1, 10) },
+                    onValueChangeFinished = {
+                        appPrefs.edit { putInt("show_diffusion_stride", diffusionStride) }
                     },
-                    label = { Text(label) },
+                    valueRange = 1f..10f,
+                    steps = 8,
+                    modifier = Modifier.width(120.dp),
+                )
+                Text(
+                    "$diffusionStride",
+                    modifier = Modifier.width(28.dp),
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
 
+        var genTimeout by remember {
+            mutableIntStateOf(appPrefs.getInt("generation_timeout_s", 60).coerceIn(15, 600))
+        }
+        SliderSetting(
+            title = stringResource(R.string.generation_timeout),
+            hint = stringResource(R.string.generation_timeout_hint, genTimeout),
+            value = genTimeout,
+            valueRange = 15..600,
+            steps = 38, // ~15 sec increments
+            suffix = "s",
+            onValueChangeFinished = {
+                appPrefs.edit { putInt("generation_timeout_s", genTimeout) }
+            },
+        ) { genTimeout = it }
+
+        var bitmapTimeout by remember {
+            mutableIntStateOf(appPrefs.getInt("bitmap_consumed_timeout_s", 30).coerceIn(5, 120))
+        }
+        SliderSetting(
+            title = stringResource(R.string.bitmap_consumed_timeout),
+            hint = stringResource(R.string.bitmap_consumed_timeout_hint, bitmapTimeout),
+            value = bitmapTimeout,
+            valueRange = 5..120,
+            steps = 22, // ~5 sec increments
+            suffix = "s",
+            onValueChangeFinished = {
+                appPrefs.edit { putInt("bitmap_consumed_timeout_s", bitmapTimeout) }
+            },
+        ) { bitmapTimeout = it }
+
+        Spacer(Modifier.height(4.dp))
         HorizontalDivider()
-        Text(stringResource(R.string.about_app), style = MaterialTheme.typography.titleMedium)
+
+        // ────── Health Check ──────
+        SectionHeader(stringResource(R.string.health_check_settings))
+
+        var healthCheckInterval by remember {
+            mutableIntStateOf(appPrefs.getInt("health_check_retry_interval_s", 20).coerceIn(5, 120))
+        }
+        SliderSetting(
+            title = stringResource(R.string.health_check_retry_interval),
+            hint = stringResource(R.string.health_check_retry_interval_hint, healthCheckInterval),
+            value = healthCheckInterval,
+            valueRange = 5..120,
+            steps = 22, // ~5 sec increments
+            suffix = "s",
+            onValueChangeFinished = {
+                appPrefs.edit { putInt("health_check_retry_interval_s", healthCheckInterval) }
+            },
+        ) { healthCheckInterval = it }
+
+        var healthCheckMaxFails by remember {
+            mutableIntStateOf(appPrefs.getInt("health_check_max_failures", 4).coerceIn(1, 20))
+        }
+        SliderSetting(
+            title = stringResource(R.string.health_check_max_failures),
+            hint = stringResource(R.string.health_check_max_failures_hint, healthCheckMaxFails),
+            value = healthCheckMaxFails,
+            valueRange = 1..20,
+            steps = 18,
+            suffix = "",
+            onValueChangeFinished = {
+                appPrefs.edit { putInt("health_check_max_failures", healthCheckMaxFails) }
+            },
+        ) { healthCheckMaxFails = it }
+
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
+
+        // ────── Downloads ──────
+        SectionHeader(stringResource(R.string.download_settings_section))
+
+        var selectedSource by remember { mutableStateOf("huggingface") }
+        var customUrl by remember { mutableStateOf("") }
+        LaunchedEffect(Unit) {
+            selectedSource = genPrefs.getSelectedSource()
+            customUrl = if (selectedSource == "custom") genPrefs.getBaseUrl() else ""
+        }
+
+        ChipSetting(
+            title = stringResource(R.string.download_from),
+            options = listOf(
+                "huggingface" to stringResource(R.string.source_huggingface),
+                "hf-mirror" to stringResource(R.string.source_hf_mirror),
+                "custom" to stringResource(R.string.source_custom),
+            ),
+            selected = selectedSource,
+            onSelect = { src ->
+                selectedSource = src
+                scope.launch {
+                    genPrefs.saveSelectedSource(src)
+                    when (src) {
+                        "huggingface" -> genPrefs.saveBaseUrl("https://huggingface.co/")
+                        "hf-mirror" -> genPrefs.saveBaseUrl("https://hf-mirror.com/")
+                        "custom" -> { /* keep existing custom URL */ }
+                    }
+                }
+            },
+        )
+
+        if (selectedSource == "custom") {
+            OutlinedTextField(
+                value = customUrl,
+                onValueChange = { customUrl = it },
+                label = { Text("URL") },
+                placeholder = { Text("https://hf-mirror.com/") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextButton(onClick = {
+                scope.launch {
+                    genPrefs.saveBaseUrl(customUrl.trim().ifBlank { "https://hf-mirror.com/" })
+                }
+            }) {
+                Text(stringResource(R.string.save))
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
+
+        // ────── About ──────
+        SectionHeader(stringResource(R.string.about_app))
+        Text(
+            stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(
             stringResource(R.string.must_read),
             style = MaterialTheme.typography.bodySmall,
@@ -1573,4 +1718,107 @@ private fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) 
         )
     }
     Spacer(Modifier.height(16.dp))
+}
+
+// ────── Reusable drawer setting components ──────
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+    )
+}
+
+@Composable
+private fun SwitchSetting(
+    title: String,
+    hint: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title)
+            Text(
+                hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun <T> ChipSetting(
+    title: String,
+    hint: String? = null,
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+) {
+    Column {
+        Text(title)
+        if (hint != null) {
+            Text(
+                hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { (value, label) ->
+                FilterChip(
+                    selected = selected == value,
+                    onClick = { onSelect(value) },
+                    label = { Text(label) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SliderSetting(
+    title: String,
+    hint: String,
+    value: Int,
+    valueRange: IntRange,
+    steps: Int,
+    suffix: String,
+    onValueChangeFinished: () -> Unit,
+    onValueChange: (Int) -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title)
+                Text(
+                    hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                "$value$suffix",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.roundToInt().coerceIn(valueRange.first, valueRange.last)) },
+            onValueChangeFinished = onValueChangeFinished,
+            valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+            steps = steps,
+        )
+    }
 }

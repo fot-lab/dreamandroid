@@ -64,8 +64,21 @@ fun DreamHubTheme(themeState: ThemeState, content: @Composable () -> Unit) {
         else -> themeState.preset.scheme(darkTheme)
     }
 
+    val finalColorScheme = if (themeState.oledBlack && darkTheme) {
+        colorScheme.copy(
+            surface = androidx.compose.ui.graphics.Color(0xFF000000),
+            background = androidx.compose.ui.graphics.Color(0xFF000000),
+            surfaceContainer = androidx.compose.ui.graphics.Color(0xFF0A0A0A),
+            surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF000000),
+            surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF111111),
+            surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFF1A1A1A),
+        )
+    } else {
+        colorScheme
+    }
+
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = finalColorScheme,
         typography = Typography,
         shapes = Shapes,
         content = content,

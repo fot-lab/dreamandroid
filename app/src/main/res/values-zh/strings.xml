@@ -63,6 +63,13 @@
     <string name="dark_mode_system">跟随系统</string>
     <string name="dark_mode_light">浅色</string>
     <string name="dark_mode_dark">深色</string>
+    <string name="oled_black">OLED 纯黑</string>
+    <string name="oled_black_hint">在 AMOLED 屏幕上使用纯黑背景以节省电量</string>
+    <string name="backend_settings">后端</string>
+    <string name="generation_settings">生成</string>
+    <string name="health_check_settings">健康检查</string>
+    <string name="download_settings_section">下载</string>
+    <string name="version_label">版本：%1$s</string>
     <string name="theme_tangerine">暖橙</string>
     <string name="theme_forest">森林</string>
     <string name="theme_ocean">海洋</string>
@@ -177,6 +184,7 @@
     <string name="steps">生成步数: %d</string>
     <string name="image_size">图像尺寸: %1$dx%2$d</string>
     <string name="random_seed">随机种子 (可选)</string>
+    <string name="invalid_seed_format">无效种子 — 必须为空或数字</string>
     <string name="use_last_seed">使用上次的种子 (%s)</string>
     <string name="batch_count_label">批次数量</string>
     <string name="batch_count">批次数量: %d</string>
@@ -402,4 +410,10 @@
     <string name="select_upscale_file">选择放大模型文件 (.bin)</string>
     <string name="upscale_file_selected">放大模型文件已选择</string>
     <string name="custom_upscale_model_name_hint">输入放大模型名称</string>
+    <string name="save_info">保存参数</string>
+    <string name="parameters_saved">参数已保存</string>
+    <string name="batch_save_params">批量保存参数</string>
+    <plurals name="batch_save_params_confirm">
+        <item quantity="other">将 %d 张选中图片的参数保存到记录管理器？</item>
+    </plurals>
 </resources>
