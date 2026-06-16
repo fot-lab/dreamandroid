@@ -98,23 +98,17 @@
 - ModelRun 模块总代码: 4862 → **3445 行 (-29%)**
 - Lint: **0 errors**
 
-### ⏳ Phase 5: 其他大型文件 (待开始)
+### ⏳ Phase 5: 其他大型文件 (低优先级，待后续)
 
-按行数降序处理: GenerateScreen(955) → TagAutocompleteRepository(891) → InpaintScreen(816) → ...
+**待拆分文件** (按行数):
+| 文件 | 行数 | 优先级 |
+|------|------|--------|
+| `GenerateScreen.kt` | 955 | P2 (依赖 ViewModel) |
+| `TagAutocompleteRepository.kt` | 891 | P2 (独立) |
+| `InpaintScreen.kt` | 816 | P2 (独立) |
+| `BrowseScreen.kt` | 688 | P3 (独立) |
 
-## ModelRunScreen 预分析结构
-
-| 区域 | 行范围 | 预估行数 | 提取目标文件 |
-|------|--------|---------|-------------|
-| Import + 类型定义 | 1-200 | ~200 | ModelRunUtils.kt |
-| ModelRunScreen 主 Composable | 200-1000 | ~800 | 保留(瘦身后) |
-| 生成参数区域 | 1000-1600 | ~600 | ModelRunGenerate.kt |
-| Inpaint 区域 | 1600-2200 | ~600 | ModelRunInpaint.kt |
-| Upscale 区域 | 2200-2600 | ~400 | ModelRunUpscale.kt |
-| 结果展示区域 | 2600-3100 | ~500 | ModelRunResult.kt |
-| 模型加载/后端交互 | 3100-3700 | ~600 | ModelRunBackend.kt |
-| 对话框/底部栏 | 3700-4200 | ~500 | ModelRunDialogs.kt |
-| Preview + 辅助 | 4200-4704 | ~500 | ModelRunPreview.kt |
+Phase 5 不需要另开 UILA-COMP issue，后续在 Phase D (ViewModel) 完成后自然推进。
 
 ## 变更历史
 
@@ -123,3 +117,4 @@
 | 2026-06-15 | 创建：记录全项目 Kotlin 文件行数统计 + 拆分执行进度 |
 | 2026-06-15 | Phase 1 (MainActivity) 完成；Phase 2 (ModelListScreen) 创建 model/ 子包 5 文件 |
 | 2026-06-15 | Phase 2 完成：ModelListScreen.kt 重写为 1643 行，引用 model.* 包，lint 0 errors |
+| 2026-06-16 | Phase E 更新：Phase 1-4 全部完成；Phase 5 低优先级推迟至 Phase D+ |

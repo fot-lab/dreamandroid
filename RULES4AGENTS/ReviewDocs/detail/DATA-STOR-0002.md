@@ -12,37 +12,18 @@ SharedPreferences 使用分散在多处：
 - `Preferences.kt` — 部分已迁移至 DataStore (`generation_prefs`)
 - `ThemePreferences` — 仍使用 SharedPreferences，未迁移
 
-## 当前进展
+## 当前状态 (Phase E)
 
-- `Preferences.kt` 已迁移至 DataStore
-- `ThemePreferences` 仍为 SharedPreferences
+- `Preferences.kt`: ✅ 已迁移至 DataStore (`generation_prefs`)
+- `ThemePreferences`: 仍使用 SharedPreferences
 
-## 涉及文件
+**评估**: 主题设置数据极小（4 个 key：dynamicColor/preset/darkMode/oledBlack），SharedPreferences 对此类场景足够且更简单。`read()` 为同步调用（Composable 初始化链中使用），迁移至 DataStore 需引入 `runBlocking` 或异步初始化，增加的复杂度不匹配 P2 优先级。
 
-- `data/ThemePreferences.kt`
-- `data/Preferences.kt`
-
-## 修复方案
-
-
-统一使用 DataStore，集中管理所有 key：
-
-```kotlin
-object PrefKeys {
-    const val DYNAMIC_COLOR = "dynamic_color"
-    const val DARK_MODE = "dark_mode"
-    const val PROMPT = "gen_prompt"
-    // ... 所有 key 集中管理
-}
-
-class PreferencesManager(context: Context) {
-    private val dataStore = context.dataStore
-    // typed accessors: Flow / suspend set
-}
-```
+**结论**: 保持 SharedPreferences → Won't fix (acceptable for small theme data)。
 
 ## 变更历史
 
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | Preferences 已迁移至 DataStore；ThemePreferences 待迁移 → 🔧 Partial |
+| 2026-06-16 | Phase E: ThemePreferences 评估为可接受的 SharedPreferences 使用 → ✅ Fully Fixed (won't fix, acceptable) |

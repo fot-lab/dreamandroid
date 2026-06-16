@@ -33,3 +33,4 @@ UI 层直接进行网络调用违反分层原则：
 |------|------|
 | 2026-06-13 | 初始发现 |
 | 2026-06-15 | 依赖 ViewModel 拆分 (UILA-COMP-0001) 解决 |
+| 2026-06-16 | Phase E 评估：UI 层 HTTP 调用依赖 GenerateViewModel/UpscaleViewModel → Blocked on Phase D |

@@ -351,3 +351,4 @@ ui/screens/run/
 | 2026-06-15 | Phase 3 执行: 提取 3 文件 (Utils/Backend/Satellites), 共 391 行, lint 0 errors |
 | 2026-06-15 | Phase 4 设计: ModelRunState 状态持有类方案，目标 -91% 主文件行数 |
 | 2026-06-15 | Phase 4 执行: 创建 6 新文件 (State/Prompt/Result/History/Generation/Dialogs), 删除 Satellites, ModelRunScreen 4471→610 (-86%), 总代码 -1417 行 |
+| 2026-06-16 | Phase A/B/C 完成：bypass 路径全部迁移至 BackendManager, 旧 BackendService/UpscaleBackendManager/BackgroundGenerationService 已删除 → ✅ Fully Fixed |

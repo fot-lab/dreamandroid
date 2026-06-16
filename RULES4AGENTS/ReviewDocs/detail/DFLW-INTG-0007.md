@@ -38,3 +38,4 @@ UI 层从文件路径加载缩略图，按需解码。方案设计已完成，�
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 方案设计完成，待后续实施 → 📅 TODO |
+| 2026-06-16 | Phase E: 近期修复通过 `QueueRepository.recycle()` 缓解 (QUEU-SYST-0007)；长期方案 (resultBitmapPath) 推迟至 Phase D+ |

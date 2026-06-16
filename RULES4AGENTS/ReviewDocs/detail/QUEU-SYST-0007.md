@@ -15,23 +15,27 @@
 - `service/QueueRepository.kt`
 - `data/QueueModels.kt`
 
-## 修复方案
+## 修复方案 (已实施)
 
-两阶段修复：
+在 `QueueRepository` 的任务删除/清理路径中，主动调用 `bitmap.recycle()`：
 
-1. **近期**: 在任务完成后主动调用 `bitmap.recycle()`：
-   ```kotlin
-   // Complete → consume → recycle()
-   task.resultBitmap?.let { bitmap ->
-       historyManager.saveGeneratedImage(bitmap, ...)
-       bitmap.recycle()
-   }
-   ```
+- `removeTask(id)`: recycle 被删除任务的 bitmap
+- `removeBatch(batchGroupId)`: recycle 批次中所有 bitmap
+- `clearCompleted()`: recycle 所有 COMPLETED/ERROR/CANCELLED 任务的 bitmap
 
-2. **长期**: 将 `resultBitmap: Bitmap?` 改为 `resultBitmapPath: String?`（参见 DFLW-INTG-0007）
+```kotlin
+fun removeTask(id: String) {
+    _tasks.value.firstOrNull { it.id == id }?.resultBitmap?.recycle()
+    _tasks.update { it.filterNot { t -> t.id == id } }
+    ...
+}
+```
+
+**后续优化**: 将 `resultBitmap: Bitmap?` 改为 `resultBitmapPath: String?` (参见 DFLW-INTG-0007)
 
 ## 变更历史
 
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 初始发现，方案设计完成 |
+| 2026-06-16 | Phase E: QueueRepository removeTask/removeBatch/clearCompleted 添加 recycle() → ✅ Fully Fixed |

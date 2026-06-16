@@ -26,3 +26,4 @@
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 依赖 ViewModel 拆分 (UILA-COMP-0001) 解决 |
+| 2026-06-16 | Phase E 评估：HTTP 错误统一处理依赖 GenerateViewModel → Blocked on Phase D |
