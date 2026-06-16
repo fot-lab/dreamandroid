@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 10.0
+> 版本: 11.0
 > 更新日期: 2026-06-16
-> Phase A + B + C + E 完成 + Record→Room 统一 (共 Fully Fixed, 39 剩余 18)
+> Phase A + B + C + E 完成 + Record→Room 统一 + LCLE-MEMO-0001 生命周期审计 (58 总数, 39 Fixed, 19 剩余)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -66,5 +66,6 @@
 | DFLW-INTG-0013 | P2 | 生成参数双重加载 | Resolution Planned | [detail/DFLW-INTG-0013.md](detail/DFLW-INTG-0013.md) |
 | DFLW-INTG-0014 | P3 | Add to Queue 静默失败 | Fully Fixed | [detail/DFLW-INTG-0014.md](detail/DFLW-INTG-0014.md) |
 | DFLW-INTG-0015 | P3 | 无效 Seed 静默忽略 | Fully Fixed | [detail/DFLW-INTG-0015.md](detail/DFLW-INTG-0015.md) |
+| LCLE-MEMO-0001 | P0 | App 生命周期&内存安全完整审计 (13 findings: 2P0/4P1/5P2/2P3) | Newly Discovered | [detail/LCLE-MEMO-0001.md](detail/LCLE-MEMO-0001.md) |
 
 
