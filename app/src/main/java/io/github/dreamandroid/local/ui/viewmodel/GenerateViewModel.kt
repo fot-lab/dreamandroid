@@ -9,10 +9,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
+import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.service.QueueRepository
+import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResult
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
@@ -21,7 +25,7 @@ import kotlin.math.roundToInt
  * Manages:
  * - All generation parameters (prompt, steps, cfg, seed, etc.)
  * - Preference loading/saving (global + per-model)
- * - Tokenize calls (via BackendManager)
+ * - Tokenize calls (via BackendManager) with AppError-based error handling
  * - Add-to-queue logic
  */
 class GenerateViewModel(application: Application) : ViewModel() {
@@ -44,7 +48,14 @@ class GenerateViewModel(application: Application) : ViewModel() {
 
     // ── Tokenize State ────────────────────────────────────────
     var promptTokenCount by mutableIntStateOf(0)
+    var promptTokenMax by mutableIntStateOf(77)
+    var promptOverflowOffset by mutableIntStateOf(-1)
     var negativePromptTokenCount by mutableIntStateOf(0)
+    var negativePromptTokenMax by mutableIntStateOf(77)
+    var negativePromptOverflowOffset by mutableIntStateOf(-1)
+
+    // ── Error State (AppError-sealed, UILA-COMP-0003) ────────
+    var tokenizeError by mutableStateOf<AppError?>(null)
 
     // ── Preferences ───────────────────────────────────────────
 
@@ -69,24 +80,46 @@ class GenerateViewModel(application: Application) : ViewModel() {
         genUseOpenCL = p.useOpenCL
     }
 
-    // ── Tokenize ──────────────────────────────────────────────
+    // ── Tokenize (UILA-COMP-0005: HTTP moved from UI layer to ViewModel) ──
 
-    suspend fun tokenizePrompt(prompt: String) {
+    suspend fun tokenizePrompt(prompt: String): TokenizeResult? {
         if (prompt.isBlank()) {
             promptTokenCount = 0
-            return
+            promptTokenMax = 77
+            promptOverflowOffset = -1
+            return null
         }
-        val result = backendManager.tokenize(prompt)
-        promptTokenCount = result.count
+        return try {
+            val result = backendManager.tokenize(prompt)
+            promptTokenCount = result.count
+            promptTokenMax = result.maxLength
+            promptOverflowOffset = result.overflowOffset
+            tokenizeError = null
+            result
+        } catch (e: Exception) {
+            tokenizeError = AppError.from(e)
+            null
+        }
     }
 
-    suspend fun tokenizeNegativePrompt(prompt: String) {
+    suspend fun tokenizeNegativePrompt(prompt: String): TokenizeResult? {
         if (prompt.isBlank()) {
             negativePromptTokenCount = 0
-            return
+            negativePromptTokenMax = 77
+            negativePromptOverflowOffset = -1
+            return null
         }
-        val result = backendManager.tokenize(prompt)
-        negativePromptTokenCount = result.count
+        return try {
+            val result = backendManager.tokenize(prompt)
+            negativePromptTokenCount = result.count
+            negativePromptTokenMax = result.maxLength
+            negativePromptOverflowOffset = result.overflowOffset
+            tokenizeError = null
+            result
+        } catch (e: Exception) {
+            tokenizeError = AppError.from(e)
+            null
+        }
     }
 
     // ── Save All Fields ───────────────────────────────────────

@@ -8,10 +8,10 @@
 ## 1. 当前状态
 
 - **总问题数**: 58
-- **已 Fixed**: 54 (Phase A + B + C + D + E + F 完成 + Record→Room 统一)
-- **剩余未解决**: 4 (UILA-COMP-0003/0004/0005 + HTTP-CLNT-0004, 均 Unblocked)
-- **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence), **D (ViewModel 拆分)**, E (P2/P3 收尾), F (Lifecycle & Memory Safety)
-- **最新**: Phase D 完成 — AppContent God Object 拆解为 6 个 ViewModel
+- **已 Fixed/Won'tFix**: 55 (Phase A~F 完成 + E5 Unblocked 收尾)
+- **剩余未解决**: 3 (DATA-STOR-0001 (P1 Room SSOT), DFLW-INTG-0007 (P2 Deferred), MODU-SPLT-0001 (P3 Deferred))
+- **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence), D (ViewModel 拆分), E (P2/P3 收尾), F (Lifecycle & Memory Safety), **E5 (Unblocked Issues)**
+- **最新**: Phase E5 完成 — UILA-COMP-0003/0004/0005 + HTTP-CLNT-0004 + DFLW-INTG-0013 全部解决
 
 ## 2. 执行阶段总览
 
@@ -57,8 +57,8 @@ Phase E: P2/P3 修复                ← ✅ COMPLETED (2026-06-16)
  ├── ✅ E2: Bitmap 回收 (QUEU-SYST-0007 → Fully Fixed)
  ├── ✅ E3: SharedPreferences (DATA-STOR-0002 → Won't fix, acceptable)
  ├── ✅ E4: 文件拆分 (UILA-COMP-0006/0007 → Fully Fixed)
- ├── 📅 E5: ViewModel 依赖 (UILA-COMP-0003/0004/0005, HTTP-CLNT-0004, DFLW-INTG-0013, DATA-STOR-0001 → Unblocked, Phase D done)
- └── 📅 E6: 推迟 (MODU-SPLT-0001, DFLW-INTG-0007 → Deferred)
+ ├── ✅ E5: Unblocked Issues — UILA-COMP-0003/0005 + HTTP-CLNT-0004 + DFLW-INTG-0013 → Fully Fixed; UILA-COMP-0004 → Won't Fix
+ └── 📅 E6: 推迟 (MODU-SPLT-0001, DFLW-INTG-0007, DATA-STOR-0001 → Deferred)
  │
 Phase F: Lifecycle & Memory Safety       ← ✅ COMPLETED (2026-06-16)
  │
@@ -71,14 +71,13 @@ Phase F: Lifecycle & Memory Safety       ← ✅ COMPLETED (2026-06-16)
  ├── ✅ F7: P2/P3 — RuntimeDirPreparer cleanup + QueueRepository cancelScope
 ```
 
-### 剩余未解决问题 (4)
+### 剩余未解决问题 (3)
 
-| ID | P | 摘要 | 阻塞原因 |
-|----|---|------|----------|
-| UILA-COMP-0003 | P2 | 错误处理不一致 | Unblocked (Phase D done) |
-| UILA-COMP-0004 | P2 | 无 DI 框架 | Unblocked (Phase D done) |
-| UILA-COMP-0005 | P2 | UI 层直接 HTTP | Unblocked (Phase D done; partially addressed via ViewModels) |
-| HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Unblocked (Phase D done) |
+| ID | P | 摘要 | 状态 |
+|----|---|------|------|
+| DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Deferred (需 Room ModelEntity 重建) |
+| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | Deferred (Phase F 已经改用 resultBitmapPath) |
+| MODU-SPLT-0001 | P3 | 单模块无编译隔离 | Deferred (P3 低优先级，留待未来版本) |
 ```
 
 ## 3. 依赖图
@@ -286,27 +285,31 @@ ViewModel 分层架构就绪，6 个 ViewModel 均可独立测试（mock 依赖�
 
 ---
 
-## 8. Phase E: P2/P3 收尾
+## 8. Phase E: P2/P3 收尾 — ✅ COMPLETED
 
-### 8.1 Remaining Issues
+### 8.1 E5: Unblocked Issues 修复 (2026-06-16)
 
-| ID | P | 摘要 | 依赖 |
+| ID | P | 操作 | 说明 |
 |----|---|------|------|
-| UILA-COMP-0003 | P2 | 错误处理不一致 | 独立 |
-| UILA-COMP-0004 | P2 | 无 DI 框架 | 独立 |
-| UILA-COMP-0005 | P2 | UI 层直接 HTTP | 独立 |
-| HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | 独立 |
-| HTTP-CLNT-0003 | P2 | 超时配置不一致 | 独立 |
-| HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | 独立 |
-| DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | 独立 |
-| DATA-STOR-0002 | P2 | SharedPreferences 碎片化 | 独立 |
-| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | 独立 |
-| DFLW-INTG-0013 | P2 | 生成参数双重加载 | 独立 |
-| MODU-SPLT-0001 | P3 | 单模块无编译隔离 | 独立 |
-| QUEU-SYST-0007 | P2 | 大 Bitmap 未主动回收 | 独立 |
-| UILA-COMP-0006 | P1 | 超大文件拆分 (剩余 GenerateScreen 等) | Phase A~D 后 |
+| UILA-COMP-0003 | P2 | Fully Fixed | GenerateViewModel 集成 AppError；tokenizeError 状态暴露 |
+| UILA-COMP-0004 | P2 | Won't Fix | Application 单例模式对当前规模足够 |
+| UILA-COMP-0005 | P2 | Fully Fixed | GenerateScreen 不再直接调用 BackendManager.tokenize() |
+| HTTP-CLNT-0004 | P3 | Fully Fixed | 随 UILA-COMP-0003 + 0005 自动解决 |
+| DFLW-INTG-0013 | P2 | Fully Fixed | 删除 GenerateScreen 重复偏好加载；单一加载点 GenerateViewModel |
 
-每个 P2/P3 Issue 独立执行，无需分批。
+**代码变更**:
+- `GenerateViewModel.kt`: +tokenize 完整状态字段 (maxLength, overflowOffset), +AppError 错误处理
+- `GenerateScreen.kt`: -direct BackendManager HTTP, -重复 pref 加载, +tokenize 回调参数
+- `GenerateSection.kt`: 透传 tokenize 回调
+- `AppContent.kt`: 接线 GenerateViewModel tokenize 回调
+
+### 8.3 Deferred Issues (3 remaining)
+
+| ID | P | 摘要 | 原因 |
+|----|---|------|------|
+| DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | 需 Room ModelEntity 重建，工作量较大 |
+| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | Phase F 已改为 resultBitmapPath，风险大幅降低 |
+| MODU-SPLT-0001 | P3 | 单模块无编译隔离 | P3 低优先级，留待未来版本 |
 
 ---
 
@@ -394,3 +397,4 @@ ViewModel 分层架构就绪，6 个 ViewModel 均可独立测试（mock 依赖�
 | 2026-06-15 | 创建：全量剩余问题分批解决总体规划 |
 | 2026-06-16 | Phase A~E 全部完成；RecordRepository 迁移至 Room (TYPE_RECORD) — Queue/History/Record 三合一 TaskEntity；Phase F 完成 — LCLE-MEMO-0001 全部 13 个发现已修复 |
 | 2026-06-16 | Phase D 完成 — AppContent God Object 拆解：6 ViewModels, AppContent -46%, UpscaleScreen/BrowseScreen 重构 |
+| 2026-06-16 | Phase E5 完成 — Unblocked Issues 全部解决：UILA-COMP-0003/0005 Fully Fixed, HTTP-CLNT-0004 Fully Fixed, DFLW-INTG-0013 Fully Fixed, UILA-COMP-0004 Won't Fix |

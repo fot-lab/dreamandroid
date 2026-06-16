@@ -45,3 +45,4 @@ ViewModel 暴露 `errorState: StateFlow<AppError?>`，UI 层通过统一错误�
 |------|------|
 | 2026-06-15 | AppError 密封类创建；双路径错误策略统一 → 🔧 Partial |
 | 2026-06-16 | Phase E 评估：UI 层错误统一依赖 ViewModel 拆分 (Phase D) → Blocked on Phase D |
+| 2026-06-16 | Phase E5: GenerateViewModel 集成 AppError；tokenize 错误通过 `tokenizeError: AppError?` 暴露；UI 层不再静默吞异常 |

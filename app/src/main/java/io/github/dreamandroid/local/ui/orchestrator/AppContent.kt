@@ -384,6 +384,19 @@ fun AppContent() {
                         height = generateViewModel.genHeight,
                         onHeightChange = { generateViewModel.genHeight = it },
                         recordRepository = queueViewModel.recordRepository,
+                        // Tokenize via ViewModel (UILA-COMP-0005: HTTP moved from UI to ViewModel layer)
+                        onTokenizePrompt = { prompt ->
+                            generateViewModel.tokenizePrompt(prompt)
+                        },
+                        onTokenizeNegativePrompt = { negativePrompt ->
+                            generateViewModel.tokenizeNegativePrompt(negativePrompt)
+                        },
+                        promptTokenCount = generateViewModel.promptTokenCount,
+                        promptTokenMax = generateViewModel.promptTokenMax,
+                        promptOverflowOffset = generateViewModel.promptOverflowOffset,
+                        negativePromptTokenCount = generateViewModel.negativePromptTokenCount,
+                        negativePromptTokenMax = generateViewModel.negativePromptTokenMax,
+                        negativePromptOverflowOffset = generateViewModel.negativePromptOverflowOffset,
                         onAddToQueue = { count ->
                             val modelId = modelsViewModel.selectedModelId ?: return@TabGenerateScreen
                             generateViewModel.addToQueue(modelId, count, queueViewModel.queueRepository)

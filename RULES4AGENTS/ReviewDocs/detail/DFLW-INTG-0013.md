@@ -25,9 +25,17 @@
 
 **阻塞**: Blocked on Phase D (AppContent ViewModel extraction)
 
+## 执行结果
+
+**Phase E5 (2026-06-16)**: 双重加载已消除：
+- 删除 GenerateScreen.kt 中 `LaunchedEffect(modelId)` 内的二次偏好加载
+- 偏好加载现在单一由 AppContent.kt → GenerateViewModel.loadModelPrefs() 完成
+- 当 modelId 切换时，GenerateViewModel 统一加载模型偏好，无竞态窗口
+
 ## 变更历史
 
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 方案设计完成，待 ViewModel 迁移 → 📅 TODO |
 | 2026-06-16 | Phase E: 标记 blocked on Phase D (GenerateViewModel) |
+| 2026-06-16 | Phase E5: 删除 GenerateScreen 重复加载，单一加载点为 GenerateViewModel → Fully Fixed |
