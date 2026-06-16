@@ -41,4 +41,5 @@ backendManager.startDiffusion(modelId, width, height, useOpenCL)
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-15 | 初始发现，待迁移 |
+| 2026-06-15 | 初始发现 |
+| 2026-06-16 | Phase A1 完成：`ModelRunScreen.kt` + `ModelRunBackend.kt` 迁移至 `backendManager.startDiffusion()` → ✅ Fully Fixed |

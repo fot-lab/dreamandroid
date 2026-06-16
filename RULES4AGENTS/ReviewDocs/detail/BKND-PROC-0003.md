@@ -38,4 +38,5 @@ MainActivity 手动协调:
 | 日期 | 描述 |
 |------|------|
 | 2026-06-13 | 初始发现 |
-| 2026-06-15 | v4.0: MainActivity 迁移完成；ModelRunScreen 仍待迁移 → 🔧 Partial |
+| 2026-06-15 | v4.0: MainActivity 迁移完成 |
+| 2026-06-16 | Phase A1 完成：ModelRunScreen 全部后端操作统一通过 BackendManager API → ✅ Fully Fixed |

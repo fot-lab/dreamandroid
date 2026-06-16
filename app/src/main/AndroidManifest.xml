@@ -47,18 +47,6 @@
         </activity>
 
         <service
-            android:name=".service.BackendService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <service
-            android:name=".service.BackgroundGenerationService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <service
             android:name=".service.ModelDownloadService"
             android:enabled="true"
             android:exported="false"

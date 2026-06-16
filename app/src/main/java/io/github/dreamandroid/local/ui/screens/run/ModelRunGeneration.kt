@@ -2,7 +2,6 @@ package io.github.dreamandroid.local.ui.screens.run
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -19,29 +18,21 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
-import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
-import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.data.ModelInfo
-import io.github.dreamandroid.local.service.BackendService
-import io.github.dreamandroid.local.service.BackgroundGenerationService
-import io.github.dreamandroid.local.service.BackgroundGenerationService.GenerationState
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.utils.computeAspectTargetSize
 import io.github.dreamandroid.local.utils.padBitmapToCanvas
 import io.github.dreamandroid.local.utils.saveImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -108,239 +99,6 @@ fun onSeedChange(state: ModelRunState, value: String, save: () -> Unit) {
 
 fun onBatchCountsChange(state: ModelRunState, value: Float, save: () -> Unit) {
     state.batchCounts = value.roundToInt().coerceIn(1, 10); save()
-}
-
-// ── Service State Handler ─────────────────────────────────────────
-
-fun handleServiceState(
-    serviceState: GenerationState?,
-    state: ModelRunState,
-    model: ModelInfo?,
-    modelId: String,
-    historyManager: HistoryManager,
-    coroutineScope: CoroutineScope,
-    pagerState: androidx.compose.foundation.pager.PagerState,
-) {
-    when (serviceState) {
-        is GenerationState.Progress -> {
-            if (state.generationStartTime == null) {
-                state.generationStartTime = System.currentTimeMillis()
-            }
-            state.progress = serviceState.progress
-            state.isRunning = true
-            serviceState.intermediateImage?.let { state.intermediateBitmap = it }
-        }
-
-        is GenerationState.Complete -> {
-            state.intermediateBitmap = null
-            coroutineScope.launch(Dispatchers.Main) {
-                Log.d("ModelRunScreen", "update bitmap")
-                serviceState.seed?.let { state.returnedSeed = it }
-                state.progress = 0f
-
-                val genTime = state.generationStartTime?.let { startTime ->
-                    val duration = System.currentTimeMillis() - startTime
-                    when {
-                        duration < 1000 -> "${duration}ms"
-                        duration < 60000 -> String.format(Locale.US, "%.1fs", duration / 1000.0)
-                        else -> String.format(Locale.US, "%dm%ds", duration / 60000, (duration % 60000) / 1000)
-                    }
-                }
-
-                val currentGenerationMode = when {
-                    state.isInpaintMode -> GenerationMode.INPAINT
-                    state.selectedImageUri != null -> GenerationMode.IMG2IMG
-                    else -> GenerationMode.TXT2IMG
-                }
-
-                val newParams = GenerationParameters(
-                    steps = state.generationParamsTmp.steps,
-                    cfg = state.generationParamsTmp.cfg,
-                    seed = state.returnedSeed,
-                    prompt = state.generationParamsTmp.prompt,
-                    negativePrompt = state.generationParamsTmp.negativePrompt,
-                    generationTime = genTime,
-                    width = if (model?.runOnCpu == true) state.generationParamsTmp.width else serviceState.bitmap.width,
-                    height = if (model?.runOnCpu == true) state.generationParamsTmp.height else serviceState.bitmap.height,
-                    runOnCpu = model?.runOnCpu ?: false,
-                    denoiseStrength = state.generationParamsTmp.denoiseStrength,
-                    useOpenCL = state.generationParamsTmp.useOpenCL,
-                    scheduler = state.generationParamsTmp.scheduler,
-                    mode = currentGenerationMode,
-                )
-
-                coroutineScope.launch(Dispatchers.IO) {
-                    val savedItem = historyManager.saveGeneratedImage(
-                        modelId = modelId, bitmap = serviceState.bitmap,
-                        params = newParams, mode = currentGenerationMode,
-                    )
-                    if (savedItem != null) {
-                        withContext(Dispatchers.Main) {
-                            state.stitchableHistoryIds = setOf(savedItem.id)
-                            state.currentDisplayedHistoryId = savedItem.id
-                        }
-                    }
-                }
-
-                state.currentBitmap = serviceState.bitmap
-                state.generationParams = newParams
-                state.generationParamsModelId = modelId
-                state.imageVersion++
-
-                state.snapshotIsInpaintMode = state.isInpaintMode
-                state.snapshotSelectedImageUri = state.selectedImageUri
-                state.snapshotCropRect = state.cropRect
-                state.snapshotHasOriginalImage = state.hasOriginalImageForStitch
-                state.stitchableHistoryIds = emptySet()
-                state.currentDisplayedHistoryId = null
-
-                Log.d("ModelRunScreen", "params update: ${state.generationParams?.steps}, ${state.generationParams?.cfg}")
-                state.generationStartTime = null
-
-                if (pagerState.currentPage == 0 && !state.showAdvancedSettings) {
-                    try { pagerState.animateScrollToPage(1) }
-                    finally { BackgroundGenerationService.markBitmapConsumed() }
-                } else {
-                    BackgroundGenerationService.markBitmapConsumed()
-                }
-            }
-        }
-
-        is GenerationState.Error -> {
-            state.intermediateBitmap = null
-            state.errorMessage = serviceState.message
-            state.isRunning = false
-            state.progress = 0f
-            state.generationStartTime = null
-        }
-
-        else -> {
-            if (serviceState !is GenerationState.Progress) {
-                state.isRunning = false
-                state.progress = 0f
-            }
-        }
-    }
-}
-
-// ── Batch Generation Loop ─────────────────────────────────────────
-
-fun startBatchGeneration(
-    state: ModelRunState,
-    context: Context,
-    model: ModelInfo?,
-    coroutineScope: CoroutineScope,
-    effectiveWidth: Int,
-    effectiveHeight: Int,
-) {
-    state.generationParamsTmp = GenerationParameters(
-        steps = state.steps.roundToInt(), cfg = state.cfg, seed = 0,
-        prompt = state.prompt, negativePrompt = state.negativePrompt,
-        generationTime = "", width = state.currentWidth, height = state.currentHeight,
-        runOnCpu = model?.runOnCpu ?: false, denoiseStrength = state.denoiseStrength,
-        useOpenCL = state.useOpenCL, scheduler = state.scheduler,
-    )
-
-    val actualBatchCount = if (state.seed.isNotBlank()) 1 else state.batchCounts
-
-    state.batchGenerationJob = coroutineScope.launch {
-        for (i in 0 until actualBatchCount) {
-            BackgroundGenerationService.forceResetIfStale()
-            state.currentBatchIndex = i + 1
-            Log.d("ModelRunScreen", "preparing batch $i")
-
-            state.generationParamsTmp = GenerationParameters(
-                steps = state.steps.roundToInt(), cfg = state.cfg, seed = 0,
-                prompt = state.prompt, negativePrompt = state.negativePrompt,
-                generationTime = "", width = state.currentWidth, height = state.currentHeight,
-                runOnCpu = model?.runOnCpu ?: false, denoiseStrength = state.denoiseStrength,
-                useOpenCL = state.useOpenCL, scheduler = state.scheduler,
-            )
-
-            var batchItemSucceeded = false
-            for (retryAttempt in 1..BackgroundGenerationService.MAX_RETRIES) {
-                if (retryAttempt > 1) {
-                    Log.w("ModelRunScreen", "Batch $i retry $retryAttempt")
-                    delay(BackgroundGenerationService.RETRY_DELAY_MS)
-                    BackgroundGenerationService.forceResetIfStale()
-                }
-
-                val batchIntent = Intent(context, BackgroundGenerationService::class.java).apply {
-                    putExtra("prompt", state.prompt)
-                    putExtra("negative_prompt", state.negativePrompt)
-                    putExtra("steps", state.steps.roundToInt())
-                    putExtra("cfg", state.cfg)
-                    state.seed.toLongOrNull()?.let { putExtra("seed", it) }
-                    putExtra("width", state.currentWidth)
-                    putExtra("height", state.currentHeight)
-                    putExtra("effective_width", effectiveWidth)
-                    putExtra("effective_height", effectiveHeight)
-                    putExtra("denoise_strength", state.denoiseStrength)
-                    putExtra("use_opencl", state.useOpenCL)
-                    putExtra("scheduler", state.scheduler)
-                    putExtra("aspect_ratio", state.aspectRatio)
-                    putExtra("batch_index", i)
-                    if (state.selectedImageUri != null && state.base64EncodeDone) {
-                        putExtra("has_image", true)
-                        if (state.isInpaintMode && state.maskBitmap != null) {
-                            putExtra("has_mask", true)
-                        }
-                    }
-                }
-
-                Log.d("ModelRunScreen", "start service - batch $i")
-                context.startForegroundService(batchIntent)
-                Log.d("ModelRunScreen", "start service sent - batch $i")
-
-                val result = withTimeoutOrNull(BackgroundGenerationService.getServiceWaitTimeoutMs(context)) {
-                    BackgroundGenerationService.generationState.first { s ->
-                        s is GenerationState.Complete || s is GenerationState.Error
-                    }
-                }
-
-                when {
-                    result == null -> {
-                        Log.w("ModelRunScreen", "Batch $i timed out")
-                        BackgroundGenerationService.resetState()
-                        context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-                        continue
-                    }
-                    result is GenerationState.Complete -> batchItemSucceeded = true
-                    result is GenerationState.Error -> {
-                        Log.w("ModelRunScreen", "Batch $i error: ${result.message}")
-                        BackgroundGenerationService.resetState()
-                        continue
-                    }
-                }
-
-                Log.d("ModelRunScreen", "batch $i completed")
-                BackgroundGenerationService.markBitmapConsumed()
-
-                val waitStartTime = System.currentTimeMillis()
-                while (BackgroundGenerationService.isServiceRunning.value) {
-                    if (System.currentTimeMillis() - waitStartTime > BackgroundGenerationService.getServiceWaitTimeoutMs(context)) {
-                        Log.w("ModelRunScreen", "Service stop timeout")
-                        context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-                        delay(500)
-                        break
-                    }
-                    delay(100)
-                }
-
-                Log.d("ModelRunScreen", "service stopped")
-                BackgroundGenerationService.forceResetIfStale()
-                if (batchItemSucceeded) break
-            }
-
-            if (!batchItemSucceeded) {
-                Log.e("ModelRunScreen", "Batch $i failed after all retries")
-                break
-            }
-        }
-        state.currentBatchIndex = 0
-        state.isRunning = false
-        Log.d("ModelRunScreen", "all batches completed")
-    }
 }
 
 // ── Image Selection ──────────────────────────────────────────────
@@ -605,17 +363,17 @@ fun cleanupModelRun(
     context: Context,
     coroutineScope: CoroutineScope,
     pagerState: androidx.compose.foundation.pager.PagerState,
+    backendManager: BackendManager,
 ) {
     try {
         state.currentBitmap = null; state.generationParams = null
-        context.sendBroadcast(Intent(BackgroundGenerationService.ACTION_STOP))
-        val backendServiceIntent = Intent(context, BackendService::class.java)
-        context.stopService(backendServiceIntent)
+        coroutineScope.launch {
+            try { backendManager.stop() } catch (_: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", it) }
+        }
         state.isRunning = false; state.progress = 0f; state.errorMessage = null
-        state.currentBatchIndex = 0; state.generationStartTime = null
-        BackgroundGenerationService.resetState()
+        state.generationStartTime = null
         coroutineScope.launch { pagerState.scrollToPage(0) }
-        state.saveAllJob?.cancel(); state.batchGenerationJob?.cancel()
+        state.saveAllJob?.cancel()
     } catch (e: Exception) { Log.e("ModelRunScreen", "error", e) }
 }
 

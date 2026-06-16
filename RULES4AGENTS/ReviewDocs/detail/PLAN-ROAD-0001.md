@@ -2,32 +2,33 @@
 
 > 优先级: P0
 > 创建日期: 2026-06-15
+> 更新日期: 2026-06-16
 > 关联: ALL non-"Fully Fixed" items in index.md
 
 ## 1. 当前状态
 
-- **总问题数**: 33
-- **已 Fixed**: 17
-- **剩余未解决**: 16 (含 6 P0 / 8 P1 / 2 P2)
-- **Bypass 路径**: ModelRunScreen 的 4 条绕过路径已随 Phase 4 拆分分离到独立文件中，但逻辑仍使用旧 API
+- **总问题数**: 57
+- **已 Fixed**: 31 (Phase A 全部 + Phase C 完成，累计 +14)
+- **剩余未解决**: 26 (含 4 P0 / 4 P1 / 2 P2 → 多为独立执行的收尾问题)
+- **已完成 Phase**: A (Backend Consolidation), C (Queue Persistence)
 
 ## 2. 执行阶段总览
 
 ```
-Phase A: Backend Consolidation (P0)        ← 根因修复，解锁下游
+Phase A: Backend Consolidation (P0)        ← ✅ COMPLETED (2026-06-16)
  │
- ├── A1: 迁移 ModelRunScreen bypass → BackendManager
+ ├── ✅ A1: 迁移 ModelRunScreen bypass → BackendManager
  │       BKLC-BPAS-0001(start) + 0002(restart) + 0003(stop) + 0004(generation)
  │       + BKND-PROC-0003(切换泄漏)
  │
- ├── A2: 删除旧 BackendService + UpscaleBackendManager
+ ├── ✅ A2: 删除旧 BackendService + UpscaleBackendManager + BackgroundGenerationService
  │       BKND-PROC-0001 + BKND-PROC-0004(prepareRuntimeDir) 
  │       + BKLC-BPAS-0005~0010(UpscaleBackendMgr 重复)
  │
- └── A3: 前台通知保护
+ └── ✅ A3: 前台通知保护
          BKND-PROC-0005
  │
-Phase B: Coroutine Safety (P0)     ← 独立，可与 A 并行
+Phase B: Coroutine Safety (P0)     ← 待执行，无外部依赖
  │
  ├── B1: runBlocking → suspend
  │       CORO-EXEC-0001
@@ -35,10 +36,11 @@ Phase B: Coroutine Safety (P0)     ← 独立，可与 A 并行
  └── B2: Scope 泄漏修复
          CORO-EXEC-0002
  │
-Phase C: Queue Persistence (P0)    ← 依赖 Room 基础设施
+Phase C: Queue Persistence (P0)    ← ✅ COMPLETED (2026-06-16)
  │
- └── C1: Room 持久化队列
+ └── ✅ C1: Room 持久化队列 + History (统一 TaskEntity 方案)
          DFLW-INTG-0012 + QUEU-SYST-0005
+         (实际实施扩展：Queue+History 合并为统一 TaskEntity，共 31 字段)
  │
 Phase D: AppContent God Object (P0) ← 最大拆分工程
  │
@@ -59,19 +61,19 @@ Phase E: P2/P3 修复                ← 收尾
 ```
 BKLC-BPAS-0001 ─┐
 BKLC-BPAS-0002 ─┤
-BKLC-BPAS-0003 ─┼──→ BKND-PROC-0001 ──→ BKLC-BPAS-0005~0010 ──→ 删除旧文件
+BKLC-BPAS-0003 ─┼──→ BKND-PROC-0001 ──→ BKLC-BPAS-0005~0010 ──→ 删除旧文件   ← ✅ Phase A done
 BKLC-BPAS-0004 ─┘         │
 BKND-PROC-0003 ───────────┘
                           │
-                          └──→ BKND-PROC-0004 (自动解决)
-                          └──→ BKND-PROC-0005 (并行)
+                          └──→ BKND-PROC-0004 (自动解决)  ← ✅
+                          └──→ BKND-PROC-0005 (并行)      ← ✅
 
-CORO-EXEC-0001 ──→ CORO-EXEC-0002        ← 无外部依赖
-DFLW-INTG-0012 ──→ QUEU-SYST-0005        ← 无外部依赖
-UILA-COMP-0001  ──→ UILA-COMP-0002        ← 无外部依赖
+CORO-EXEC-0001 ──→ CORO-EXEC-0002        ← 无外部依赖 (待执行)
+DFLW-INTG-0012 ──→ QUEU-SYST-0005        ← ✅ Phase C done
+UILA-COMP-0001  ──→ UILA-COMP-0002        ← 无外部依赖 (待执行)
 ```
 
-## 4. Phase A: Backend Consolidation (优先级 P0)
+## 4. Phase A: Backend Consolidation (优先级 P0) — ✅ COMPLETED (2026-06-16)
 
 ### 4.1 现状代码定位
 
@@ -217,30 +219,17 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 
 ---
 
-## 6. Phase C: Queue Persistence (优先级 P0)
+## 6. Phase C: Queue Persistence (优先级 P0) — ✅ COMPLETED (2026-06-16)
 
 ### 6.1 Sub-task C1: Room 持久化队列
 
 涉及 Issue: DFLW-INTG-0012, QUEU-SYST-0005
 
-**Step 1: Review Current Code**
-- Review `service/QueueRepository.kt` (纯内存 MutableStateFlow)
-- Review `data/QueueModels.kt` (TaskStatus, QueueItem 等)
-- 检查项目是否已有 Room DB (AppDatabase)
-
-**Step 2: Plan Resolution**
-1. 新建 `QueueTaskEntity` Room Entity
-2. 新建 `QueueDao` (insert/update/delete/query by status)
-3. 在 AppDatabase 中添加 migration
-4. `QueueRepository` 改为 Room-backed：写操作同时写 Room + StateFlow，启动时从 Room 恢复
-
-**Step 3: Execute Resolution**
-新建 Entity + Dao + Migration，修改 QueueRepository。
-
-**Step 4: Update Review Detail**
-更新 DFLW-INTG-0012.md 和 QUEU-SYST-0005.md。
-
-**Step 5: Commit and Push**
+**Step 1: Review Current Code** ✅
+**Step 2: Plan Resolution** → 实际执行扩展为统一 TaskEntity 方案 (Queue+History 合并)
+**Step 3: Execute Resolution** ✅ (新建 TaskEntity + TaskDao + v4 Migration，删除旧 Entity/Dao ×4)
+**Step 4: Update Review Detail** ✅ (QUEU-SYST-0005, DFLW-INTG-0012 → Fully Fixed)
+**Step 5: Commit and Push** ✅
 
 ---
 
@@ -323,17 +312,17 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 
 ## 9. 预估工作量
 
-| Phase | Sub-tasks | 预估文件修改数 | 复杂度 |
-|-------|-----------|--------------|--------|
-| A1 | 迁移 bypass | 3-4 文件 | Medium |
-| A2 | 删除旧文件 | 2 files delete + 1 search | Low |
-| A3 | 通知保护 | 1 file | Low |
-| B1 | runBlocking | 1 file | Low |
-| B2 | scope 泄漏 | 2 files | Low |
-| C1 | Room 队列 | 4 files new + 2 modified | High |
-| D1 | ViewModel | 6 files new + 1 rewrite | High |
-| D2 | 测试 | 6 files new | Medium |
-| E | 收尾 | ~10 files | Low-Medium |
+| Phase | Sub-tasks | 预估文件修改数 | 复杂度 | 状态 |
+|-------|-----------|--------------|--------|------|
+| A1 | 迁移 bypass | 3-4 文件 | Medium | ✅ Done |
+| A2 | 删除旧文件 | 3 files delete + 1 search | Low | ✅ Done |
+| A3 | 通知保护 | 1 file | Low | ✅ Done |
+| B1 | runBlocking | 1 file | Low | 📅 TODO |
+| B2 | scope 泄漏 | 2 files | Low | 📅 TODO |
+| C1 | Room 队列+历史 | 2 files new + 6 modified + 4 deleted | High | ✅ Done |
+| D1 | ViewModel | 6 files new + 1 rewrite | High | 📅 TODO |
+| D2 | 测试 | 6 files new | Medium | 📅 TODO |
+| E | 收尾 | ~10 files | Low-Medium | 📅 TODO |
 
 ## 10. 执行原则
 
@@ -349,3 +338,4 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | 日期 | 变更 |
 |------|------|
 | 2026-06-15 | 创建：全量剩余问题分批解决总体规划 |
+| 2026-06-16 | Phase A (Backend Consolidation) 全部完成：A1 ModelRunScreen迁移至BackendManager + A2删除BackendService/UpscaleBackendManager/BackgroundGenerationService + A3前台通知保护；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；累计14个Issue → Fully Fixed |

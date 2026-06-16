@@ -26,4 +26,5 @@
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-15 | 初始发现，修复路径确认 |
+| 2026-06-15 | 初始发现 |
+| 2026-06-16 | Phase A2 完成：`BackendService.kt` 已删除，`RuntimeDirPreparer.prepare()` 为唯一实现 → ✅ Fully Fixed |

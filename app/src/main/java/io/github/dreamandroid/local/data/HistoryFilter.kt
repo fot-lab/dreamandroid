@@ -39,8 +39,11 @@ data class HistoryFilter(
         val where = mutableListOf<String>()
         val args = mutableListOf<Any>()
 
+        // Mandatory: only history tasks
+        where += "task_type = 'HISTORY'"
+
         if (!modelIds.isNullOrEmpty()) {
-            where += "modelId IN (${modelIds.joinToString(",") { "?" }})"
+            where += "model_id IN (${modelIds.joinToString(",") { "?" }})"
             args.addAll(modelIds)
         }
         if (!modes.isNullOrEmpty()) {
@@ -70,25 +73,25 @@ data class HistoryFilter(
         }
         if (!devices.isNullOrEmpty()) {
             val parts = mutableListOf<String>()
-            // runOnCpu=false → NPU; runOnCpu=true && useOpenCL=false → CPU; runOnCpu=true && useOpenCL=true → GPU
-            if (DeviceFilter.NPU in devices) parts += "runOnCpu = 0"
-            if (DeviceFilter.CPU in devices) parts += "(runOnCpu = 1 AND useOpenCL = 0)"
-            if (DeviceFilter.GPU in devices) parts += "(runOnCpu = 1 AND useOpenCL = 1)"
+            // run_on_cpu=0 → NPU; run_on_cpu=1 && use_opencl=0 → CPU; run_on_cpu=1 && use_opencl=1 → GPU
+            if (DeviceFilter.NPU in devices) parts += "run_on_cpu = 0"
+            if (DeviceFilter.CPU in devices) parts += "(run_on_cpu = 1 AND use_opencl = 0)"
+            if (DeviceFilter.GPU in devices) parts += "(run_on_cpu = 1 AND use_opencl = 1)"
             if (parts.isNotEmpty()) {
                 where += "(${parts.joinToString(" OR ")})"
             }
         }
         if (!promptSubstring.isNullOrBlank()) {
-            where += "(INSTR(prompt, ?) > 0 OR INSTR(negativePrompt, ?) > 0)"
+            where += "(INSTR(prompt, ?) > 0 OR INSTR(negative_prompt, ?) > 0)"
             args += promptSubstring
             args += promptSubstring
         }
 
-        val whereClause = if (where.isEmpty()) "" else "WHERE ${where.joinToString(" AND ")}"
+        val whereClause = "WHERE ${where.joinToString(" AND ")}"
         val direction = if (descending) "DESC" else "ASC"
         val orderClause = "ORDER BY timestamp $direction, id $direction"
 
-        val sql = "SELECT * FROM generation_history $whereClause $orderClause"
+        val sql = "SELECT * FROM tasks $whereClause $orderClause"
 
         return SimpleSQLiteQuery(sql, args.toTypedArray())
     }

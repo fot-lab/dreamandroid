@@ -5,9 +5,10 @@ import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.runtime.Immutable
 import io.github.dreamandroid.local.data.db.AppDatabase
-import io.github.dreamandroid.local.data.db.HistoryEntity
+import io.github.dreamandroid.local.data.db.TaskEntity
 import io.github.dreamandroid.local.ui.screens.GenerationParameters
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -15,7 +16,7 @@ import kotlinx.coroutines.withContext
 
 @Immutable
 data class HistoryItem(
-    val id: Long,
+    val id: String,
     val modelId: String,
     val imageFile: File,
     val params: GenerationParameters,
@@ -24,8 +25,8 @@ data class HistoryItem(
     val upscalerId: String?,
 ) {
     companion object {
-        fun fromEntity(filesDir: File, e: HistoryEntity): HistoryItem {
-            val imageFile = File(filesDir, e.imagePath)
+        fun fromEntity(filesDir: File, e: TaskEntity): HistoryItem {
+            val imageFile = File(filesDir, e.imagePath ?: "")
             val mode = GenerationMode.fromString(e.mode)
             return HistoryItem(
                 id = e.id,
@@ -43,7 +44,7 @@ data class HistoryItem(
                     generationTime = e.generationTime,
                     width = e.width,
                     height = e.height,
-                    runOnCpu = e.runOnCpu,
+                    runOnCpu = e.runOnCpu ?: false,
                     denoiseStrength = e.denoiseStrength ?: 0.6f,
                     useOpenCL = e.useOpenCL,
                     scheduler = e.scheduler,
@@ -56,7 +57,7 @@ data class HistoryItem(
 
 class HistoryManager(private val context: Context) {
 
-    private val dao = AppDatabase.get(context).historyDao()
+    private val dao = AppDatabase.get(context).taskDao()
     private val filesDir: File = context.filesDir
 
     private fun getHistoryDir(modelId: String): File {
@@ -97,31 +98,35 @@ class HistoryManager(private val context: Context) {
         val imageFile = File(historyDir, "$timestamp.$ext")
 
         try {
+            val taskId = UUID.randomUUID().toString()
+
             // Step 1: Insert into Room DB first (SSOT)
-            val entity = HistoryEntity(
+            val entity = TaskEntity(
+                id = taskId,
+                taskType = TaskEntity.TYPE_HISTORY,
                 modelId = modelId,
-                timestamp = timestamp,
-                imagePath = relativePath,
+                prompt = params.prompt,
+                negativePrompt = params.negativePrompt,
+                steps = params.steps,
+                cfg = params.cfg,
+                seed = params.seed,
                 width = params.width,
                 height = params.height,
-                mode = mode.name,
                 denoiseStrength = if (mode == GenerationMode.IMG2IMG || mode == GenerationMode.INPAINT) {
                     params.denoiseStrength
                 } else {
                     null
                 },
-                upscalerId = upscalerId,
-                steps = params.steps,
-                cfg = params.cfg,
-                seed = params.seed,
-                prompt = params.prompt,
-                negativePrompt = params.negativePrompt,
-                generationTime = params.generationTime,
-                scheduler = params.scheduler,
-                runOnCpu = params.runOnCpu,
                 useOpenCL = params.useOpenCL,
+                scheduler = params.scheduler,
+                timestamp = timestamp,
+                imagePath = relativePath,
+                mode = mode.name,
+                upscalerId = upscalerId,
+                generationTime = params.generationTime,
+                runOnCpu = params.runOnCpu,
             )
-            val id = dao.insert(entity)
+            dao.insert(entity)
 
             // Step 2: Write image file to disk
             try {
@@ -135,11 +140,11 @@ class HistoryManager(private val context: Context) {
             } catch (fileEx: Exception) {
                 // File write failed → roll back Room record to prevent orphan DB rows
                 Log.e("HistoryManager", "File write failed, rolling back DB record", fileEx)
-                dao.deleteById(id)
+                dao.deleteById(taskId)
                 return@withContext null
             }
 
-            HistoryItem.fromEntity(filesDir, entity.copy(id = id))
+            HistoryItem.fromEntity(filesDir, entity)
         } catch (e: Exception) {
             // DB insert failed or other error → clean up any partial file
             Log.e("HistoryManager", "Failed to save image", e)
@@ -163,9 +168,9 @@ class HistoryManager(private val context: Context) {
         entities.map { HistoryItem.fromEntity(filesDir, it) }
     }
 
-    fun observeKnownModelIds(): Flow<List<String>> = dao.observeKnownModelIds()
-    fun observeKnownSchedulers(): Flow<List<String>> = dao.observeKnownSchedulers()
-    fun observeKnownSizes(): Flow<List<String>> = dao.observeKnownSizes()
+    fun observeKnownModelIds(): Flow<List<String>> = dao.observeHistoryKnownModelIds()
+    fun observeKnownSchedulers(): Flow<List<String>> = dao.observeHistoryKnownSchedulers()
+    fun observeKnownSizes(): Flow<List<String>> = dao.observeHistoryKnownSizes()
 
     suspend fun deleteHistoryItem(item: HistoryItem): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -180,7 +185,7 @@ class HistoryManager(private val context: Context) {
 
     suspend fun clearHistoryForModel(modelId: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            dao.deleteAllForModel(modelId)
+            dao.deleteHistoryForModel(modelId)
             File(filesDir, "history/$modelId").deleteRecursively()
             true
         } catch (e: Exception) {

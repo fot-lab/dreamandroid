@@ -6,29 +6,40 @@ import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.data.BatchGroupDisplay
 import io.github.dreamandroid.local.data.GenerationTask
 import io.github.dreamandroid.local.data.TaskStatus
+import io.github.dreamandroid.local.data.db.AppDatabase
+import io.github.dreamandroid.local.data.db.TaskEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
- * In-memory queue state management, shared between UI and WorkManager Worker.
+ * Queue state management with Room persistence, shared between UI and Worker.
  *
- * Accessed via [QueueRepository.getInstance] to ensure a single instance
- * per process (Application-scoped singleton).
+ * All writes are persisted to Room asynchronously; the in-memory [StateFlow] is
+ * updated immediately for responsive UI. On process restart, pending and
+ * processing tasks are restored from the database.
  *
- * WorkManager's GenerationWorker polls [getNextPending] to dequeue tasks,
- * while the UI observes [tasks] and [processingActive] via collectAsState().
+ * Accessed via [QueueRepository.getInstance] — process-wide singleton.
  */
-class QueueRepository private constructor() {
+class QueueRepository private constructor(private val db: AppDatabase) {
 
     companion object {
         @Volatile
         private var INSTANCE: QueueRepository? = null
 
-        /** Returns the process-wide singleton. Safe to call from any thread. */
+        /** Returns the process-wide singleton, restoring persisted tasks on first call. */
         fun getInstance(context: Context): QueueRepository {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: QueueRepository().also { INSTANCE = it }
+                INSTANCE ?: QueueRepository(
+                    AppDatabase.get(context.applicationContext),
+                ).also { repo ->
+                    repo.restoreFromDb()
+                    INSTANCE = repo
+                }
             }
         }
     }
@@ -39,9 +50,24 @@ class QueueRepository private constructor() {
     private val _processingActive = MutableStateFlow(false)
     val processingActive: StateFlow<Boolean> = _processingActive
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // ── Init: restore from Room ──
+
+    private fun restoreFromDb() {
+        scope.launch {
+            val entities = db.taskDao().getRestorableQueueTasks()
+            _tasks.value = entities.map { it.toDomain() }
+        }
+    }
+
+    // ── Processing flag ──
+
     fun setProcessingActive(active: Boolean) {
         _processingActive.value = active
     }
+
+    // ── Batch / Task mutations ──
 
     fun addBatch(
         modelId: String,
@@ -62,6 +88,7 @@ class QueueRepository private constructor() {
     ): String {
         val batchGroupId = UUID.randomUUID().toString()
         val seedLong = seed.toLongOrNull()
+        val now = System.currentTimeMillis()
         val newTasks = (0 until count).map { i ->
             GenerationTask(
                 id = UUID.randomUUID().toString(),
@@ -81,22 +108,33 @@ class QueueRepository private constructor() {
                 useOpenCL = useOpenCL,
                 scheduler = scheduler,
                 aspectRatio = aspectRatio,
+                timestamp = now,
             )
         }
+        // Optimistic in-memory update
         _tasks.update { it + newTasks }
+        // Persist async
+        val entities = newTasks.map { it.toEntity() }
+        scope.launch { db.taskDao().insertAll(entities) }
         return batchGroupId
     }
 
     fun removeTask(id: String) {
         _tasks.update { it.filterNot { t -> t.id == id } }
+        scope.launch { db.taskDao().deleteQueueById(id) }
     }
 
     fun removeBatch(batchGroupId: String) {
         _tasks.update { it.filterNot { t -> t.batchGroupId == batchGroupId } }
+        scope.launch { db.taskDao().deleteQueueByBatch(batchGroupId) }
     }
 
     fun updateTask(id: String, update: (GenerationTask) -> GenerationTask) {
-        _tasks.update { it.map { t -> if (t.id == id) update(t) else t } }
+        var updated: GenerationTask? = null
+        _tasks.update { tasks ->
+            tasks.map { t -> if (t.id == id) { val u = update(t); updated = u; u } else t }
+        }
+        updated?.let { scope.launch { db.taskDao().insert(it.toEntity()) } }
     }
 
     fun markTaskProcessing(id: String) {
@@ -105,8 +143,7 @@ class QueueRepository private constructor() {
 
     /**
      * Reset a PROCESSING task back to PENDING.
-     * Used when the backend becomes unavailable mid-generation —
-     * the task is not failed, only deferred until the backend returns.
+     * Used when the backend becomes unavailable mid-generation.
      */
     fun resetTaskToPending(id: String) {
         updateTask(id) { it.copy(status = TaskStatus.PENDING, progress = 0f) }
@@ -153,7 +190,13 @@ class QueueRepository private constructor() {
                 } else task
             }
         }
+        scope.launch {
+            _tasks.value.filter { it.status == TaskStatus.CANCELLED }
+                .forEach { db.taskDao().insert(it.toEntity()) }
+        }
     }
+
+    // ── Queries ──
 
     fun getNextPending(): GenerationTask? {
         return _tasks.value.firstOrNull { it.status == TaskStatus.PENDING }
@@ -178,6 +221,61 @@ class QueueRepository private constructor() {
     }
 
     fun clearCompleted() {
-        _tasks.update { it.filterNot { t -> t.status == TaskStatus.COMPLETED } }
+        _tasks.update { it.filterNot { t -> t.status == TaskStatus.COMPLETED || t.status == TaskStatus.ERROR || t.status == TaskStatus.CANCELLED } }
+        scope.launch { db.taskDao().clearQueueCompleted() }
     }
+
+    // ── Mapping helpers ──
+
+    private fun GenerationTask.toEntity() = TaskEntity(
+        id = id,
+        taskType = TaskEntity.TYPE_QUEUE,
+        modelId = modelId,
+        prompt = prompt,
+        negativePrompt = negativePrompt,
+        steps = steps,
+        cfg = cfg,
+        seed = seed,
+        width = width,
+        height = height,
+        denoiseStrength = denoiseStrength,
+        useOpenCL = useOpenCL,
+        scheduler = scheduler,
+        timestamp = timestamp,
+        batchGroupId = batchGroupId,
+        batchIndex = batchIndex,
+        effectiveWidth = effectiveWidth,
+        effectiveHeight = effectiveHeight,
+        aspectRatio = aspectRatio,
+        status = status.name,
+        resultSeed = resultSeed,
+        errorMessage = errorMessage,
+        progress = progress,
+    )
+
+    private fun TaskEntity.toDomain() = GenerationTask(
+        id = id,
+        batchGroupId = batchGroupId ?: "",
+        batchIndex = batchIndex ?: 0,
+        modelId = modelId,
+        prompt = prompt,
+        negativePrompt = negativePrompt,
+        steps = steps,
+        cfg = cfg,
+        seed = seed,
+        width = width,
+        height = height,
+        effectiveWidth = effectiveWidth ?: width,
+        effectiveHeight = effectiveHeight ?: height,
+        denoiseStrength = denoiseStrength ?: 0.6f,
+        useOpenCL = useOpenCL,
+        scheduler = scheduler,
+        aspectRatio = aspectRatio ?: "",
+        status = try { TaskStatus.valueOf(status ?: "PENDING") } catch (_: Exception) { TaskStatus.PENDING },
+        timestamp = timestamp,
+        resultBitmap = null, // not persisted
+        resultSeed = resultSeed,
+        errorMessage = errorMessage,
+        progress = progress ?: 0f,
+    )
 }

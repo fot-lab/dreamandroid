@@ -25,4 +25,5 @@
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-15 | 初始发现，待迁移 |
+| 2026-06-15 | 初始发现 |
+| 2026-06-16 | Phase A1 完成：批量生成迁移至 `backendManager.generate()` SSE Flow + `QueueProcessingService`；旧 `BackgroundGenerationService.kt` 已删除 → ✅ Fully Fixed |

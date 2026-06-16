@@ -9,8 +9,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.withTransaction
 import io.github.dreamandroid.local.data.db.AppDatabase
-import io.github.dreamandroid.local.data.db.HistoryDao
-import io.github.dreamandroid.local.data.db.HistoryEntity
+import io.github.dreamandroid.local.data.db.TaskDao
+import io.github.dreamandroid.local.data.db.TaskEntity
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,7 +70,7 @@ object HistoryMigration {
         progress.value = MigrationState.InProgress(0, total, null)
 
         // Pass 2: insert in one big transaction
-        val dao = db.historyDao()
+        val dao = db.taskDao()
         var current = 0
         db.withTransaction {
             for ((modelId, jsonFile) in tasks) {
@@ -98,7 +98,7 @@ object HistoryMigration {
         progress.value = MigrationState.Done
     }
 
-    private suspend fun migrateOne(modelId: String, jsonFile: File, dao: HistoryDao) {
+    private suspend fun migrateOne(modelId: String, jsonFile: File, dao: TaskDao) {
         val timestamp = jsonFile.nameWithoutExtension.toLongOrNull() ?: return
         val historyDir = jsonFile.parentFile ?: return
 
@@ -110,25 +110,18 @@ object HistoryMigration {
             else -> return
         }
 
-        if (dao.countByKey(modelId, timestamp) > 0) return
+        if (dao.countHistoryByKey(modelId, timestamp) > 0) return
 
         val json = JSONObject(jsonFile.readText())
 
         val (width, height) = parseSize(json)
 
-        val entity = HistoryEntity(
+        val entity = TaskEntity(
+            id = timestamp.toString(),
+            taskType = TaskEntity.TYPE_HISTORY,
             modelId = modelId,
-            timestamp = timestamp,
-            imagePath = "history/$modelId/${imageFile.name}",
-            width = width,
-            height = height,
-            mode = GenerationMode.UNKNOWN.name,
-            denoiseStrength = if (json.has("denoiseStrength")) {
-                runCatching { json.getDouble("denoiseStrength").toFloat() }.getOrNull()
-            } else {
-                null
-            },
-            upscalerId = if (isJpg) "unknown" else null,
+            prompt = json.optString("prompt", ""),
+            negativePrompt = json.optString("negativePrompt", ""),
             steps = json.optInt("steps", 20),
             cfg = runCatching { json.getDouble("cfg").toFloat() }.getOrDefault(7f),
             seed = if (json.isNull("seed") || !json.has("seed")) {
@@ -136,12 +129,21 @@ object HistoryMigration {
             } else {
                 runCatching { json.getLong("seed") }.getOrNull()
             },
-            prompt = json.optString("prompt", ""),
-            negativePrompt = json.optString("negativePrompt", ""),
-            generationTime = json.optString("generationTime", "").ifBlank { null },
-            scheduler = json.optString("scheduler", "dpm"),
-            runOnCpu = json.optBoolean("runOnCpu", false),
+            width = width,
+            height = height,
+            denoiseStrength = if (json.has("denoiseStrength")) {
+                runCatching { json.getDouble("denoiseStrength").toFloat() }.getOrNull()
+            } else {
+                null
+            },
             useOpenCL = json.optBoolean("useOpenCL", false),
+            scheduler = json.optString("scheduler", "dpm"),
+            timestamp = timestamp,
+            imagePath = "history/$modelId/${imageFile.name}",
+            mode = GenerationMode.UNKNOWN.name,
+            upscalerId = if (isJpg) "unknown" else null,
+            generationTime = json.optString("generationTime", "").ifBlank { null },
+            runOnCpu = json.optBoolean("runOnCpu", false),
         )
         dao.insert(entity)
     }

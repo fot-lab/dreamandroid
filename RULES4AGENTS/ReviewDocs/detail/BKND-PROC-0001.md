@@ -53,4 +53,5 @@ MainActivity 手动协调:
 | 日期 | 描述 |
 |------|------|
 | 2026-06-13 | 初始发现 |
-| 2026-06-15 | v4.0: MainActivity 迁移至 BackendManager；旧文件标记 @Deprecated；状态 → 🔧 Partial |
+| 2026-06-15 | v4.0: MainActivity 迁移至 BackendManager；旧文件标记 @Deprecated |
+| 2026-06-16 | Phase A 完成：ModelRunScreen 迁移至 BackendManager API；`BackendService.kt`、`UpscaleBackendManager.kt` 已删除 → ✅ Fully Fixed |

@@ -43,4 +43,5 @@ class BackendManager(
 | 日期 | 描述 |
 |------|------|
 | 2026-06-13 | 初始发现 |
-| 2026-06-15 | 方案设计完成，待后续实施 |
+| 2026-06-15 | 方案设计完成 |
+| 2026-06-16 | Phase A3 完成：`BackendManager` 在 `startDiffusion()`/`startUpscaler()` 启动时调用 `showBackendNotification()`，`stop()` 时调用 `cancelBackendNotification()` → ✅ Fully Fixed |

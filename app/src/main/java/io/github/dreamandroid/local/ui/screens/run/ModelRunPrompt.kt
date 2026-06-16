@@ -83,8 +83,6 @@ import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.data.TagAutocompleteRepository
 import io.github.dreamandroid.local.data.TagSuggestion
-import io.github.dreamandroid.local.service.BackgroundGenerationService
-import io.github.dreamandroid.local.service.BackgroundGenerationService.GenerationState
 import io.github.dreamandroid.local.ui.components.ErrorMessageCard
 import io.github.dreamandroid.local.ui.components.PromptTagTextField
 import io.github.dreamandroid.local.ui.components.SmoothLinearWavyProgressIndicator
@@ -111,7 +109,6 @@ fun ModelRunPromptPage(
     tagSuggestionCount: Int,
     useImg2img: Boolean,
     pagerState: androidx.compose.foundation.pager.PagerState,
-    serviceState: GenerationState?,
     // Callbacks
     onPromptFieldChanged: (TextFieldValue, Boolean) -> Unit,
     onNegativePromptFieldChanged: (TextFieldValue, Boolean) -> Unit,
@@ -203,7 +200,7 @@ fun ModelRunPromptPage(
                                 model = model,
                                 context = context,
                                 useImg2img = useImg2img,
-                                isRunning = state.isRunning || (serviceState is GenerationState.Progress),
+                                isRunning = state.isRunning,
                                 onPasteClipboard = onPasteClipboard,
                                 onShareCurrent = onShareCurrent,
                                 onResetAll = onResetAll,
@@ -306,12 +303,12 @@ fun ModelRunPromptPage(
 
                     Button(
                         onClick = { focusManager.clearFocus(); onGenerateClick() },
-                        enabled = serviceState !is GenerationState.Progress && !state.isRunning && !state.isUpscaling,
+                        enabled = !state.isRunning && !state.isUpscaling,
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.medium,
                     ) {
                         AnimatedContent(
-                            targetState = serviceState is GenerationState.Progress || state.isUpscaling,
+                            targetState = state.isRunning || state.isUpscaling,
                             transitionSpec = {
                                 (fadeIn(animationSpec = tween(Motion.DurationShort)) + scaleIn(initialScale = 0.8f, animationSpec = tween(Motion.DurationShort)))
                                     .togetherWith(fadeOut(animationSpec = tween(Motion.DurationShort)) + scaleOut(targetScale = 0.8f, animationSpec = tween(Motion.DurationShort)))
@@ -353,11 +350,7 @@ fun ModelRunPromptPage(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = if (state.currentBatchIndex > 0) {
-                            "${stringResource(R.string.generating)} (${state.currentBatchIndex}/${state.batchCounts})…"
-                        } else {
-                            stringResource(R.string.generating)
-                        },
+                        text = stringResource(R.string.generating),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     SmoothLinearWavyProgressIndicator(progress = state.progress, modifier = Modifier.fillMaxWidth())
