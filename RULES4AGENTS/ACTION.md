@@ -69,6 +69,17 @@
 3. 从 CI Artifacts 下载 `build-gradle.log` 查看编译结果
 4. 如有错误，读取日志、分析、修复、重新提交
 
+### 查询 CI Workflow 状态
+
+1. 通过 GitHub REST API 获取最新 workflow 运行状态：\
+   `GET https://api.github.com/repos/{owner}/{repo}/actions/runs?per_page=1`
+2. 从响应中提取：
+   - `workflow_runs[0].status` — 运行状态 (`queued` / `in_progress` / `completed`)
+   - `workflow_runs[0].conclusion` — 运行结论 (`success` / `failure` / `cancelled`)
+   - `workflow_runs[0].html_url` — 浏览器链接
+   - `workflow_runs[0].name` — workflow 名称
+3. 规则说明中不得提及任何 GitHub 用户名或个人账号信息
+
 ### Release 发布流程
 
 1. 更新 `VERSION_NAME` 和 `VERSION_CODE`
@@ -80,4 +91,5 @@
 
 | 日期 | 描述 |
 |------|------|
+| 2026-06-16 | 添加 CI Workflow 状态查询规则（GitHub REST API） |
 | 2026-06-16 | 初始创建。声明无本地构建工具链，所有构建在云端 CI/CD 完成 |
