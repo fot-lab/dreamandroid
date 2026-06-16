@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 15.1
+> 版本: 16.0
 > 更新日期: 2026-06-16
-> Phase A~F 完成 (59 总数, 55 Fixed/Won'tFix, 4 剩余)
+> Phase A~F 完成 (59 总数, 56 Fixed/Won'tFix, 3 剩余)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -58,7 +58,7 @@
 | DFLW-INTG-0004 | P1 | SseStreamParser: readLine() 阻塞不响应取消 | Fully Fixed | [detail/DFLW-INTG-0004.md](detail/DFLW-INTG-0004.md) |
 | DFLW-INTG-0005 | P1 | Health check 双路径策略不一致 | Fully Fixed | [detail/DFLW-INTG-0005.md](detail/DFLW-INTG-0005.md) |
 | DFLW-INTG-0006 | P1 | 生成异常双路径策略不一致 | Fully Fixed | [detail/DFLW-INTG-0006.md](detail/DFLW-INTG-0006.md) |
-| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | Resolution Planned | [detail/DFLW-INTG-0007.md](detail/DFLW-INTG-0007.md) |
+| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | Fully Fixed | [detail/DFLW-INTG-0007.md](detail/DFLW-INTG-0007.md) |
 | DFLW-INTG-0008 | P2 | RecordRepository JSON 损坏全丢 | Fully Fixed | [detail/DFLW-INTG-0008.md](detail/DFLW-INTG-0008.md) |
 | DFLW-INTG-0009 | P3 | RecordRepository 并发写入不安全 | Fully Fixed | [detail/DFLW-INTG-0009.md](detail/DFLW-INTG-0009.md) |
 | DFLW-INTG-0010 | P1 | processingActive 双重数据源 | Fully Fixed | [detail/DFLW-INTG-0010.md](detail/DFLW-INTG-0010.md) |
