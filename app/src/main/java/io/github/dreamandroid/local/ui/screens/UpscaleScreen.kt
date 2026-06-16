@@ -220,10 +220,10 @@ fun UpscaleScreen(
                             useOriginalSize = true,
                         )
 
+                        val savedMsg = stringResource(R.string.image_saved)
                         FilledTonalIconButton(
                             onClick = {
                                 upscaleViewModel.upscaledBitmap?.let { bitmap ->
-                                    val savedMsg = stringResource(R.string.image_saved)
                                     scope.launch {
                                         saveImage(
                                             context = context, bitmap = bitmap,
