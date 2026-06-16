@@ -219,6 +219,7 @@ fun ModelRunDeleteHistoryDialog(
     msgDeleted: String,
     msgDeleteFailedMessage: String,
 ) {
+    val context = LocalContext.current
     if (!state.showDeleteHistoryDialog || state.selectedHistoryItem == null) return
     AlertDialog(
         onDismissRequest = { state.showDeleteHistoryDialog = false },
@@ -230,8 +231,8 @@ fun ModelRunDeleteHistoryDialog(
                     val success = historyManager.deleteHistoryItem(item = state.selectedHistoryItem!!)
                     if (success) {
                         state.showDeleteHistoryDialog = false; state.showHistoryDetailDialog = false; state.selectedHistoryItem = null
-                        Toast.makeText(LocalContext.current, msgDeleted, Toast.LENGTH_SHORT).show()
-                    } else { Toast.makeText(LocalContext.current, msgDeleteFailedMessage, Toast.LENGTH_SHORT).show() }
+                        Toast.makeText(context, msgDeleted, Toast.LENGTH_SHORT).show()
+                    } else { Toast.makeText(context, msgDeleteFailedMessage, Toast.LENGTH_SHORT).show() }
                 }
             }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
         },
@@ -314,6 +315,7 @@ fun ModelRunBatchDeleteDialog(
     msgDeletedCountWithFailed: String,
     resources: android.content.res.Resources,
 ) {
+    val context = LocalContext.current
     if (!state.showBatchDeleteDialog || state.selectedItems.isEmpty()) return
     AlertDialog(
         onDismissRequest = { state.showBatchDeleteDialog = false },
@@ -326,7 +328,7 @@ fun ModelRunBatchDeleteDialog(
                     itemsToDelete.forEach { item -> val success = historyManager.deleteHistoryItem(item = item); if (success) successCount++ else failCount++ }
                     state.selectedItems.clear(); state.isSelectionMode = false; state.showBatchDeleteDialog = false
                     val message = if (failCount == 0) { resources.getQuantityString(R.plurals.deleted_count, successCount, successCount) } else { msgDeletedCountWithFailed.format(successCount, failCount) }
-                    Toast.makeText(LocalContext.current, message, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
         },
@@ -524,8 +526,8 @@ fun ModelRunUpscalerDialog(
                                         if (saved != null) {
                                             withContext(Dispatchers.Main) {
                                                 state.currentBitmap = upscaledBitmap; state.generationParams = updatedParams
-                                                state.generationParamsModelId = modelId; state.currentDisplayedHistoryId = saved.id
-                                                if (sourceIsStitchable) state.stitchableHistoryIds = state.stitchableHistoryIds + saved.id
+                                                state.generationParamsModelId = modelId; state.currentDisplayedHistoryId = saved.id.toLongOrNull()
+                                                if (sourceIsStitchable) saved.id.toLongOrNull()?.let { state.stitchableHistoryIds = state.stitchableHistoryIds + it }
                                                 state.imageVersion++
                                             }
                                         }

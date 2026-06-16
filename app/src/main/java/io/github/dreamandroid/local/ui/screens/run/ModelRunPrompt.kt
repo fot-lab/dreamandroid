@@ -73,6 +73,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -219,7 +220,7 @@ fun ModelRunPromptPage(
 
                     PromptTagTextField(
                         value = state.promptFieldValue,
-                        onValueChange = onPromptFieldChanged,
+                        onValueChange = { onPromptFieldChanged(it, true) },
                         modifier = Modifier.fillMaxWidth(),
                         label = {
                             PromptCountLabel(
@@ -261,7 +262,7 @@ fun ModelRunPromptPage(
 
                     PromptTagTextField(
                         value = state.negativePromptFieldValue,
-                        onValueChange = onNegativePromptFieldChanged,
+                        onValueChange = { onNegativePromptFieldChanged(it, true) },
                         modifier = Modifier.fillMaxWidth(),
                         label = {
                             PromptCountLabel(
@@ -416,11 +417,12 @@ fun ModelRunPromptPage(
                     ) {
                         Row {
                             Spacer(modifier = Modifier.width(12.dp))
+                            val ctx = LocalContext.current
                             SmallFloatingActionButton(onClick = {
                                 if (state.croppedBitmap != null) {
                                     state.showInpaintScreen = true
                                 } else {
-                                    Toast.makeText(LocalContext.current, "Please Crop First", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, "Please Crop First", Toast.LENGTH_SHORT).show()
                                 }
                             }) {
                                 Icon(imageVector = Icons.Default.Brush, contentDescription = "Set Mask")

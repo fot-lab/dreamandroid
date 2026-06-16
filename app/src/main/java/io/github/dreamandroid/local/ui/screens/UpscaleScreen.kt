@@ -223,11 +223,12 @@ fun UpscaleScreen(
                         FilledTonalIconButton(
                             onClick = {
                                 upscaleViewModel.upscaledBitmap?.let { bitmap ->
+                                    val savedMsg = stringResource(R.string.image_saved)
                                     scope.launch {
                                         saveImage(
                                             context = context, bitmap = bitmap,
                                             onSuccess = {
-                                                Toast.makeText(context, stringResource(R.string.image_saved), Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, savedMsg, Toast.LENGTH_SHORT).show()
                                             },
                                             onError = { error ->
                                                 upscaleViewModel.errorMessage = error
