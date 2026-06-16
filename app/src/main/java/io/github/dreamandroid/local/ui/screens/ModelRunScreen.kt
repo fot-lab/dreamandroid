@@ -73,6 +73,7 @@ import io.github.dreamandroid.local.data.*
 import io.github.dreamandroid.local.service.ModelDownloadService
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.components.*
 import io.github.dreamandroid.local.ui.screens.run.*
 import io.github.dreamandroid.local.utils.*
@@ -94,8 +95,8 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     val resources = context.resources
     val scope = rememberCoroutineScope()
     val generationPreferences = remember { GenerationPreferences(context) }
-    val backendManager = remember { (context.applicationContext as DreamAndroidApplication).backendManager }
-    val backendState by backendManager.state.collectAsState()
+    val backendService = remember { (context.applicationContext as DreamAndroidApplication).backendService }
+    val backendState by backendService.state.collectAsState()
     val queueRepository = remember { QueueRepository.getInstance(context) }
     val queueTasks by queueRepository.tasks.collectAsState()
     val coroutineScope = rememberCoroutineScope()
@@ -178,7 +179,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
         if (state.isCheckingBackend) return@LaunchedEffect
         delay(400)
         try {
-            val result = withContext(Dispatchers.IO) { backendManager.tokenize(state.prompt) }
+            val result = withContext(Dispatchers.IO) { backendService.tokenize(state.prompt) }
             state.promptTokenCount = result.count; state.promptTokenMax = result.maxLength; state.promptOverflowOffset = result.overflowOffset
         } catch (_: Exception) { }
     }
@@ -187,7 +188,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
         if (state.isCheckingBackend) return@LaunchedEffect
         delay(400)
         try {
-            val result = withContext(Dispatchers.IO) { backendManager.tokenize(state.negativePrompt) }
+            val result = withContext(Dispatchers.IO) { backendService.tokenize(state.negativePrompt) }
             state.negativePromptTokenCount = result.count; state.negativePromptTokenMax = result.maxLength; state.negativePromptOverflowOffset = result.overflowOffset
         } catch (_: Exception) { }
     }
@@ -230,12 +231,12 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     LaunchedEffect(state.hasInitialized) {
         if (state.hasInitialized && backendState !is BackendManager.State.Running) {
-            model?.id?.let { modelId -> backendManager.startDiffusion(modelId, state.currentWidth, state.currentHeight, state.useOpenCL) }
+            model?.id?.let { modelId -> backendService.startDiffusion(modelId, state.currentWidth, state.currentHeight, state.useOpenCL) }
         }
     }
 
     LaunchedEffect(Unit) {
-        val healthy = withContext(Dispatchers.IO) { backendManager.healthCheckWithRetry() }
+        val healthy = withContext(Dispatchers.IO) { backendService.healthCheckWithRetry() }
         state.isCheckingBackend = false
         if (!healthy) state.errorMessage = msgBackendFailed
     }
@@ -243,7 +244,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     LaunchedEffect(state.backendRestartTrigger) {
         if (state.backendRestartTrigger > 0) {
             delay(500)
-            val healthy = withContext(Dispatchers.IO) { backendManager.healthCheckWithRetry() }
+            val healthy = withContext(Dispatchers.IO) { backendService.healthCheckWithRetry() }
             state.isCheckingBackend = false
             if (!healthy) state.errorMessage = msgBackendFailed
         }
@@ -273,14 +274,14 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     // ── DisposableEffects ─────────────────────────────────────
 
-    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState, backendManager) } }
+    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState, backendService) } }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState, backendManager)
+            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState, backendService)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState, backendManager) }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState, backendService) }
     }
 
     DisposableEffect(modelId) {
@@ -436,7 +437,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     fun handleSelectImageClick() { onSelectImageClick(state, context, msgMediaPermissionHint, { photoPickerLauncher.launch(it) }, { contentPickerLauncher.launch("image/*") }, { requestStoragePermissionLauncher.launch(it) }) }
 
-    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState, backendManager); navController.navigateUp() }
+    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState, backendService); navController.navigateUp() }
 
     // ── BackHandler ───────────────────────────────────────────
 
@@ -605,8 +606,8 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     ModelRunResolutionChangeDialog(state, model, modelId, context, scope, generationPreferences) { resolution ->
         scope.launch {
             if (model != null) {
-                backendManager.stop()
-                backendManager.startDiffusion(modelId, resolution.width, resolution.height, state.useOpenCL)
+                backendService.stop()
+                backendService.startDiffusion(modelId, resolution.width, resolution.height, state.useOpenCL)
             }
         }
         state.isCheckingBackend = true; state.backendRestartTrigger++

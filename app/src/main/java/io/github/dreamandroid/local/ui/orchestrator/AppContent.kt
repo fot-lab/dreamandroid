@@ -53,7 +53,7 @@ fun AppContent() {
 
     // ── Application-level dependencies ──
     val app = context.applicationContext as DreamAndroidApplication
-    val backendState by modelsViewModel.backendManager.state.collectAsState()
+    val backendState by modelsViewModel.backendService.state.collectAsState()
     val isModelLoaded = backendState.isDiffusionLoaded()
     val isModelLoading = backendState.isDiffusionLoading()
     val isUpscaleModelLoaded = backendState.isUpscalerLoaded()
@@ -384,7 +384,7 @@ fun AppContent() {
                         height = generateViewModel.genHeight,
                         onHeightChange = { generateViewModel.genHeight = it },
                         recordRepository = queueViewModel.recordRepository,
-                        // Tokenize via ViewModel (UILA-COMP-0005: HTTP moved from UI to ViewModel layer)
+                        // Tokenize via ViewModel → BackendService (HTTP middleware, no direct BackendManager)
                         onTokenizePrompt = { prompt ->
                             generateViewModel.tokenizePrompt(prompt)
                         },

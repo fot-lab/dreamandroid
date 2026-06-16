@@ -14,7 +14,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.BuildConfig
 import io.github.dreamandroid.local.DreamAndroidApplication
-import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.utils.performUpscale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,7 +34,7 @@ import java.io.File
 class UpscaleViewModel(application: Application) : ViewModel() {
 
     private val app = application as DreamAndroidApplication
-    val backendManager: BackendManager = app.backendManager
+    val backendService: BackendService = app.backendService
 
     // ── Image Selection ───────────────────────────────────────
     var selectedImageUri by mutableStateOf<Uri?>(null)

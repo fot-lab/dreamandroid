@@ -41,6 +41,7 @@ import coil.size.Size
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.components.BlockingProgressOverlay
 import io.github.dreamandroid.local.ui.components.ErrorMessageCard
 import io.github.dreamandroid.local.ui.components.SmoothCircularWavyProgressIndicator
@@ -58,10 +59,10 @@ fun UpscaleScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // §17.3: Observe unified BackendManager.state
+    // §17.3: Observe unified BackendManager.state via BackendService
     val app = context.applicationContext as DreamAndroidApplication
-    val backendManager = app.backendManager
-    val upscaleBackendState by backendManager.state.collectAsState()
+    val backendService = app.backendService
+    val upscaleBackendState by backendService.state.collectAsState()
     val isUpscaleBackendRunning = upscaleBackendState is BackendManager.State.Running
         && (upscaleBackendState as BackendManager.State.Running).mode == BackendManager.Mode.Upscaler
     val loadedUpscalerId = (upscaleBackendState as? BackendManager.State.Running)

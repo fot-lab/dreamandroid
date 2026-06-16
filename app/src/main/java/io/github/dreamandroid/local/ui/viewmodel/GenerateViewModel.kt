@@ -13,6 +13,7 @@ import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResult
+import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,13 +26,13 @@ import kotlin.math.roundToInt
  * Manages:
  * - All generation parameters (prompt, steps, cfg, seed, etc.)
  * - Preference loading/saving (global + per-model)
- * - Tokenize calls (via BackendManager) with AppError-based error handling
+ * - Tokenize calls (via BackendService HTTP middleware) with AppError-based error handling
  * - Add-to-queue logic
  */
 class GenerateViewModel(application: Application) : ViewModel() {
 
     private val app = application as DreamAndroidApplication
-    private val backendManager = app.backendManager
+    private val backendService: BackendService = app.backendService
 
     // ── Generation Parameters ─────────────────────────────────
     var genPrompt by mutableStateOf("")
@@ -80,7 +81,7 @@ class GenerateViewModel(application: Application) : ViewModel() {
         genUseOpenCL = p.useOpenCL
     }
 
-    // ── Tokenize (UILA-COMP-0005: HTTP moved from UI layer to ViewModel) ──
+    // ── Tokenize (HTTP via BackendService middleware, no direct BackendManager access) ──
 
     suspend fun tokenizePrompt(prompt: String): TokenizeResult? {
         if (prompt.isBlank()) {
@@ -90,7 +91,7 @@ class GenerateViewModel(application: Application) : ViewModel() {
             return null
         }
         return try {
-            val result = backendManager.tokenize(prompt)
+            val result = backendService.tokenize(prompt)
             promptTokenCount = result.count
             promptTokenMax = result.maxLength
             promptOverflowOffset = result.overflowOffset
@@ -110,7 +111,7 @@ class GenerateViewModel(application: Application) : ViewModel() {
             return null
         }
         return try {
-            val result = backendManager.tokenize(prompt)
+            val result = backendService.tokenize(prompt)
             negativePromptTokenCount = result.count
             negativePromptTokenMax = result.maxLength
             negativePromptOverflowOffset = result.overflowOffset

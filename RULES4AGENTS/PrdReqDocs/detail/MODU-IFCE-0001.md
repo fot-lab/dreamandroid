@@ -9,7 +9,7 @@
 ## 11.1 BackendManager — 后端进程管理器
 
 ```kotlin
-interface BackendManager {
+class BackendManager(private val context: Context) {
     enum class Mode { Diffusion, Upscaler }
 
     sealed class State {
@@ -43,6 +43,29 @@ interface BackendManager {
 - `startXxx()` 返回值 `Result<Unit>` 统一错误处理，不抛异常
 - `stop()` 必须等待进程真正退出后才返回（防止僵尸进程）
 - `httpClient` 全局唯一，在 `DreamAndroidApplication.onCreate()` 中初始化
+- **唯一进程管理者**: 仅 BackendManager 有权调用 `ProcessBuilder.start()` / `Process.destroy()`
+
+## 11.1.1 BackendService — HTTP 中间件（UI 层边界）
+
+```kotlin
+class BackendService(private val backendManager: BackendManager) {
+    val state: StateFlow<BackendManager.State>
+
+    suspend fun startDiffusion(modelId: String, width: Int, height: Int, useOpenCL: Boolean): Result<Unit>
+    suspend fun startUpscaler(upscalerId: String): Result<Unit>
+    suspend fun stop()
+    suspend fun healthCheck(): Boolean
+    suspend fun healthCheckWithRetry(maxRetries: Int = 4, intervalSeconds: Long = 20): Boolean
+    fun generate(params: GenerateParams): Flow<BackendManager.SseEvent>
+    suspend fun tokenize(prompt: String): BackendManager.TokenizeResult
+    suspend fun upscale(rgbBytes: ByteArray, width: Int, height: Int, upscalerPath: String): ByteArray
+}
+```
+
+**接口约束：**
+- UI 层 (Screen/ViewModel) **只允许**引用 `BackendService`，禁止直接引用 `BackendManager`
+- `BackendService` 当前为薄代理，未来可在此层统一添加 logging/metrics/caching/retry policies
+- 实例通过 `DreamAndroidApplication.backendService` 获取
 
 ## 11.2 QueueProcessingService — 队列处理服务
 
@@ -155,3 +178,4 @@ interface PreferencesManager {
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 从 PrdReqDoc.md 提取 §11 内容，创建独立文件 |
+| 2026-06-16 | §11.1 BackendManager 从 interface 修正为 class (实际实现)；新增 §11.1.1 BackendService (HTTP 中间件) 接口规范；BackendManager 添加"唯一进程管理者"约束 |

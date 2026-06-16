@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 14.0
+> 版本: 15.1
 > 更新日期: 2026-06-16
-> Phase A~F 完成 + E5 收尾 (58 总数, 55 Fixed/Won'tFix, 3 剩余)
+> Phase A~F 完成 (59 总数, 55 Fixed/Won'tFix, 4 剩余)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -35,6 +35,7 @@
 | QUEU-SYST-0005 | P1 | 队列无持久化（进程杀丢 PENDING） | Fully Fixed | [detail/QUEU-SYST-0005.md](detail/QUEU-SYST-0005.md) |
 | QUEU-SYST-0006 | P2 | SSE 解析不可复用 | Fully Fixed | [detail/QUEU-SYST-0006.md](detail/QUEU-SYST-0006.md) |
 | QUEU-SYST-0007 | P2 | 大 Bitmap 未主动回收 | Fully Fixed | [detail/QUEU-SYST-0007.md](detail/QUEU-SYST-0007.md) |
+| QUEU-SYST-0008 | P2 | QueueProcessingService/GenerationWorker 代码重复 | Resolution Planned | [detail/QUEU-SYST-0008.md](detail/QUEU-SYST-0008.md) |
 | UILA-COMP-0001 | P0 | God Object：AppContent() ~1800 行 | Fully Fixed | [detail/UILA-COMP-0001.md](detail/UILA-COMP-0001.md) |
 | UILA-COMP-0002 | P1 | 无法单独测试 | Fully Fixed | [detail/UILA-COMP-0002.md](detail/UILA-COMP-0002.md) |
 | UILA-COMP-0003 | P2 | 错误处理不一致 | Fully Fixed | [detail/UILA-COMP-0003.md](detail/UILA-COMP-0003.md) |

@@ -28,10 +28,10 @@ class BackendManager(private val context: Context) {
 | 规则 | 说明 |
 |------|------|
 | **唯一进程管理者** | 仅 `BackendManager` 有权调用 `ProcessBuilder.start()` 和 `Process.destroy()` |
-| **端口互斥保证** | `startDiffusion()` / `startUpscaler()` 内部自动 `stopProcess()` |
+| **端口互斥保证** | `startDiffusion()` / `startUpscaler()` 内部自动 `ensureNoOrphanBackend()` → `stopProcess()` |
 | **优雅关闭** | destroy() → waitFor(5s) → destroyForcibly() → waitFor() |
-| **单一状态源** | 所有 UI 和 Queue 通过 `backendManager.state` 观察后端状态 |
-| **禁止直接Intent** | 禁止通过 `startForegroundService()` / `stopService()` 操作后端进程 |
+| **单一状态源** | 所有 UI 和 Queue 通过 `BackendService.state` (代理自 `BackendManager.state`) 观察后端状态 |
+| **禁止直接Intent** | 已无 `startForegroundService()` / `stopService()` 操作后端进程的代码路径 |
 
 ## 17.2 Queue Worker Runner — 启停角色
 
@@ -59,68 +59,50 @@ class BackendManager(private val context: Context) {
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
     ┌─────────────┐  ┌──────────────┐  ┌──────────────┐
-    │ ModelScreen │  │GenerationWkr │  │QueueProcSvc  │
+    │ ModelsVM    │  │GenerationWkr │  │QueueProcSvc  │
     │ (启动/停止)  │  │ (纯消费者)   │  │ (纯消费者)    │
     └─────────────┘  └──────────────┘  └──────────────┘
+         │                   │               │
+         └───────────────────┴───────────────┘
+                             │
+                     BackendService
+                     (HTTP middleware)
 ```
 
 **启停所有权：**
 
 | 操作 | 所有者 | 触发方式 |
 |------|--------|---------|
-| 启动 Diffusion 后端 | ModelScreen | `backendManager.startDiffusion()` |
-| 启动 Upscaler 后端 | ModelScreen | `backendManager.startUpscaler()` |
-| 停止后端 | ModelScreen | `backendManager.stop()` |
-| 系统杀死时自动停止 | 系统 | `backendManager.stop()` |
+| 启动 Diffusion 后端 | ModelsViewModel | `BackendService.startDiffusion()` → `BackendManager.startDiffusion()` |
+| 启动 Upscaler 后端 | ModelsViewModel | `BackendService.startUpscaler()` → `BackendManager.startUpscaler()` |
+| 停止后端 | ModelsViewModel / ModelRunScreen | `BackendService.stop()` → `BackendManager.stop()` |
+| 系统杀死时自动停止 | 系统 | `Runtime.addShutdownHook` → `backendManager.stopProcessImmediate()` |
 
-## 17.4 ModelScreen 后端启停管理
+## 17.4 UI 层后端通信规范（当前已实现）
 
-### 目标架构（通过 BackendManager）
+### 通过 BackendService 的合法路径
 
 ```kotlin
-fun loadModel(modelId: String) {
-    scope.launch {
-        val result = backendManager.startDiffusion(modelId, genWidth, genHeight, genUseOpenCL)
-        result.onSuccess { selectedModelId = modelId }
-              .onFailure { error -> snackbarHostState.showSnackbar("Failed: ${error.message}") }
+// ✅ ViewModel 通过 BackendService 操作后端
+class ModelsViewModel(app: Application) : AndroidViewModel(app) {
+    private val backendService = (app as DreamAndroidApplication).backendService
+
+    suspend fun loadModel(...) {
+        backendService.startDiffusion(modelId, width, height, useOpenCL)
+    }
+    suspend fun unloadModel() {
+        backendService.stop()
     }
 }
 
-fun unloadModel() {
-    scope.launch { backendManager.stop(); selectedModelId = null }
-}
+// ✅ Screen 通过 BackendService 观察状态
+val backendService = remember { (context.applicationContext as DreamAndroidApplication).backendService }
+val backendState by backendService.state.collectAsState()
 ```
-
-### 当前架构（待修复：绕过 BackendManager）
-
-```kotlin
-// ❌ 当前: 直接操作 BackendService / UpscaleBackendManager
-fun loadModel(mId: String) {
-    context.stopService(Intent(context, BackendService::class.java))
-    context.startForegroundService(Intent(context, BackendService::class.java).apply {
-        putExtra("modelId", mId); putExtra("width", genWidth); ...
-    })
-}
-fun loadUpscaleModel(upscalerId: String) {
-    UpscaleBackendManager.start(context, upscalerId)
-}
-```
-
-### 迁移路径
-
-| 步骤 | 当前状态 | 目标状态 |
-|------|---------|---------|
-| 1 | `loadModel()` → `startForegroundService(BackendService)` | → `backendManager.startDiffusion(...)` |
-| 2 | `unloadModel()` → `stopService(BackendService)` | → `backendManager.stop()` |
-| 3 | `loadUpscaleModel()` → `UpscaleBackendManager.start()` | → `backendManager.startUpscaler(...)` |
-| 4 | `unloadUpscaleModel()` → `UpscaleBackendManager.stop()` | → `backendManager.stop()` |
-| 5 | `isModelLoaded` → `BackendService.backendState` | → `backendManager.state` |
-| 6 | `isUpscaleModelLoaded` → `UpscaleBackendManager.state` | → `backendManager.state` |
-| 7 | `ModelRunScreen` 直接 `startForegroundService` | → `backendManager.startDiffusion()` |
-| 8 | `ModelRunScreen.cleanup()` → `stopService` | → `backendManager.stop()` |
 
 ## 变更历史
 
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 从 PrdReqDoc.md 提取 §17 内容，创建独立文件 |
+| 2026-06-16 | 更新 §17.1: 端口互斥更新为 `ensureNoOrphanBackend`；§17.3 架构图新增 BackendService 层；§17.4 重写: 删除 "当前架构(待修复)" 章节 (所有绕过已 Fully Fixed)，替换为 BackendService 合法使用示例 |
