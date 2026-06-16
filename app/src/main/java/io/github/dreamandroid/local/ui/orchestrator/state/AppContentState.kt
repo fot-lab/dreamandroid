@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.navigation.BottomTab
 import io.github.dreamandroid.local.ui.frontend.ImportingModelState
+import kotlinx.coroutines.flow.first
 
 /**
  * Centralized mutable state holder for [AppContent].
@@ -81,7 +82,7 @@ class AppContentState {
         importingModels = importingModels.filterNot { it.modelId == modelId }
     }
 
-    fun loadGlobalPrefs(prefs: io.github.dreamandroid.local.data.GenerationPreferences) {
+    suspend fun loadGlobalPrefs(prefs: io.github.dreamandroid.local.data.GenerationPreferences) {
         genPrompt = prefs.getGlobalPrompt()
         genNegativePrompt = prefs.getGlobalNegativePrompt()
         genBatchCounts = prefs.getGlobalBatchCounts().coerceAtLeast(1)

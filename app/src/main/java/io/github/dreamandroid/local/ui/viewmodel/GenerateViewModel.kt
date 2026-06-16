@@ -16,6 +16,7 @@ import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResul
 import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -60,7 +61,7 @@ class GenerateViewModel(application: Application) : ViewModel() {
 
     // ── Preferences ───────────────────────────────────────────
 
-    fun loadGlobalPrefs(prefs: GenerationPreferences) {
+    suspend fun loadGlobalPrefs(prefs: GenerationPreferences) {
         genPrompt = prefs.getGlobalPrompt()
         genNegativePrompt = prefs.getGlobalNegativePrompt()
         genBatchCounts = prefs.getGlobalBatchCounts().coerceAtLeast(1)

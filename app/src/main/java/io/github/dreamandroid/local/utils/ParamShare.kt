@@ -1,7 +1,7 @@
 package io.github.dreamandroid.local.utils
 
 import io.github.dreamandroid.local.data.GenerationMode
-import io.github.dreamandroid.local.ui.screens.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import java.util.Base64
 import org.json.JSONObject
 

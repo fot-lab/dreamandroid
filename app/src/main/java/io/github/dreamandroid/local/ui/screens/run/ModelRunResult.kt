@@ -38,7 +38,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import io.github.dreamandroid.local.BuildConfig
 import io.github.dreamandroid.local.R
-import io.github.dreamandroid.local.data.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.HistoryItem
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.ui.components.GenerationParamsDialog

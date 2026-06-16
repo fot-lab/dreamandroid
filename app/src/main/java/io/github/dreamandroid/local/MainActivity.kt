@@ -90,16 +90,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.surface,
                     ) {
-                        val migrationState by app.migrationState.collectAsState()
-                        when (migrationState) {
-                            is MigrationState.Done, is MigrationState.NotNeeded -> AppContent()
-                            is MigrationState.Idle, is MigrationState.InProgress, is MigrationState.Failed ->
-                                MigrationScreen(
-                                    state = migrationState,
-                                    onRetry = { app.retryMigration() },
-                                    onSkip = { app.skipMigration() },
-                                )
-                        }
+                        AppContent()
                     }
                 }
             }

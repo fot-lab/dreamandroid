@@ -112,7 +112,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
             )
         }
         // Optimistic in-memory update
-        _tasks.update { it + newTasks }
+        _tasks.value = _tasks.value + newTasks
         // Persist async
         val entities = newTasks.map { it.toEntity() }
         scope.launch { db.taskDao().insertAll(entities) }
@@ -123,7 +123,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         _tasks.value.firstOrNull { it.id == id }?.resultBitmapPath?.let { path ->
             try { java.io.File(path).delete() } catch (_: Exception) {}
         }
-        _tasks.update { it.filterNot { t -> t.id == id } }
+        _tasks.value = _tasks.value.filterNot { t -> t.id == id }
         scope.launch { db.taskDao().deleteQueueById(id) }
     }
 
@@ -134,14 +134,14 @@ class QueueRepository private constructor(private val db: AppDatabase) {
                     try { java.io.File(path).delete() } catch (_: Exception) {}
                 }
             }
-        _tasks.update { it.filterNot { t -> t.batchGroupId == batchGroupId } }
+        _tasks.value = _tasks.value.filterNot { t -> t.batchGroupId == batchGroupId }
         scope.launch { db.taskDao().deleteQueueByBatch(batchGroupId) }
     }
 
     fun updateTask(id: String, update: (GenerationTask) -> GenerationTask) {
         var updated: GenerationTask? = null
-        _tasks.update { tasks ->
-            tasks.map { t -> if (t.id == id) { val u = update(t); updated = u; u } else t }
+        _tasks.value = _tasks.value.map { t ->
+            if (t.id == id) { val u = update(t); updated = u; u } else t
         }
         updated?.let { scope.launch { db.taskDao().insert(it.toEntity()) } }
     }
@@ -192,12 +192,10 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     }
 
     fun cancelAllPending() {
-        _tasks.update { tasks ->
-            tasks.map { task ->
-                if (task.status == TaskStatus.PENDING) {
-                    task.copy(status = TaskStatus.CANCELLED)
-                } else task
-            }
+        _tasks.value = _tasks.value.map { task ->
+            if (task.status == TaskStatus.PENDING) {
+                task.copy(status = TaskStatus.CANCELLED)
+            } else task
         }
         scope.launch {
             _tasks.value.filter { it.status == TaskStatus.CANCELLED }
@@ -236,7 +234,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
                     try { java.io.File(path).delete() } catch (_: Exception) {}
                 }
             }
-        _tasks.update { it.filterNot { t -> t.status == TaskStatus.COMPLETED || t.status == TaskStatus.ERROR || t.status == TaskStatus.CANCELLED } }
+        _tasks.value = _tasks.value.filterNot { t -> t.status == TaskStatus.COMPLETED || t.status == TaskStatus.ERROR || t.status == TaskStatus.CANCELLED }
         scope.launch { db.taskDao().clearQueueCompleted() }
     }
 

@@ -18,7 +18,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
-import io.github.dreamandroid.local.data.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.service.backend.BackendService
@@ -189,11 +189,11 @@ fun handleCropComplete(
                 val padded = padBitmapToCanvas(scaled, state.currentWidth, state.currentHeight)
                 val baos = ByteArrayOutputStream()
                 padded.compress(Bitmap.CompressFormat.PNG, 90, baos)
-                Base64.getEncoder().encodeToString(baos.toByteArray())
+                java.util.Base64.getEncoder().encodeToString(baos.toByteArray())
             } else {
                 val baos = ByteArrayOutputStream()
                 scaled.compress(Bitmap.CompressFormat.PNG, 90, baos)
-                Base64.getEncoder().encodeToString(baos.toByteArray())
+                java.util.Base64.getEncoder().encodeToString(baos.toByteArray())
             }
 
             withContext(Dispatchers.Main) {
@@ -235,7 +235,7 @@ fun handleInpaintComplete(
                 val padded = padBitmapToCanvas(maskBmp, state.currentWidth, state.currentHeight)
                 val baos = ByteArrayOutputStream()
                 padded.compress(Bitmap.CompressFormat.PNG, 90, baos)
-                Base64.getEncoder().encodeToString(baos.toByteArray())
+                java.util.Base64.getEncoder().encodeToString(baos.toByteArray())
             } else maskBase64
             val maskFile = File(context.filesDir, "mask.txt")
             maskFile.writeText(payload)
@@ -289,7 +289,7 @@ fun sendBitmapToImg2img(
             val base64String = withContext(Dispatchers.IO) {
                 val baos = ByteArrayOutputStream()
                 uploadBitmap.compress(Bitmap.CompressFormat.PNG, 90, baos)
-                Base64.getEncoder().encodeToString(baos.toByteArray())
+                java.util.Base64.getEncoder().encodeToString(baos.toByteArray())
             }
 
             withContext(Dispatchers.IO) { File(context.filesDir, "tmp.txt").writeText(base64String) }
@@ -368,7 +368,7 @@ fun cleanupModelRun(
     try {
         state.currentBitmap = null; state.generationParams = null
         coroutineScope.launch {
-            try { backendService.stop() } catch (_: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", it) }
+            try { backendService.stop() } catch (e: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", e) }
         }
         state.isRunning = false; state.progress = 0f; state.errorMessage = null
         state.generationStartTime = null
@@ -378,8 +378,4 @@ fun cleanupModelRun(
 }
 
 // ── Storage Permission ───────────────────────────────────────────
-
-private fun checkStoragePermission(context: Context): Boolean {
-    if (Build.VERSION.SDK_INT >= 30) return true
-    return ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-}
+// Delegates to checkStoragePermission in ModelRunUtils.kt (same package)

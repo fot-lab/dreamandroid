@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.BuildConfig
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.GenerationPreferences
+import androidx.core.content.edit
 import io.github.dreamandroid.local.ui.theme.*
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
