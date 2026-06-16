@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 9.0
+> 版本: 10.0
 > 更新日期: 2026-06-16
-> Phase A + B + C + E 完成 (共 +21 个 Fully Fixed)
+> Phase A + B + C + E 完成 + Record→Room 统一 (共 Fully Fixed, 39 剩余 18)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 

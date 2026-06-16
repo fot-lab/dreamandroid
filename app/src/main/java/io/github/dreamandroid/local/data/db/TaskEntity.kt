@@ -6,11 +6,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Unified Room entity for both queue tasks and generation history.
+ * Unified Room entity for queue tasks, generation history, and parameter records.
  *
- * Discrimination: [taskType] = "QUEUE" | "HISTORY"
- * Queue-unique fields (batchGroupId, status, progress, etc.) are null for history rows.
- * History-unique fields (imagePath, mode, generationTime, etc.) are null for queue rows.
+ * Discrimination: [taskType] = "QUEUE" | "HISTORY" | "RECORD"
+ * Queue-unique fields (batchGroupId, status, progress, etc.) are null for history/record.
+ * History-unique fields (imagePath, mode, generationTime, etc.) are null for queue/record.
+ * Record stores [RecordSource] in [tags] JSON bag.
  * [tags] is a JSON extensibility bag for future fields.
  */
 @Entity(
@@ -102,8 +103,10 @@ data class TaskEntity(
     companion object {
         const val TYPE_QUEUE = "QUEUE"
         const val TYPE_HISTORY = "HISTORY"
+        const val TYPE_RECORD = "RECORD"
     }
 
     val isQueueTask: Boolean get() = taskType == TYPE_QUEUE
     val isHistoryItem: Boolean get() = taskType == TYPE_HISTORY
+    val isRecord: Boolean get() = taskType == TYPE_RECORD
 }

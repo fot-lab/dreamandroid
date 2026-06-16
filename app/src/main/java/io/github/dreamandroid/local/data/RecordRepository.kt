@@ -2,172 +2,123 @@ package io.github.dreamandroid.local.data
 
 import android.content.Context
 import android.util.Log
+import io.github.dreamandroid.local.data.db.AppDatabase
+import io.github.dreamandroid.local.data.db.TaskEntity
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 
 /**
- * Manages persistence of [GenerateParameterRecord] instances as a JSON file
- * in the app's internal files directory.
+ * Manages persistence of [GenerateParameterRecord] instances via Room (unified TaskEntity).
  *
  * Records are saved by Queue swipe-to-save and Gallery Save Info,
  * and displayed / managed in Generate → Records Tab.
  *
- * **Data durability:**
- * - Corrupted JSON → backed up to `.corrupted.{timestamp}` + partial recovery attempted
- * - Concurrent writes → protected by [Mutex]
- * - Atomic write → temp file + rename (no partial writes on disk)
+ * **Storage:**
+ * - Room [TaskEntity] with [TaskEntity.TYPE_RECORD] — same ACID table as Queue + History
+ * - [RecordSource] stored in [TaskEntity.tags] JSON bag
+ *
+ * **Migration:**
+ * - On first init, legacy JSON file (`generate_records.json`) is imported into Room
+ * - Imported file is renamed to `.migrated.{timestamp}` (not deleted, for safety)
  */
 class RecordRepository(private val context: Context) {
 
     companion object {
         private const val TAG = "RecordRepository"
+        private const val LEGACY_FILE = "generate_records.json"
     }
 
-    private val recordsFile: File
-        get() = File(context.filesDir, "generate_records.json")
+    private val dao = AppDatabase.get(context).taskDao()
 
     private val _records = MutableStateFlow<List<GenerateParameterRecord>>(emptyList())
     val records: StateFlow<List<GenerateParameterRecord>> = _records.asStateFlow()
 
-    private val writeMutex = Mutex()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        loadFromDisk()
+        scope.launch {
+            migrateLegacyJsonIfNeeded()
+            loadFromDb()
+        }
     }
 
     /**
-     * Add a new record and persist.
-     * Returns the newly created record.
+     * Add a new record and persist to Room.
      */
     suspend fun addRecord(record: GenerateParameterRecord): GenerateParameterRecord {
+        dao.insert(record.toEntity())
+        // Optimistic in-memory update
         val current = _records.value.toMutableList()
-        current.add(0, record) // newest first
+        current.add(0, record)
         _records.value = current
-        persist()
         return record
     }
 
     /**
-     * Delete a record by id and persist.
+     * Delete a record by id from Room.
      */
     suspend fun deleteRecord(id: String) {
+        dao.deleteRecordById(id)
         _records.value = _records.value.filter { it.id != id }
-        persist()
     }
 
     /**
-     * Delete all records.
+     * Delete all records from Room.
      */
     suspend fun deleteAll() {
+        dao.deleteAllRecords()
         _records.value = emptyList()
-        persist()
+    }
+
+    // ── Internal ──
+
+    private suspend fun loadFromDb() {
+        try {
+            val entities = dao.getAllRecords()
+            _records.value = GenerateParameterRecord.listFromEntities(entities)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load records from DB", e)
+        }
     }
 
     /**
-     * Load records from disk. On corruption:
-     * 1. Back up the corrupted file as `.corrupted.{timestamp}`
-     * 2. Attempt per-record partial recovery
-     * 3. Never silently overwrite with empty list
+     * One-time migration: import legacy JSON file into Room, then rename the file.
+     * Idempotent — does nothing if the legacy file no longer exists.
      */
-    private fun loadFromDisk() {
+    private suspend fun migrateLegacyJsonIfNeeded() {
+        val legacyFile = File(context.filesDir, LEGACY_FILE)
+        if (!legacyFile.exists()) return
+
+        Log.i(TAG, "Legacy records JSON found, migrating to Room...")
         try {
-            if (recordsFile.exists()) {
-                val json = recordsFile.readText()
-                if (json.isNotBlank()) {
-                    val arr = JSONArray(json)
-                    _records.value = GenerateParameterRecord.listFromJsonArray(arr)
-                        .sortedByDescending { it.timestamp }
+            val json = legacyFile.readText()
+            if (json.isNotBlank()) {
+                val arr = JSONArray(json)
+                val records = GenerateParameterRecord.listFromJsonArray(arr)
+                if (records.isNotEmpty()) {
+                    val entities = records.map { it.toEntity() }
+                    dao.insertAll(entities)
+                    Log.i(TAG, "Migrated ${records.size} legacy records to Room")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Records file corrupted, attempting recovery", e)
-
-            // 1. Back up the corrupted file
-            val backupFile = File(
-                recordsFile.parent,
-                "generate_records.json.corrupted.${System.currentTimeMillis()}"
-            )
-            try {
-                recordsFile.copyTo(backupFile, overwrite = false)
-                Log.w(TAG, "Corrupted records backed up to ${backupFile.name}")
-            } catch (_: Exception) {
-                Log.e(TAG, "Failed to back up corrupted records file")
-            }
-
-            // 2. Attempt per-record partial recovery
-            val recovered = attemptPartialRecovery()
-            _records.value = recovered
-
-            // 3. Only persist if we recovered something (never overwrite with empty)
-            if (recovered.isNotEmpty()) {
-                Log.i(TAG, "Partially recovered ${recovered.size} records")
-                // Direct atomic write (non-blocking for init{} compatibility)
-                try {
-                    val arr = GenerateParameterRecord.listToJsonArray(recovered)
-                    val tempFile = File(recordsFile.parent, "generate_records.json.tmp")
-                    tempFile.writeText(arr.toString(2))
-                    tempFile.renameTo(recordsFile)
-                } catch (_: Exception) {
-                    Log.e(TAG, "Failed to persist recovered records")
-                }
-            }
+            Log.e(TAG, "Legacy JSON migration failed, backing up file", e)
+            // Backup corrupted file instead of deleting it
+            val backup = File(context.filesDir, "$LEGACY_FILE.corrupted.${System.currentTimeMillis()}")
+            legacyFile.renameTo(backup)
+            return
         }
-    }
 
-    /**
-     * Attempt to recover individual records from a corrupted JSON file.
-     * Uses regex to extract each {...} JSONObject and parses them independently.
-     */
-    private fun attemptPartialRecovery(): List<GenerateParameterRecord> {
-        return try {
-            val content = recordsFile.readText()
-            val recovered = mutableListOf<GenerateParameterRecord>()
-
-            // Match top-level JSON objects (simple brace matching)
-            val jsonPattern = Regex("""\{[^}]*\}""")
-            jsonPattern.findAll(content).forEach { match ->
-                try {
-                    val obj = JSONObject(match.value)
-                    val record = GenerateParameterRecord.fromJson(obj)
-                    if (record != null) {
-                        recovered.add(record)
-                    }
-                } catch (_: Exception) {
-                    // Skip individual corrupted records
-                }
-            }
-
-            recovered.sortedByDescending { it.timestamp }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    private suspend fun persistSafely() {
-        writeMutex.withLock {
-            withContext(Dispatchers.IO) {
-                try {
-                    val arr = GenerateParameterRecord.listToJsonArray(_records.value)
-                    // Atomic write: temp file → rename (atomic on same filesystem)
-                    val tempFile = File(recordsFile.parent, "generate_records.json.tmp")
-                    tempFile.writeText(arr.toString(2))
-                    tempFile.renameTo(recordsFile)
-                } catch (_: Exception) {
-                    // Persistence failure is non-fatal; data retained in memory
-                }
-            }
-        }
-    }
-
-    private suspend fun persist() {
-        persistSafely()
+        // Migration successful → rename old file for safety (not delete)
+        val migrated = File(context.filesDir, "$LEGACY_FILE.migrated.${System.currentTimeMillis()}")
+        legacyFile.renameTo(migrated)
+        Log.i(TAG, "Legacy JSON migrated → renamed to ${migrated.name}")
     }
 }

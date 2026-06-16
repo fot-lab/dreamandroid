@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.data
 
+import io.github.dreamandroid.local.data.db.TaskEntity
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -83,5 +84,53 @@ data class GenerateParameterRecord(
             records.forEach { arr.put(it.toJson()) }
             return arr
         }
+
+        // ── Room entity mapping ──
+
+        fun fromEntity(e: TaskEntity): GenerateParameterRecord {
+            val source = try {
+                val tags = JSONObject(e.tags ?: "{}")
+                RecordSource.valueOf(tags.optString("source", "QUEUE"))
+            } catch (_: Exception) {
+                RecordSource.QUEUE
+            }
+            return GenerateParameterRecord(
+                id = e.id,
+                prompt = e.prompt,
+                negativePrompt = e.negativePrompt,
+                modelId = e.modelId,
+                steps = e.steps,
+                cfg = e.cfg,
+                seed = e.seed,
+                width = e.width,
+                height = e.height,
+                scheduler = e.scheduler,
+                timestamp = e.timestamp,
+                source = source,
+            )
+        }
+
+        fun listFromEntities(entities: List<TaskEntity>): List<GenerateParameterRecord> =
+            entities.map { fromEntity(it) }
     }
+
+    // ── Room entity mapping ──
+
+    fun toEntity(): TaskEntity = TaskEntity(
+        id = id,
+        taskType = TaskEntity.TYPE_RECORD,
+        modelId = modelId,
+        prompt = prompt,
+        negativePrompt = negativePrompt,
+        steps = steps,
+        cfg = cfg,
+        seed = seed,
+        width = width,
+        height = height,
+        denoiseStrength = null,
+        useOpenCL = false,
+        scheduler = scheduler,
+        timestamp = timestamp,
+        tags = """{"source":"${source.name}"}""",
+    )
 }
