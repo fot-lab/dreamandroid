@@ -6,7 +6,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
-import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.queue.QueueController
 import kotlinx.coroutines.launch
@@ -25,7 +24,6 @@ class QueueViewModel(application: Application) : ViewModel() {
 
     // ── Queue repository (process-wide singleton, shared with WorkManager Worker) ──
     val queueRepository: QueueRepository = app.queueRepository
-    val recordRepository = RecordRepository(application)
 
     init {
         // Observe WorkManager state for logging

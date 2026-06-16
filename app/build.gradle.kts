@@ -108,6 +108,12 @@ android {
         }
         debug {
 //            signingConfig = signingConfigs.getByName("release")
+            // Add x86_64 ABI for emulator testing on CI (ubuntu-latest + KVM).
+            // Release builds remain arm64-v8a only.
+            ndk {
+                abiFilters.clear()
+                abiFilters += listOf("arm64-v8a", "x86_64")
+            }
         }
     }
     compileOptions {

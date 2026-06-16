@@ -1,0 +1,124 @@
+name: Test APK on Emulator
+
+on:
+  workflow_run:
+    workflows: ["Build Android APK"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      build-run-id:
+        description: 'Run ID of the build.yml workflow to download APKs from'
+        required: true
+        type: string
+
+jobs:
+  instrumentation-test:
+    # Only run when the triggering build workflow succeeded
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [30]
+        arch: [x86_64]
+        target: [google_apis]
+
+    steps:
+      # ── Download pre-built debug APKs from build.yml's apk job ──
+      - name: Download debug APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: debug-apks
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build-run-id || github.event.workflow_run.id }}
+          path: apks/
+
+      # ── Verify APKs exist ──
+      - name: Verify APKs
+        run: |
+          echo "APK files:"
+          find apks/ -name "*.apk" -exec ls -lh {} \;
+          # Expect: app-basic-debug.apk + app-basic-debug-androidTest.apk
+          if [ $(find apks/ -name "*.apk" | wc -l) -lt 2 ]; then
+            echo "❌ Expected 2 APK files (app + test), found fewer"
+            exit 1
+          fi
+          echo "✅ APKs ready"
+
+      # ── AVD cache (official recommended caching pattern) ──
+      - name: Cache AVD
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{ matrix.target }}-v2
+
+      # ── Enable KVM (required for hardware acceleration on Linux) ──
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # ── First run: create AVD + generate snapshot for caching ──
+      - name: Create AVD and generate snapshot
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: ${{ matrix.arch }}
+          target: ${{ matrix.target }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: echo "AVD snapshot generated for caching."
+
+      # ── Second run: load cached snapshot + install APKs + run tests ──
+      - name: Run instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: ${{ matrix.arch }}
+          target: ${{ matrix.target }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+
+            # Install main APK + test APK
+            MAIN_APK=$(find apks/ -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
+            TEST_APK=$(find apks/ -name "*androidTest*.apk" -o -name "*test*.apk" | head -1)
+
+            echo "Installing: $MAIN_APK"
+            adb install -r -g "$MAIN_APK"
+
+            echo "Installing: $TEST_APK"
+            adb install -r -g "$TEST_APK"
+
+            # Run instrumentation tests
+            echo "Running tests..."
+            adb shell am instrument -w -r \
+              -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
+              io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner
+
+      # ── Upload test report (always) ──
+      - name: Capture logcat
+        if: always()
+        run: |
+          {
+            echo "=== logcat (errors) ==="
+            adb logcat -d -s AndroidRuntime:E System.err:W '*:F' || true
+            echo ""
+            echo "=== logcat (package) ==="
+            adb logcat -d | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
+          } > logcat.txt
+
+      - name: Upload logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logcat-${{ matrix.api-level }}-${{ matrix.target }}
+          path: logcat.txt
+          retention-days: 7

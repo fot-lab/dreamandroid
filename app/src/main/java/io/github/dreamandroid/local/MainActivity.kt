@@ -80,8 +80,6 @@ class MainActivity : ComponentActivity() {
         checkStoragePermission()
         checkNotificationPermission()
 
-        val app = application as DreamAndroidApplication
-
         setContent {
             val themeController = rememberThemeController()
             CompositionLocalProvider(LocalThemeController provides themeController) {
