@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,8 +40,13 @@ import java.util.concurrent.TimeUnit
  * Unified backend process manager.
  * Guarantees only one C++ process runs on port 8081 at any time.
  * Replaces: BackendService + UpscaleBackendManager
+ *
+ * IMPORTANT: [context] MUST be ApplicationContext to prevent Activity leaks.
  */
-class BackendManager(private val context: Context) {
+class BackendManager(context: Context) {
+
+    /** Always use ApplicationContext to prevent Activity leaks. */
+    private val context: Context = context.applicationContext
 
     companion object {
         private const val TAG = "BackendManager"
@@ -63,7 +69,14 @@ class BackendManager(private val context: Context) {
     /** Single shared OkHttpClient for all backend HTTP calls */
     val httpClient: OkHttpClient = HttpClientProvider.create()
 
+    // ── Thread-safe process management ──
+
+    @Volatile
     private var process: Process? = null
+
+    @Volatile
+    private var monitorThread: Thread? = null
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // ── Public API ──
@@ -75,6 +88,7 @@ class BackendManager(private val context: Context) {
         useOpenCL: Boolean
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            ensureNoOrphanBackend()
             stopProcess()
             _state.value = State.Starting(Mode.Diffusion, modelId)
 
@@ -149,6 +163,7 @@ class BackendManager(private val context: Context) {
 
     suspend fun startUpscaler(upscalerId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            ensureNoOrphanBackend()
             stopProcess()
             _state.value = State.Starting(Mode.Upscaler, upscalerId)
 
@@ -322,7 +337,52 @@ class BackendManager(private val context: Context) {
 
     // ── Private Helpers ──
 
+    /**
+     * Detect and kill orphaned C++ backend processes (from previous crash/forced-quit).
+     * Called before every backend start to guarantee port 8081 is free.
+     */
+    private suspend fun ensureNoOrphanBackend() {
+        try {
+            // If we hold a process reference, stopProcess() handles it.
+            // But if process == null and health check succeeds → orphan!
+            if (process != null) return
+
+            if (healthCheck()) {
+                Log.w(TAG, "Orphan backend detected on port ${DreamHubConstants.BACKEND_PORT} — attempting shutdown")
+                // Try graceful HTTP shutdown
+                withContext(Dispatchers.IO) {
+                    try {
+                        val request = Request.Builder()
+                            .url("${DreamHubConstants.BASE_URL}/shutdown")
+                            .post(okhttp3.RequestBody.create(null, ByteArray(0)))
+                            .build()
+                        httpClient.newBuilder()
+                            .connectTimeout(2, TimeUnit.SECONDS)
+                            .readTimeout(2, TimeUnit.SECONDS)
+                            .build()
+                            .newCall(request)
+                            .execute()
+                            .close()
+                        Log.i(TAG, "Sent /shutdown to orphan backend")
+                    } catch (_: Exception) {
+                        Log.w(TAG, "/shutdown failed (backend may not support it)")
+                    }
+                }
+                // Wait for orphan to exit
+                delay(2000)
+                if (!healthCheck()) {
+                    Log.i(TAG, "Orphan backend successfully terminated")
+                } else {
+                    Log.wtf(TAG, "Orphan backend survived shutdown — port may be blocked")
+                }
+            }
+        } catch (_: Exception) {
+            // Best-effort; proceed with startup
+        }
+    }
+
     private fun stopProcess() {
+        monitorThread?.interrupt()
         process?.let { proc ->
             try {
                 proc.destroy()
@@ -335,9 +395,29 @@ class BackendManager(private val context: Context) {
                 Log.e(TAG, "Error stopping process", e)
             } finally {
                 process = null
+                monitorThread = null
             }
         }
         cancelBackendNotification()
+    }
+
+    /**
+     * Immediate forced kill for shutdown hooks — no waitFor().
+     * Safe to call from any thread (ShutdownHook, UncaughtExceptionHandler).
+     */
+    fun stopProcessImmediate() {
+        monitorThread?.interrupt()
+        process?.let { proc ->
+            try {
+                proc.destroyForcibly()
+                Log.i(TAG, "Process forcibly terminated (immediate)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in immediate process stop", e)
+            } finally {
+                process = null
+                monitorThread = null
+            }
+        }
     }
 
     private fun buildLibraryPathEnv(): Map<String, String> {
@@ -372,7 +452,9 @@ class BackendManager(private val context: Context) {
     }
 
     private fun startProcessMonitor() {
-        Thread {
+        // Interrupt any previous monitor thread before starting a new one
+        monitorThread?.interrupt()
+        monitorThread = Thread {
             try {
                 process?.let { proc ->
                     proc.inputStream.bufferedReader().use { reader ->
@@ -387,6 +469,8 @@ class BackendManager(private val context: Context) {
                         _state.value = State.Error("Process exited with code: $exitCode")
                     }
                 }
+            } catch (e: InterruptedException) {
+                Log.i(TAG, "Backend process monitor interrupted (expected during stop)")
             } catch (e: Exception) {
                 Log.e(TAG, "Process monitor error", e)
             }

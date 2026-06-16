@@ -1,7 +1,6 @@
 package io.github.dreamandroid.local.service
 
 import android.content.Context
-import android.graphics.Bitmap
 import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.data.BatchGroupDisplay
 import io.github.dreamandroid.local.data.GenerationTask
@@ -11,6 +10,7 @@ import io.github.dreamandroid.local.data.db.TaskEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -120,13 +120,20 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     }
 
     fun removeTask(id: String) {
-        _tasks.value.firstOrNull { it.id == id }?.resultBitmap?.recycle()
+        _tasks.value.firstOrNull { it.id == id }?.resultBitmapPath?.let { path ->
+            try { java.io.File(path).delete() } catch (_: Exception) {}
+        }
         _tasks.update { it.filterNot { t -> t.id == id } }
         scope.launch { db.taskDao().deleteQueueById(id) }
     }
 
     fun removeBatch(batchGroupId: String) {
-        _tasks.value.filter { it.batchGroupId == batchGroupId }.forEach { it.resultBitmap?.recycle() }
+        _tasks.value.filter { it.batchGroupId == batchGroupId }
+            .forEach { task ->
+                task.resultBitmapPath?.let { path ->
+                    try { java.io.File(path).delete() } catch (_: Exception) {}
+                }
+            }
         _tasks.update { it.filterNot { t -> t.batchGroupId == batchGroupId } }
         scope.launch { db.taskDao().deleteQueueByBatch(batchGroupId) }
     }
@@ -151,11 +158,11 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         updateTask(id) { it.copy(status = TaskStatus.PENDING, progress = 0f) }
     }
 
-    fun markTaskComplete(id: String, bitmap: Bitmap?, seed: Long?) {
+    fun markTaskComplete(id: String, bitmapPath: String?, seed: Long?) {
         updateTask(id) {
             it.copy(
                 status = TaskStatus.COMPLETED,
-                resultBitmap = bitmap,
+                resultBitmapPath = bitmapPath,
                 resultSeed = seed,
             )
         }
@@ -224,9 +231,35 @@ class QueueRepository private constructor(private val db: AppDatabase) {
 
     fun clearCompleted() {
         _tasks.value.filter { it.status == TaskStatus.COMPLETED || it.status == TaskStatus.ERROR || it.status == TaskStatus.CANCELLED }
-            .forEach { it.resultBitmap?.recycle() }
+            .forEach { task ->
+                task.resultBitmapPath?.let { path ->
+                    try { java.io.File(path).delete() } catch (_: Exception) {}
+                }
+            }
         _tasks.update { it.filterNot { t -> t.status == TaskStatus.COMPLETED || t.status == TaskStatus.ERROR || t.status == TaskStatus.CANCELLED } }
         scope.launch { db.taskDao().clearQueueCompleted() }
+    }
+
+    /**
+     * Recycle result images for completed tasks (release disk space).
+     * Called on memory pressure; completed tasks remain in the queue.
+     */
+    fun recycleCompletedBitmaps() {
+        _tasks.value.filter { it.resultBitmapPath != null && it.status == TaskStatus.COMPLETED }
+            .forEach { task ->
+                task.resultBitmapPath?.let { path ->
+                    try { java.io.File(path).delete() } catch (_: Exception) {}
+                }
+                updateTask(task.id) { it.copy(resultBitmapPath = null) }
+            }
+    }
+
+    /**
+     * Cancel the internal CoroutineScope. Only needed for testing or app termination.
+     * In production, the singleton lives for the process lifetime.
+     */
+    fun cancelScope() {
+        scope.coroutineContext.cancel()
     }
 
     // ── Mapping helpers ──
@@ -277,7 +310,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         aspectRatio = aspectRatio ?: "",
         status = try { TaskStatus.valueOf(status ?: "PENDING") } catch (_: Exception) { TaskStatus.PENDING },
         timestamp = timestamp,
-        resultBitmap = null, // not persisted
+        resultBitmapPath = null, // not persisted
         resultSeed = resultSeed,
         errorMessage = errorMessage,
         progress = progress ?: 0f,

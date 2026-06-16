@@ -9,8 +9,8 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import io.github.dreamandroid.local.R
+import io.github.dreamandroid.local.service.http.HttpClientProvider
 import java.io.File
-import java.time.Duration
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,10 +31,8 @@ class ModelDownloadService : Service() {
         getSystemService(NOTIFICATION_SERVICE) as NotificationManager
     }
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(Duration.ofSeconds(30))
-        .readTimeout(Duration.ofSeconds(30))
-        .build()
+    /** Shared OkHttpClient with connection pooling — reuses HttpClientProvider infrastructure. */
+    private val client: OkHttpClient by lazy { HttpClientProvider.createForDownload() }
 
     companion object {
         private const val TAG = "ModelDownloadService"

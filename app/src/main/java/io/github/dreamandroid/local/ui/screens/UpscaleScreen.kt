@@ -151,6 +151,16 @@ fun UpscaleScreen(modifier: Modifier = Modifier) {
         }
     }
 
+    // §MEMO-SAFE: Recycle bitmaps when composable exits composition
+    DisposableEffect(Unit) {
+        onDispose {
+            selectedBitmap?.recycle()
+            upscaledBitmap?.recycle()
+            selectedBitmap = null
+            upscaledBitmap = null
+        }
+    }
+
     // ---- UI Content ----
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -231,8 +241,9 @@ fun UpscaleScreen(modifier: Modifier = Modifier) {
                         if (selectedImageUri != null) {
                             FilledTonalIconButton(
                                 onClick = {
-                                    selectedImageUri = null
+                                    selectedBitmap?.recycle()
                                     selectedBitmap = null
+                                    selectedImageUri = null
                                     sharedScale = 1f
                                     sharedOffsetX = 0f
                                     sharedOffsetY = 0f
@@ -295,6 +306,11 @@ fun UpscaleScreen(modifier: Modifier = Modifier) {
                             isUpscaling = true
                             scope.launch {
                                 try {
+                                    // Recycle previous upscaled bitmap before creating new one
+                                    upscaledBitmap?.recycle()
+                                    upscaledBitmap = null
+                                    upscaledImageUri = null
+
                                     val resultBitmap = performUpscale(
                                         context = context,
                                         bitmap = selectedBitmap!!,
@@ -305,6 +321,11 @@ fun UpscaleScreen(modifier: Modifier = Modifier) {
                                     resultBitmap.let { bmp ->
                                         withContext(Dispatchers.IO) {
                                             try {
+                                                // Clean up previous temp files before creating new one
+                                                context.cacheDir.listFiles { f ->
+                                                    f.name.startsWith("upscaled_temp_")
+                                                }?.forEach { it.delete() }
+
                                                 val tempFile = File(
                                                     context.cacheDir,
                                                     "upscaled_temp_${System.currentTimeMillis()}.jpg",

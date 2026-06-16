@@ -1,6 +1,7 @@
 package io.github.dreamandroid.local.data
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 
 enum class TaskStatus { PENDING, PROCESSING, COMPLETED, ERROR, CANCELLED }
 
@@ -24,7 +25,8 @@ data class GenerationTask(
     val aspectRatio: String,
     val status: TaskStatus = TaskStatus.PENDING,
     val timestamp: Long = System.currentTimeMillis(),
-    val resultBitmap: Bitmap? = null,
+    /** On-disk path to the result image (cacheDir), loaded on demand. */
+    val resultBitmapPath: String? = null,
     val resultSeed: Long? = null,
     val errorMessage: String? = null,
     val progress: Float = 0f,
@@ -38,6 +40,16 @@ data class GenerationTask(
             TaskStatus.ERROR -> "ERROR"
             TaskStatus.CANCELLED -> "CANCELLED"
         }
+
+    /**
+     * Load the result bitmap from disk on demand.
+     * Caller is responsible for recycling when done.
+     */
+    fun loadResultBitmap(): Bitmap? {
+        return resultBitmapPath?.let { path ->
+            try { BitmapFactory.decodeFile(path) } catch (_: Exception) { null }
+        }
+    }
 }
 
 /** Collapsed view of a batch group */
