@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 7.0
+> 版本: 8.0
 > 更新日期: 2026-06-16
-> Phase A + Phase C 完成 (共 +14 个 Fully Fixed)
+> Phase A + B + C 完成 (共 +16 个 Fully Fixed)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -48,8 +48,8 @@
 | HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Newly Discovered | [detail/HTTP-CLNT-0004.md](detail/HTTP-CLNT-0004.md) |
 | DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Newly Discovered | [detail/DATA-STOR-0001.md](detail/DATA-STOR-0001.md) |
 | DATA-STOR-0002 | P2 | SharedPreferences 碎片化 | Partially Fixed | [detail/DATA-STOR-0002.md](detail/DATA-STOR-0002.md) |
-| CORO-EXEC-0001 | P0 | runBlocking 主线程阻塞 | Newly Discovered | [detail/CORO-EXEC-0001.md](detail/CORO-EXEC-0001.md) |
-| CORO-EXEC-0002 | P1 | 协程 Scope 泄漏（3 处） | Newly Discovered | [detail/CORO-EXEC-0002.md](detail/CORO-EXEC-0002.md) |
+| CORO-EXEC-0001 | P0 | runBlocking 主线程阻塞 | Fully Fixed | [detail/CORO-EXEC-0001.md](detail/CORO-EXEC-0001.md) |
+| CORO-EXEC-0002 | P1 | 协程 Scope 泄漏（3 处） | Fully Fixed | [detail/CORO-EXEC-0002.md](detail/CORO-EXEC-0002.md) |
 | MODU-SPLT-0001 | P3 | 单模块无编译隔离 | Newly Discovered | [detail/MODU-SPLT-0001.md](detail/MODU-SPLT-0001.md) |
 | DFLW-INTG-0001 | P0 | saveGeneratedImage 返回值被忽略 | Fully Fixed | [detail/DFLW-INTG-0001.md](detail/DFLW-INTG-0001.md) |
 | DFLW-INTG-0002 | P2 | HistoryManager 文件-DB 写入不一致 | Fully Fixed | [detail/DFLW-INTG-0002.md](detail/DFLW-INTG-0002.md) |
