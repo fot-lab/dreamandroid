@@ -9,6 +9,7 @@ object RuntimeDirPreparer {
     private const val TAG = "RuntimeDirPreparer"
     private const val RUNTIME_DIR = "runtime_libs"
 
+    @Volatile
     private var prepared = false
 
     @Synchronized
@@ -76,6 +77,26 @@ object RuntimeDirPreparer {
         } catch (e: IOException) {
             Log.e(TAG, "Failed to prepare QNN libraries from assets", e)
             throw RuntimeException("Failed to prepare QNN libraries", e)
+        }
+    }
+
+    /**
+     * Release QNN library disk space under severe memory pressure.
+     * The backend process must already be stopped before calling this.
+     * Next [prepare] call will re-extract from assets.
+     */
+    @Synchronized
+    fun cleanup(context: Context) {
+        if (!prepared) return
+        try {
+            val runtimeDir = File(context.filesDir, RUNTIME_DIR)
+            if (runtimeDir.exists()) {
+                runtimeDir.deleteRecursively()
+                prepared = false
+                Log.i(TAG, "QNN runtime libs cleaned up — will re-extract on next use")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cleanup QNN libs", e)
         }
     }
 }

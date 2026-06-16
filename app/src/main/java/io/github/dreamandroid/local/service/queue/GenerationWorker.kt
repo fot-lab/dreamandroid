@@ -1,6 +1,7 @@
 package io.github.dreamandroid.local.service.queue
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
 import androidx.work.CoroutineWorker
@@ -17,6 +18,7 @@ import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.GenerationParameters
 import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.service.QueueRepository
+import java.io.File
 
 /**
  * WorkManager [CoroutineWorker] that processes the generation queue sequentially.
@@ -174,7 +176,25 @@ class GenerationWorker(
                                     mode = GenerationMode.TXT2IMG,
                                 )
                                 if (historyItem != null) {
-                                    queueRepository.markTaskComplete(task.id, bitmap, event.seed)
+                                    // Save bitmap to queue cache file (not memory)
+                                    // HistoryManager already saved a copy to history storage
+                                    var cachePath: String? = null
+                                    try {
+                                        val cacheFile = File(
+                                            applicationContext.cacheDir,
+                                            "queue_result_${task.id}.jpg",
+                                        )
+                                        cacheFile.outputStream().use { out ->
+                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                                        }
+                                        cachePath = cacheFile.absolutePath
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "Failed to cache result bitmap", e)
+                                    }
+                                    // Recycle in-memory bitmap immediately (stored on disk)
+                                    bitmap.recycle()
+
+                                    queueRepository.markTaskComplete(task.id, cachePath, event.seed)
                                     setProgress(workDataOf(
                                         KEY_PROGRESS to 100,
                                         KEY_TASK_ID to task.id,

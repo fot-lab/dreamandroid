@@ -1,6 +1,8 @@
 package io.github.dreamandroid.local
 
 import android.app.Application
+import android.content.ComponentCallbacks2
+import android.util.Log
 import io.github.dreamandroid.local.data.HistoryMigration
 import io.github.dreamandroid.local.data.MigrationState
 import io.github.dreamandroid.local.data.db.AppDatabase
@@ -17,7 +19,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class DreamAndroidApplication : Application() {
+class DreamAndroidApplication : Application(), ComponentCallbacks2 {
+
+    companion object {
+        private const val TAG = "DreamAndroidApp"
+    }
 
     // ── Coroutine Scopes ──
 
@@ -53,6 +59,25 @@ class DreamAndroidApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // ── P0: Register shutdown hook to kill C++ backend on JVM normal exit ──
+        Runtime.getRuntime().addShutdownHook(Thread({
+            runCatching { backendManager.stopProcessImmediate() }
+        }, "BackendShutdownHook"))
+
+        // ── P0/P1: Register crash handler to kill C++ backend on uncaught exception ──
+        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e(TAG, "Uncaught exception in thread ${thread.name}", throwable)
+            runCatching { backendManager.stopProcessImmediate() }
+            // Re-throw to original handler for crash dialog, then kill process
+            originalHandler?.uncaughtException(thread, throwable)
+            if (originalHandler == null) {
+                throwable.printStackTrace()
+            }
+            android.os.Process.killProcess(android.os.Process.myPid())
+        }
+
         startMigration()
     }
 
@@ -92,8 +117,42 @@ class DreamAndroidApplication : Application() {
         }
     }
 
+    // ── P1: Memory pressure response ──
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        when (level) {
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE -> {
+                // Moderate pressure: recycle cached bitmaps
+                Log.i(TAG, "onTrimMemory: TRIM_MEMORY_RUNNING_MODERATE — recycling completed bitmaps")
+                queueRepository.recycleCompletedBitmaps()
+            }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
+                // Low memory: recycle bitmaps + clear QNN lib cache
+                Log.w(TAG, "onTrimMemory: TRIM_MEMORY_RUNNING_LOW — aggressive cleanup")
+                queueRepository.recycleCompletedBitmaps()
+                RuntimeDirPreparer.cleanup(this)
+            }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
+                // Critical: stop backend, recycle all bitmaps
+                Log.wtf(TAG, "onTrimMemory: TRIM_MEMORY_RUNNING_CRITICAL — stopping backend")
+                appScope.launch {
+                    runCatching { backendManager.stop() }
+                }
+                queueRepository.recycleCompletedBitmaps()
+            }
+            ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
+                // App moved to background: release optional resources
+                Log.i(TAG, "onTrimMemory: TRIM_MEMORY_UI_HIDDEN — releasing caches")
+                queueRepository.recycleCompletedBitmaps()
+            }
+        }
+    }
+
     override fun onTerminate() {
         super.onTerminate()
+        // Graceful shutdown: kill C++ process, cancel coroutines
+        runCatching { backendManager.stopProcessImmediate() }
         appScope.cancel()
     }
 }

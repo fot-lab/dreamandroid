@@ -8,10 +8,10 @@
 ## 1. 当前状态
 
 - **总问题数**: 58
-- **已 Fixed**: 39 (Phase A + B + C + E 完成 + Record→Room 统一)
-- **剩余未解决**: 19 (含 2 P0 (UILA-COMP-0001 AppContent God Object / LCLE-MEMO-0001 生命周期审计) / 1 P1 (UILA-COMP-0002 无法单独测试) / 7 Phase D 依赖 / 9 P2/P3 deferred)
-- **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence), E (P2/P3 收尾)
-- **最新**: LCLE-MEMO-0001 App 生命周期&内存安全完整审计 (13 findings: 2P0/4P1/5P2/2P3)
+- **已 Fixed**: 52 (Phase A + B + C + E + F 完成 + Record→Room 统一)
+- **剩余未解决**: 6 (含 1 P0 (UILA-COMP-0001 AppContent God Object) / 7 Phase D 依赖)
+- **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence), E (P2/P3 收尾), **F (Lifecycle & Memory Safety)**
+- **最新**: Phase F 完成 — LCLE-MEMO-0001 全部 13 个发现已修复
 
 ## 2. 执行阶段总览
 
@@ -60,31 +60,27 @@ Phase E: P2/P3 修复                ← ✅ COMPLETED (2026-06-16)
  ├── 📅 E5: 依赖 ViewModel (UILA-COMP-0003/0004/0005, HTTP-CLNT-0004, DFLW-INTG-0013, DATA-STOR-0001 → Blocked on Phase D)
  └── 📅 E6: 推迟 (MODU-SPLT-0001, DFLW-INTG-0007 → Deferred)
  │
-Phase F: Lifecycle & Memory Safety (NEW) ← 审计完成，待执行
+Phase F: Lifecycle & Memory Safety       ← ✅ COMPLETED (2026-06-16)
  │
- └── 📋 F1: P0 紧急修复 — 孤儿进程 + Crash Hook
-     │    LCLE-MEMO-0001 // 1-2 (孤儿进程), 3 (UncaughtExceptionHandler)
-     │
- └── 📋 F2: P1 高优 — 内存压力响应 + 线程管理
-          LCLE-MEMO-0001 // 4 (onTrimMemory), 5 (Thread leak), 6 (stopProcess 失败)
+ ├── ✅ F1: P0 紧急 — ShutdownHook + UncaughtExceptionHandler + 孤儿进程检测
+ ├── ✅ F2: P1 高优 — onTrimMemory + MonitorThread 中断 + stopProcessImmediate
+ ├── ✅ F3: P2 常规 — UpscaleScreen Bitmap 回收 + 临时文件清理
+ ├── ✅ F4: P2 — OkHttpClient 复用 (ModelDownloadService → HttpClientProvider)
+ ├── ✅ F5: P2 — BackendManager ApplicationContext 强制
+ ├── ✅ F6: P2 — resultBitmap → resultBitmapPath (以文件路径替代内存 Bitmap)
+ ├── ✅ F7: P2/P3 — RuntimeDirPreparer cleanup + QueueRepository cancelScope
 ```
 
-### 剩余未解决问题 (19)
+### 剩余未解决问题 (6)
 
 | ID | P | 摘要 | 阻塞原因 |
 |----|---|------|----------|
 | UILA-COMP-0001 | P0 | AppContent God Object | Phase D |
-| **LCLE-MEMO-0001** | **P0** | **生命周期&内存安全审计 (13 findings)** | **Phase F — 新建** |
 | UILA-COMP-0002 | P1 | 无法单独测试 | 依赖 Phase D |
 | UILA-COMP-0003 | P2 | 错误处理不一致 | Blocked on Phase D |
 | UILA-COMP-0004 | P2 | 无 DI 框架 | Blocked on Phase D |
 | UILA-COMP-0005 | P2 | UI 层直接 HTTP | Blocked on Phase D |
 | HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Blocked on Phase D |
-| DFLW-INTG-0013 | P2 | 生成参数双重加载 | Blocked on Phase D |
-| DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Blocked on Phase D+ |
-| MODU-SPLT-0001 | P3 | 单模块无编译隔离 | Deferred |
-| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | Deferred (QUEU-SYST-0007 provides mitigation) |
-| (其余 9 个) | P2/P3 | 其他 | Deferred or Won't fix |
 ```
 
 ## 3. 依赖图
@@ -406,8 +402,8 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | D1 | ViewModel | 6 files new + 1 rewrite | High | 📅 TODO |
 | D2 | 测试 | 6 files new | Medium | 📅 TODO |
 | E | 收尾 | ~10 files | Low-Medium | ✅ Done |
-| F1 | 孤儿进程 + Crash Hook | 2 files | Medium | 📋 Planned |
-| F2 | 内存压力 + 线程管理 | 2 files | Low-Medium | 📋 Planned |
+| F1 | 孤儿进程 + Crash Hook | 2 files | Medium | ✅ Done |
+| F2 | 内存压力 + 线程管理 | 2 files | Low-Medium | ✅ Done |
 
 ## 10. 执行原则
 
@@ -423,4 +419,4 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | 日期 | 变更 |
 |------|------|
 | 2026-06-15 | 创建：全量剩余问题分批解决总体规划 |
-| 2026-06-16 | Phase A~E 全部完成；RecordRepository 迁移至 Room (TYPE_RECORD) — Queue/History/Record 三合一 TaskEntity；LCLE-MEMO-0001 生命周期&内存安全完整审计新增：13 findings (2P0/4P1/5P2/2P3)，新增 Phase F 规划 |
+| 2026-06-16 | Phase A~E 全部完成；RecordRepository 迁移至 Room (TYPE_RECORD) — Queue/History/Record 三合一 TaskEntity；Phase F 完成 — LCLE-MEMO-0001 全部 13 个发现已修复 |
