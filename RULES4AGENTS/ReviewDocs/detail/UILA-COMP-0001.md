@@ -40,9 +40,30 @@ AppContent()
 | `UpscaleViewModel` | 超分图片选择、执行、结果 |
 | `BrowseViewModel` | 历史记录浏览、筛选、多选 |
 
+## 执行结果
+
+**Phase D (2026-06-16)**: AppContent God Object 已完全拆解为 6 个 AndroidX ViewModel：
+
+| ViewModel | 文件 | 行数 | 管理内容 |
+|-----------|------|------|---------|
+| `MainViewModel` | `ui/viewmodel/MainViewModel.kt` | 20 | selectedTab, showNoModelWarning |
+| `ModelsViewModel` | `ui/viewmodel/ModelsViewModel.kt` | 210 | model CRUD, load/unload, import/rename/delete, upscaler |
+| `QueueViewModel` | `ui/viewmodel/QueueViewModel.kt` | 55 | queue observation, auto-start, WorkManager logging |
+| `GenerateViewModel` | `ui/viewmodel/GenerateViewModel.kt` | 130 | generation params, tokenize, addToQueue, prefs load/save |
+| `UpscaleViewModel` | `ui/viewmodel/UpscaleViewModel.kt` | 150 | image selection, upscale execution, bitmap lifecycle |
+| `BrowseViewModel` | `ui/viewmodel/BrowseViewModel.kt` | 180 | history browsing, selection mode, batch operations |
+
+**关键变更**:
+- `AppContent.kt`: 570→310 行 (-46%) — 纯编排器，状态委托给 ViewModels
+- `AppContentState.kt`: @Stable 类已退役（状态移入 ViewModels）
+- `BrowseScreen.kt`: 使用 `BrowseViewModel` 替代 10+ 内部 `mutableStateOf`
+- `UpscaleScreen.kt`: 使用 `UpscaleViewModel`，`onCleared()` 管理 bitmap 生命周期
+- 新增依赖: `androidx.lifecycle:lifecycle-viewmodel-compose`
+
 ## 变更历史
 
 | 日期 | 描述 |
 |------|------|
 | 2026-06-13 | 初始发现 |
 | 2026-06-15 | ViewModel 拆分方案设计完成，待实施 |
+| 2026-06-16 | Phase D 完成：6 个 ViewModel 创建，AppContent 精简 46%，UpscaleScreen/BrowseScreen 重构 |

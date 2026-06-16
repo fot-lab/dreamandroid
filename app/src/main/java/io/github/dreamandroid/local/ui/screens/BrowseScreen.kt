@@ -9,7 +9,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
-// import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -24,18 +23,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-// import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-// import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.*
+import io.github.dreamandroid.local.ui.viewmodel.BrowseViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,98 +45,63 @@ import java.io.File
 fun BrowseScreen(
     modifier: Modifier = Modifier,
     recordRepository: RecordRepository? = null,
+    browseViewModel: BrowseViewModel = viewModel(),
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val historyManager = remember { HistoryManager(context) }
 
-    val historyFilter = remember { HistoryFilter(modelIds = emptySet()) }
-    val historyFlow = remember { historyManager.observe(historyFilter) }
-    val historyItems by historyFlow.collectAsState(initial = emptyList())
-    val knownModelIds by remember { historyManager.observeKnownModelIds() }
-        .collectAsState(initial = emptyList())
+    // Observe ViewModel state
+    val historyItems by browseViewModel.historyItems.collectAsState()
+    val knownModelIds by browseViewModel.knownModelIds.collectAsState()
 
-    var isSelectionMode by remember { mutableStateOf(false) }
-    val selectedItems = remember { mutableStateListOf<HistoryItem>() }
-    var showBatchDeleteDialog by remember { mutableStateOf(false) }
-    var showBatchSaveDialog by remember { mutableStateOf(false) }
-    var showBatchSaveInfoDialog by remember { mutableStateOf(false) }
-    var showFilterSheet by remember { mutableStateOf(false) }
-    var showHistoryDetailDialog by remember { mutableStateOf<HistoryItem?>(null) }
-    var isPreviewMode by remember { mutableStateOf(false) }
+    val isSelectionMode = browseViewModel.isSelectionMode
+    val filterModelId = browseViewModel.filterModelId
 
-    var showFilter by remember { mutableStateOf(false) }
-    var filterModelId by remember { mutableStateOf<String?>(null) }
-
-    // Filter-related state
-    val effectiveFilter = if (filterModelId != null) {
-        historyFilter.copy(modelIds = setOf(filterModelId!!))
-    } else {
-        historyFilter
-    }
-
-    val displayItems = remember(historyItems, effectiveFilter) {
-        historyItems.filter { item ->
-            filterModelId == null || item.modelId == filterModelId
-        }
-    }
-
-    if (showBatchDeleteDialog && selectedItems.isNotEmpty()) {
+    // ── Batch Delete Dialog ──
+    if (browseViewModel.showBatchDeleteDialog && browseViewModel.selectedItems.isNotEmpty()) {
         AlertDialog(
-            onDismissRequest = { showBatchDeleteDialog = false },
+            onDismissRequest = { browseViewModel.showBatchDeleteDialog = false },
             title = { Text(stringResource(R.string.batch_delete)) },
             text = {
                 Text(
                     pluralStringResource(
                         R.plurals.batch_delete_confirm,
-                        selectedItems.size,
-                        selectedItems.size,
+                        browseViewModel.selectedItems.size,
+                        browseViewModel.selectedItems.size,
                     )
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            var successCount = 0
-                            selectedItems.toList().forEach { item ->
-                                if (historyManager.deleteHistoryItem(item)) successCount++
-                            }
-                            selectedItems.clear()
-                            isSelectionMode = false
-                            showBatchDeleteDialog = false
-                            Toast.makeText(
-                                context,
-                                "Deleted $successCount items",
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
+                        val deleted = browseViewModel.batchDelete()
+                        Toast.makeText(
+                            context, "Deleted $deleted items", Toast.LENGTH_SHORT,
+                        ).show()
                     }
                 ) {
-                    Text(
-                        stringResource(R.string.delete),
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showBatchDeleteDialog = false }) {
+                TextButton(onClick = { browseViewModel.showBatchDeleteDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
         )
     }
 
-    if (showBatchSaveDialog && selectedItems.isNotEmpty()) {
+    // ── Batch Save Dialog ──
+    if (browseViewModel.showBatchSaveDialog && browseViewModel.selectedItems.isNotEmpty()) {
         AlertDialog(
-            onDismissRequest = { showBatchSaveDialog = false },
+            onDismissRequest = { browseViewModel.showBatchSaveDialog = false },
             title = { Text(stringResource(R.string.batch_save)) },
             text = {
                 Text(
                     pluralStringResource(
                         R.plurals.batch_save_confirm,
-                        selectedItems.size,
-                        selectedItems.size,
+                        browseViewModel.selectedItems.size,
+                        browseViewModel.selectedItems.size,
                     )
                 )
             },
@@ -145,33 +109,10 @@ fun BrowseScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            var savedCount = 0
-                            var failedCount = 0
-                            selectedItems.toList().forEach { item ->
-                                val bitmap = try {
-                                    withContext(Dispatchers.IO) {
-                                        BitmapFactory.decodeFile(item.imageFile.absolutePath)
-                                    }
-                                } catch (_: Exception) { null }
-                                if (bitmap != null) {
-                                    val result = withContext(Dispatchers.IO) {
-                                        saveBitmapToGallery(context, bitmap, item.modelId)
-                                    }
-                                    if (result) savedCount++ else failedCount++
-                                } else {
-                                    failedCount++
-                                }
-                            }
-                            selectedItems.clear()
-                            isSelectionMode = false
-                            showBatchSaveDialog = false
+                            val (saved, _) = browseViewModel.batchSaveToGallery(context)
                             Toast.makeText(
                                 context,
-                                context.resources.getQuantityString(
-                                    R.plurals.saved_count,
-                                    savedCount,
-                                    savedCount,
-                                ),
+                                context.resources.getQuantityString(R.plurals.saved_count, saved, saved),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -181,74 +122,47 @@ fun BrowseScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showBatchSaveDialog = false }) {
+                TextButton(onClick = { browseViewModel.showBatchSaveDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
         )
     }
 
-    if (showBatchSaveInfoDialog && selectedItems.isNotEmpty()) {
+    // ── Batch Save Info Dialog ──
+    if (browseViewModel.showBatchSaveInfoDialog && browseViewModel.selectedItems.isNotEmpty()) {
         AlertDialog(
-            onDismissRequest = { showBatchSaveInfoDialog = false },
+            onDismissRequest = { browseViewModel.showBatchSaveInfoDialog = false },
             title = { Text(stringResource(R.string.batch_save_params)) },
             text = {
                 Text(
                     pluralStringResource(
                         R.plurals.batch_save_params_confirm,
-                        selectedItems.size,
-                        selectedItems.size,
+                        browseViewModel.selectedItems.size,
+                        browseViewModel.selectedItems.size,
                     )
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            var savedCount = 0
-                            selectedItems.toList().forEach { item ->
-                                try {
-                                    val record = GenerateParameterRecord(
-                                        prompt = item.params.prompt,
-                                        negativePrompt = item.params.negativePrompt,
-                                        modelId = item.modelId,
-                                        steps = item.params.steps,
-                                        cfg = item.params.cfg,
-                                        seed = item.params.seed,
-                                        width = item.params.width,
-                                        height = item.params.height,
-                                        scheduler = item.params.scheduler,
-                                        timestamp = item.timestamp,
-                                        source = RecordSource.GALLERY,
-                                    )
-                                    recordRepository?.addRecord(record)
-                                    savedCount++
-                                } catch (_: Exception) { }
-                            }
-                            selectedItems.clear()
-                            isSelectionMode = false
-                            showBatchSaveInfoDialog = false
-                            Toast.makeText(
-                                context,
-                                "$savedCount parameters saved",
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
+                        val saved = recordRepository?.let { browseViewModel.batchSaveParams(it) } ?: 0
+                        Toast.makeText(context, "$saved parameters saved", Toast.LENGTH_SHORT).show()
                     }
                 ) {
                     Text(stringResource(R.string.save_info))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showBatchSaveInfoDialog = false }) {
+                TextButton(onClick = { browseViewModel.showBatchSaveInfoDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
         )
     }
 
-    // Single item delete dialog
-    showHistoryDetailDialog?.let { item ->
+    // ── Single Item Detail / Delete Dialog ──
+    browseViewModel.showHistoryDetailDialog?.let { item ->
         var showDelete by remember { mutableStateOf(false) }
         if (showDelete) {
             AlertDialog(
@@ -258,17 +172,11 @@ fun BrowseScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            scope.launch {
-                                historyManager.deleteHistoryItem(item)
-                                showDelete = false
-                                showHistoryDetailDialog = null
-                            }
+                            browseViewModel.deleteSingleItem(item)
+                            showDelete = false
                         }
                     ) {
-                        Text(
-                            stringResource(R.string.delete),
-                            color = MaterialTheme.colorScheme.error,
-                        )
+                        Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
@@ -279,9 +187,8 @@ fun BrowseScreen(
             )
         }
 
-        // Detail dialog
         AlertDialog(
-            onDismissRequest = { showHistoryDetailDialog = null },
+            onDismissRequest = { browseViewModel.showHistoryDetailDialog = null },
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -295,50 +202,23 @@ fun BrowseScreen(
                         modifier = Modifier.weight(1f),
                     )
                     Row {
-                        // Save Info — records params to RecordRepository
                         IconButton(onClick = {
                             scope.launch {
-                                val record = GenerateParameterRecord(
-                                    prompt = item.params.prompt,
-                                    negativePrompt = item.params.negativePrompt,
-                                    modelId = item.modelId,
-                                    steps = item.params.steps,
-                                    cfg = item.params.cfg,
-                                    seed = item.params.seed,
-                                    width = item.params.width,
-                                    height = item.params.height,
-                                    scheduler = item.params.scheduler,
-                                    timestamp = item.timestamp,
-                                    source = RecordSource.GALLERY,
-                                )
-                                recordRepository?.addRecord(record)
+                                recordRepository?.let { browseViewModel.saveSingleParams(item, it) }
                                 Toast.makeText(
-                                    context,
-                                    context.getString(R.string.parameters_saved),
-                                    Toast.LENGTH_SHORT,
+                                    context, context.getString(R.string.parameters_saved), Toast.LENGTH_SHORT,
                                 ).show()
                             }
                         }) {
-                            Icon(
-                                Icons.Default.NoteAdd,
-                                stringResource(R.string.save_info),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
+                            Icon(Icons.Default.NoteAdd, stringResource(R.string.save_info),
+                                tint = MaterialTheme.colorScheme.primary)
                         }
-                        // Download — saves image bitmap to gallery
                         IconButton(onClick = {
                             scope.launch(Dispatchers.IO) {
-                                val bitmap = try {
-                                    BitmapFactory.decodeFile(item.imageFile.absolutePath)
-                                } catch (_: Exception) { null }
-                                if (bitmap != null) {
-                                    saveBitmapToGallery(context, bitmap, item.modelId)
+                                val ok = browseViewModel.saveSingleToGallery(context, item)
+                                if (ok) {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.image_saved),
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
+                                        Toast.makeText(context, context.getString(R.string.image_saved), Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             }
@@ -346,36 +226,25 @@ fun BrowseScreen(
                             Icon(Icons.Default.SaveAlt, stringResource(R.string.save))
                         }
                         IconButton(onClick = { showDelete = true }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                stringResource(R.string.delete),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
+                            Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val bitmap = remember(item.imageFile.absolutePath) {
-                        try {
-                            BitmapFactory.decodeFile(item.imageFile.absolutePath)
-                        } catch (_: Exception) { null }
-                    }
-                    bitmap?.let {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(item.imageFile.absolutePath)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Generated image",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(8.dp)),
-                            contentScale = ContentScale.Fit,
-                        )
-                    }
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(item.imageFile.absolutePath)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Generated image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Fit,
+                    )
                     Spacer(Modifier.height(4.dp))
                     if (item.params.prompt.isNotEmpty()) {
                         Text(
@@ -391,12 +260,10 @@ fun BrowseScreen(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.result_params)
-                            .format(
-                                item.params.steps.toString(),
-                                item.params.cfg,
-                                item.params.seed?.toString() ?: "-",
-                            ),
+                        text = stringResource(R.string.result_params).format(
+                            item.params.steps.toString(), item.params.cfg,
+                            item.params.seed?.toString() ?: "-",
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -408,16 +275,40 @@ fun BrowseScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showHistoryDetailDialog = null }) {
+                TextButton(onClick = { browseViewModel.showHistoryDetailDialog = null }) {
                     Text(stringResource(R.string.close))
                 }
             },
         )
     }
 
-    Column(
-        modifier = modifier.fillMaxSize(),
-    ) {
+    // ── Preview Overlay ──
+    browseViewModel.showHistoryDetailDialog?.let { item ->
+        if (browseViewModel.isPreviewMode) {
+            AlertDialog(
+                onDismissRequest = { browseViewModel.isPreviewMode = false },
+                confirmButton = {
+                    TextButton(onClick = { browseViewModel.isPreviewMode = false }) {
+                        Text(stringResource(R.string.close))
+                    }
+                },
+                text = {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(item.imageFile.absolutePath)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Preview",
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.Fit,
+                    )
+                },
+            )
+        }
+    }
+
+    // ── Main Content ──
+    Column(modifier = modifier.fillMaxSize()) {
         // Filter chips
         if (knownModelIds.isNotEmpty()) {
             Row(
@@ -429,31 +320,33 @@ fun BrowseScreen(
             ) {
                 FilterChip(
                     selected = filterModelId == null,
-                    onClick = { filterModelId = null },
+                    onClick = { browseViewModel.filterModelId = null },
                     label = { Text(stringResource(R.string.history_filter_all)) },
                 )
                 knownModelIds.forEach { id ->
                     FilterChip(
                         selected = filterModelId == id,
-                        onClick = { filterModelId = id },
+                        onClick = { browseViewModel.filterModelId = id },
                         label = { Text(id) },
                     )
                 }
             }
         }
 
+        val displayItems = remember(historyItems, filterModelId) {
+            historyItems.filter { item ->
+                filterModelId == null || item.modelId == filterModelId
+            }
+        }
+
         if (displayItems.isEmpty()) {
-            // Empty state
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
+                modifier = Modifier.fillMaxSize().padding(32.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.ImageSearch,
-                        contentDescription = null,
+                        Icons.Default.ImageSearch, contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     )
@@ -474,42 +367,31 @@ fun BrowseScreen(
             // Selection mode top bar
             if (isSelectionMode) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         pluralStringResource(
                             R.plurals.selected_items_count,
-                            selectedItems.size,
-                            selectedItems.size,
+                            browseViewModel.selectedItems.size,
+                            browseViewModel.selectedItems.size,
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IconButton(onClick = { showBatchSaveInfoDialog = true }) {
-                            Icon(
-                                Icons.Default.NoteAdd,
-                                stringResource(R.string.save_info),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
+                        IconButton(onClick = { browseViewModel.showBatchSaveInfoDialog = true }) {
+                            Icon(Icons.Default.NoteAdd, stringResource(R.string.save_info),
+                                tint = MaterialTheme.colorScheme.primary)
                         }
-                        IconButton(onClick = { showBatchSaveDialog = true }) {
+                        IconButton(onClick = { browseViewModel.showBatchSaveDialog = true }) {
                             Icon(Icons.Default.SaveAlt, stringResource(R.string.save))
                         }
-                        IconButton(onClick = { showBatchDeleteDialog = true }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                stringResource(R.string.delete),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
+                        IconButton(onClick = { browseViewModel.showBatchDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, stringResource(R.string.delete),
+                                tint = MaterialTheme.colorScheme.error)
                         }
-                        IconButton(onClick = {
-                            isSelectionMode = false
-                            selectedItems.clear()
-                        }) {
+                        IconButton(onClick = { browseViewModel.exitSelection() }) {
                             Icon(Icons.Default.Close, stringResource(R.string.cancel))
                         }
                     }
@@ -522,42 +404,19 @@ fun BrowseScreen(
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(
-                    items = displayItems,
-                    key = { it.id },
-                ) { item ->
+                items(items = displayItems, key = { it.id }) { item ->
                     ElevatedCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .combinedClickable(
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        if (selectedItems.contains(item)) {
-                                            selectedItems.remove(item)
-                                            if (selectedItems.isEmpty()) {
-                                                isSelectionMode = false
-                                            }
-                                        } else {
-                                            selectedItems.add(item)
-                                        }
-                                    } else {
-                                        showHistoryDetailDialog = item
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!isSelectionMode) {
-                                        isSelectionMode = true
-                                        selectedItems.add(item)
-                                    }
-                                },
+                                onClick = { browseViewModel.toggleSelection(item) },
+                                onLongClick = { browseViewModel.startSelection(item) },
                             ),
                     ) {
                         Column {
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
-                                    .data(item.imageFile.absolutePath)
-                                    .crossfade(true)
-                                    .build(),
+                                    .data(item.imageFile.absolutePath).crossfade(true).build(),
                                 contentDescription = "Generated image",
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -568,11 +427,8 @@ fun BrowseScreen(
                                     ),
                                 contentScale = ContentScale.Fit,
                             )
-
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -591,16 +447,15 @@ fun BrowseScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-
                                 if (isSelectionMode) {
                                     Checkbox(
-                                        checked = selectedItems.contains(item),
+                                        checked = browseViewModel.selectedItems.contains(item),
                                         onCheckedChange = { checked ->
-                                            if (checked) selectedItems.add(item)
+                                            if (checked) browseViewModel.selectedItems.add(item)
                                             else {
-                                                selectedItems.remove(item)
-                                                if (selectedItems.isEmpty()) {
-                                                    isSelectionMode = false
+                                                browseViewModel.selectedItems.remove(item)
+                                                if (browseViewModel.selectedItems.isEmpty()) {
+                                                    browseViewModel.exitSelection()
                                                 }
                                             }
                                         },
@@ -613,66 +468,32 @@ fun BrowseScreen(
             }
         }
     }
-
-    // Preview overlay
-    showHistoryDetailDialog?.let { item ->
-        if (isPreviewMode) {
-            AlertDialog(
-                onDismissRequest = { isPreviewMode = false },
-                confirmButton = {
-                    TextButton(onClick = { isPreviewMode = false }) {
-                        Text(stringResource(R.string.close))
-                    }
-                },
-                text = {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(item.imageFile.absolutePath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Preview",
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = ContentScale.Fit,
-                    )
-                },
-            )
-        }
-    }
 }
 
-private suspend fun saveBitmapToGallery(
+suspend fun saveBitmapToGallery(
     context: Context,
     bitmap: android.graphics.Bitmap,
     modelId: String,
 ): Boolean = withContext(Dispatchers.IO) {
     try {
-        val timestamp = java.text.SimpleDateFormat(
-            "yyyyMMdd_HHmmss",
-            java.util.Locale.US,
-        ).format(java.util.Date())
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+            .format(java.util.Date())
         val filename = "DreamHub_${modelId}_$timestamp.png"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, filename)
                 put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                put(
-                    MediaStore.Images.Media.RELATIVE_PATH,
-                    Environment.DIRECTORY_PICTURES + "/DreamHub",
-                )
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DreamHub")
             }
-            val uri = context.contentResolver.insert(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                values,
-            ) ?: return@withContext false
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return@withContext false
             context.contentResolver.openOutputStream(uri)?.use { out ->
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
             } ?: return@withContext false
         } else {
             val dir = File(
-                Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_PICTURES,
-                ),
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
                 "DreamHub",
             )
             if (!dir.exists()) dir.mkdirs()
