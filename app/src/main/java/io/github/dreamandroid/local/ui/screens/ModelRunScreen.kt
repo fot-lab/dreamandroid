@@ -5,7 +5,6 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Rect as AndroidRect
@@ -71,11 +70,9 @@ import androidx.navigation.NavController
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.*
-import io.github.dreamandroid.local.service.BackendService
-import io.github.dreamandroid.local.service.BackendService.BackendState
-import io.github.dreamandroid.local.service.BackgroundGenerationService
-import io.github.dreamandroid.local.service.BackgroundGenerationService.GenerationState
 import io.github.dreamandroid.local.service.ModelDownloadService
+import io.github.dreamandroid.local.service.QueueRepository
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.components.*
 import io.github.dreamandroid.local.ui.screens.run.*
 import io.github.dreamandroid.local.utils.*
@@ -93,13 +90,14 @@ private const val HISTORY_LIMIT = 50
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modifier = Modifier) {
-    val serviceState by BackgroundGenerationService.generationState.collectAsState()
-    val backendState by BackendService.backendState.collectAsState()
     val context = LocalContext.current
     val resources = context.resources
     val scope = rememberCoroutineScope()
     val generationPreferences = remember { GenerationPreferences(context) }
     val backendManager = remember { (context.applicationContext as DreamAndroidApplication).backendManager }
+    val backendState by backendManager.state.collectAsState()
+    val queueRepository = remember { QueueRepository.getInstance(context) }
+    val queueTasks by queueRepository.tasks.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     val modelRepository = remember { ModelRepository(context) }
@@ -231,12 +229,8 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     }
 
     LaunchedEffect(state.hasInitialized) {
-        if (state.hasInitialized && backendState !is BackendState.Running) {
-            val intent = Intent(context, BackendService::class.java).apply {
-                putExtra("modelId", model?.id); putExtra("width", state.currentWidth)
-                putExtra("height", state.currentHeight); putExtra("use_opencl", state.useOpenCL)
-            }
-            context.startForegroundService(intent)
+        if (state.hasInitialized && backendState !is BackendManager.State.Running) {
+            model?.id?.let { modelId -> backendManager.startDiffusion(modelId, state.currentWidth, state.currentHeight, state.useOpenCL) }
         }
     }
 
@@ -255,12 +249,21 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
         }
     }
 
-    LaunchedEffect(serviceState) {
-        handleServiceState(serviceState, state, model, modelId, historyManager, coroutineScope, pagerState)
+    LaunchedEffect(queueTasks) {
+        val batchId = state.currentBatchGroupId ?: return@LaunchedEffect
+        val batchTasks = queueTasks.filter { it.batchGroupId == batchId }
+        if (batchTasks.isEmpty()) return@LaunchedEffect
+        val hasPendingOrProcessing = batchTasks.any { it.status == TaskStatus.PENDING || it.status == TaskStatus.PROCESSING }
+        val processingTask = batchTasks.firstOrNull { it.status == TaskStatus.PROCESSING }
+        state.isRunning = hasPendingOrProcessing
+        state.progress = processingTask?.progress ?: 0f
+        if (!hasPendingOrProcessing) {
+            state.currentBatchGroupId = null
+        }
     }
 
     LaunchedEffect(backendState, state.hasInitialized) {
-        if (!state.clipboardImportChecked && state.hasInitialized && backendState is BackendState.Running) {
+        if (!state.clipboardImportChecked && state.hasInitialized && backendState is BackendManager.State.Running) {
             state.clipboardImportChecked = true
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             val raw = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
@@ -270,14 +273,14 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     // ── DisposableEffects ─────────────────────────────────────
 
-    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState) } }
+    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState, backendManager) } }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState)
+            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState, backendManager)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState) }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState, backendManager) }
     }
 
     DisposableEffect(modelId) {
@@ -286,7 +289,6 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
         if (captureEnabled) LogCapture.start()
         onDispose {
             if (captureEnabled) LogCapture.stopAndPublish()
-            BackgroundGenerationService.clearCompleteState()
         }
     }
 
@@ -434,7 +436,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     fun handleSelectImageClick() { onSelectImageClick(state, context, msgMediaPermissionHint, { photoPickerLauncher.launch(it) }, { contentPickerLauncher.launch("image/*") }, { requestStoragePermissionLauncher.launch(it) }) }
 
-    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState); BackgroundGenerationService.clearCompleteState(); navController.navigateUp() }
+    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState, backendManager); navController.navigateUp() }
 
     // ── BackHandler ───────────────────────────────────────────
 
@@ -480,7 +482,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                 state = state, model = model, context = context, scope = scope, coroutineScope = coroutineScope,
                                 generationPreferences = generationPreferences, tagAutocompleteRepository = tagAutocompleteRepository,
                                 tagAutocompleteAvailable = tagAutocompleteAvailable, tagSuggestionCount = tagSuggestionCount,
-                                useImg2img = useImg2img, pagerState = pagerState, serviceState = serviceState,
+                                useImg2img = useImg2img, pagerState = pagerState,
                                 onPromptFieldChanged = { v, r -> updatePromptField(v, r) },
                                 onNegativePromptFieldChanged = { v, r -> updateNegativePromptField(v, r) },
                                 onApplyPromptSuggestion = { applyPromptSuggestion(it) },
@@ -499,7 +501,27 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                 onSeedChange = { onSeedChange(state, it) { saveAllFields(state, scope, generationPreferences, modelId) } },
                                 onBatchCountsChange = { onBatchCountsChange(state, it) { saveAllFields(state, scope, generationPreferences, modelId) } },
                                 onGenerateClick = {
-                                    startBatchGeneration(state, context, model, coroutineScope, effectiveSize.first, effectiveSize.second)
+                                    model?.let { m ->
+                                        val actualCount = if (state.seed.isNotBlank()) 1 else state.batchCounts
+                                        val batchId = queueRepository.addBatch(
+                                            modelId = modelId,
+                                            prompt = state.prompt,
+                                            negativePrompt = state.negativePrompt,
+                                            steps = state.steps.roundToInt(),
+                                            cfg = state.cfg,
+                                            seed = state.seed,
+                                            width = state.currentWidth,
+                                            height = state.currentHeight,
+                                            effectiveWidth = effectiveSize.first,
+                                            effectiveHeight = effectiveSize.second,
+                                            denoiseStrength = state.denoiseStrength,
+                                            useOpenCL = state.useOpenCL,
+                                            scheduler = state.scheduler,
+                                            aspectRatio = state.aspectRatio,
+                                            count = actualCount.coerceAtLeast(1),
+                                        )
+                                        state.currentBatchGroupId = batchId
+                                    }
                                 },
                                 onResetAll = {
                                     state.steps = 20f; state.cfg = 7f; state.seed = ""; state.batchCounts = 1; state.scheduler = "dpm"; state.aspectRatio = "1:1"
@@ -581,9 +603,11 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     ModelRunExitDialog(state, onExit = { handleExit() })
     ModelRunOpenCLWarningDialog(state) { saveAllFields(state, scope, generationPreferences, modelId) }
     ModelRunResolutionChangeDialog(state, model, modelId, context, scope, generationPreferences) { resolution ->
-        model?.let { m ->
-            val serviceIntent = Intent(context, BackendService::class.java).apply { action = BackendService.ACTION_RESTART; putExtra("modelId", modelId); putExtra("width", resolution.width); putExtra("height", resolution.height) }
-            context.startForegroundService(serviceIntent)
+        scope.launch {
+            if (model != null) {
+                backendManager.stop()
+                backendManager.startDiffusion(modelId, resolution.width, resolution.height, state.useOpenCL)
+            }
         }
         state.isCheckingBackend = true; state.backendRestartTrigger++
     }

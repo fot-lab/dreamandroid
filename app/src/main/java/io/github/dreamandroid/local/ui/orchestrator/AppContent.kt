@@ -20,11 +20,10 @@ import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.service.queue.QueueController
 import io.github.dreamandroid.local.ui.backend.*
 import io.github.dreamandroid.local.ui.frontend.*
+import io.github.dreamandroid.local.ui.orchestrator.state.AppContentState
 import io.github.dreamandroid.local.ui.queue.TabQueueScreen
 import io.github.dreamandroid.local.ui.screens.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -36,9 +35,8 @@ fun AppContent() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // ---- Shared state ----
-    var selectedTab by remember { mutableStateOf(BottomTab.Models) }
-    var selectedModelId by remember { mutableStateOf<String?>(null) }
+    // ---- State holder (all mutable UI state) ----
+    val state = remember { AppContentState() }
 
     // §17.3: Unified backend lifecycle via BackendManager (single source of truth)
     val app = context.applicationContext as DreamAndroidApplication
@@ -49,21 +47,8 @@ fun AppContent() {
     val isUpscaleModelLoaded = backendState.isUpscalerLoaded()
     val selectedUpscalerId = backendState.activeUpscalerId()
     val modelRepository = remember { ModelRepository(context) }
-    var modelRefreshVersion by remember { mutableIntStateOf(0) }
 
-    // ---- Generation parameters (shared between top bar and screen) ----
-    val model = remember(selectedModelId) { modelRepository.models.find { it.id == selectedModelId } }
-    var genPrompt by remember { mutableStateOf("") }
-    var genNegativePrompt by remember { mutableStateOf("") }
-    var genSteps by remember { mutableFloatStateOf(20f) }
-    var genCfg by remember { mutableFloatStateOf(7f) }
-    var genSeed by remember { mutableStateOf("") }
-    var genBatchCounts by remember { mutableIntStateOf(1) }
-    var genScheduler by remember { mutableStateOf("dpm") }
-    var genDenoiseStrength by remember { mutableFloatStateOf(0.6f) }
-    var genUseOpenCL by remember { mutableStateOf(false) }
-    var genWidth by remember { mutableIntStateOf(512) }
-    var genHeight by remember { mutableIntStateOf(512) }
+    val model = remember(state.selectedModelId) { modelRepository.models.find { it.id == state.selectedModelId } }
 
     // ---- Queue repository (process-wide singleton, shared with WorkManager Worker) ----
     val queueRepository = remember { QueueRepository.getInstance(context) }
@@ -86,37 +71,10 @@ fun AppContent() {
         }
     }
 
-    // ---- Import dialog state ----
-    var showCustomModelDialog by remember { mutableStateOf(false) }
-    var showCustomNpuModelDialog by remember { mutableStateOf(false) }
-    var showCustomUpscaleModelDialog by remember { mutableStateOf(false) }
-    var importingModels by remember { mutableStateOf<List<ImportingModelState>>(emptyList()) }
-
-    // ---- Rename / Delete dialog state ----
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var renameText by remember { mutableStateOf("") }
-
     // ---- Upscale model state ----
-    var upscalerPreferences by remember {
-        mutableStateOf(context.getSharedPreferences("upscaler_prefs", Context.MODE_PRIVATE))
-    }
+    state.upscalerPreferences = context.getSharedPreferences("upscaler_prefs", Context.MODE_PRIVATE)
     val persistedUpscalerId = remember {
-        upscalerPreferences.getString("upscaler_standalone_selected_upscaler", null)
-    }
-
-    fun addImportingModel(state: ImportingModelState) {
-        importingModels = importingModels + state
-    }
-
-    fun updateImportingModel(modelId: String, update: (ImportingModelState) -> ImportingModelState) {
-        importingModels = importingModels.map { existing ->
-            if (existing.modelId == modelId) update(existing) else existing
-        }
-    }
-
-    fun removeImportingModel(modelId: String) {
-        importingModels = importingModels.filterNot { it.modelId == modelId }
+        state.upscalerPreferences?.getString("upscaler_standalone_selected_upscaler", null)
     }
 
     val msgNpuModelAddedSuccess = stringResource(R.string.npu_model_added_success)
@@ -127,9 +85,9 @@ fun AppContent() {
     // ---- Model load/unload (§17.4: unified via BackendManager) ----
     fun loadModel(mId: String) {
         scope.launch {
-            val result = backendManager.startDiffusion(mId, genWidth, genHeight, genUseOpenCL)
+            val result = backendManager.startDiffusion(mId, state.genWidth, state.genHeight, state.genUseOpenCL)
             result.onSuccess {
-                selectedModelId = mId
+                state.selectedModelId = mId
                 snackbarHostState.showSnackbar(context.getString(R.string.loading_model_label))
             }.onFailure { error ->
                 snackbarHostState.showSnackbar(
@@ -142,7 +100,7 @@ fun AppContent() {
     fun unloadModel() {
         scope.launch {
             backendManager.stop()
-            selectedModelId = null
+            state.selectedModelId = null
             snackbarHostState.showSnackbar(context.getString(R.string.model_unloaded))
         }
     }
@@ -151,7 +109,7 @@ fun AppContent() {
         scope.launch {
             val result = backendManager.startUpscaler(upscalerId)
             result.onSuccess {
-                upscalerPreferences.edit {
+                state.upscalerPreferences?.edit {
                     putString("upscaler_standalone_selected_upscaler", upscalerId)
                 }
             }.onFailure { error ->
@@ -168,44 +126,28 @@ fun AppContent() {
         }
     }
 
-    var showNoModelWarning by remember { mutableStateOf(false) }
     val generationPreferences = remember { GenerationPreferences(context) }
 
     // Load screen-level (global) preferences once on startup
     LaunchedEffect(Unit) {
-        genPrompt = generationPreferences.getGlobalPrompt()
-        genNegativePrompt = generationPreferences.getGlobalNegativePrompt()
-        genBatchCounts = generationPreferences.getGlobalBatchCounts().coerceAtLeast(1)
-        genWidth = generationPreferences.getGlobalWidth().coerceIn(64, 4096)
-        genHeight = generationPreferences.getGlobalHeight().coerceIn(64, 4096)
+        state.loadGlobalPrefs(generationPreferences)
     }
 
     // Load preferences when model changes
-    LaunchedEffect(selectedModelId) {
-        if (selectedModelId != null) {
-            val prefs = generationPreferences.getPreferences(selectedModelId!!)
-            prefs.first().let { p ->
-                if (genPrompt.isEmpty() && p.prompt.isNotEmpty()) genPrompt = p.prompt
-                if (genNegativePrompt.isEmpty() && p.negativePrompt.isNotEmpty()) genNegativePrompt = p.negativePrompt
-                if (genBatchCounts == 1 && p.batchCounts > 1) genBatchCounts = p.batchCounts
-                if (p.steps > 0) genSteps = p.steps
-                if (p.cfg > 0) genCfg = p.cfg
-                if (p.seed.isNotEmpty()) genSeed = p.seed
-                genScheduler = p.scheduler
-                genDenoiseStrength = p.denoiseStrength
-                genUseOpenCL = p.useOpenCL
-            }
+    LaunchedEffect(state.selectedModelId) {
+        if (state.selectedModelId != null) {
+            state.loadModelPrefs(state.selectedModelId!!, generationPreferences)
         }
     }
 
     // Dialog: no model warning
-    if (showNoModelWarning) {
+    if (state.showNoModelWarning) {
         AlertDialog(
-            onDismissRequest = { showNoModelWarning = false },
+            onDismissRequest = { state.showNoModelWarning = false },
             title = { Text(stringResource(R.string.no_model_loaded)) },
             text = { Text(stringResource(R.string.no_model_loaded_hint)) },
             confirmButton = {
-                TextButton(onClick = { showNoModelWarning = false }) {
+                TextButton(onClick = { state.showNoModelWarning = false }) {
                     Text(stringResource(R.string.got_it))
                 }
             },
@@ -213,14 +155,14 @@ fun AppContent() {
     }
 
     // Dialog: custom model import
-    if (showCustomModelDialog) {
+    if (state.showCustomModelDialog) {
         CustomModelDialog(
             context,
-            onDismiss = { showCustomModelDialog = false },
+            onDismiss = { state.showCustomModelDialog = false },
             onModelAdded = { modelName, fileUri, clipSkip, loraFiles ->
-                showCustomModelDialog = false
+                state.showCustomModelDialog = false
                 val modelId = modelName.replace(" ", "")
-                addImportingModel(
+                state.addImportingModel(
                     ImportingModelState(
                         modelId = modelId,
                         modelName = modelName,
@@ -237,21 +179,21 @@ fun AppContent() {
                         clipSkip = clipSkip,
                         loraFiles = loraFiles,
                         onProgress = { progress ->
-                            updateImportingModel(modelId) { existing ->
+                            state.updateImportingModel(modelId) { existing ->
                                 existing.copy(progressText = progress)
                             }
                         },
                         onStart = {},
                         onSuccess = {
-                            removeImportingModel(modelId)
+                            state.removeImportingModel(modelId)
                             modelRepository.refreshAllModels()
-                            modelRefreshVersion++
+                            state.modelRefreshVersion++
                             scope.launch {
                                 snackbarHostState.showSnackbar(msgModelConversionSuccess)
                             }
                         },
                         onError = { error ->
-                            removeImportingModel(modelId)
+                            state.removeImportingModel(modelId)
                             scope.launch {
                                 snackbarHostState.showSnackbar(
                                     msgModelConversionFailed.format(error)
@@ -265,14 +207,14 @@ fun AppContent() {
     }
 
     // Dialog: custom NPU model import
-    if (showCustomNpuModelDialog) {
+    if (state.showCustomNpuModelDialog) {
         CustomNpuModelDialog(
             context,
-            onDismiss = { showCustomNpuModelDialog = false },
+            onDismiss = { state.showCustomNpuModelDialog = false },
             onModelAdded = { modelName, zipUri ->
-                showCustomNpuModelDialog = false
+                state.showCustomNpuModelDialog = false
                 val modelId = modelName.replace(" ", "")
-                addImportingModel(
+                state.addImportingModel(
                     ImportingModelState(
                         modelId = modelId,
                         modelName = modelName,
@@ -287,26 +229,26 @@ fun AppContent() {
                         modelName = modelName,
                         zipUri = zipUri,
                         onProgress = { progress ->
-                            updateImportingModel(modelId) { existing ->
+                            state.updateImportingModel(modelId) { existing ->
                                 existing.copy(progressText = progress)
                             }
                         },
                         onByteProgress = { extracted, total, fraction ->
-                            updateImportingModel(modelId) { existing ->
+                            state.updateImportingModel(modelId) { existing ->
                                 existing.copy(byteProgress = ExtractByteProgress(extracted, total, fraction))
                             }
                         },
                         onStart = {},
                         onSuccess = {
-                            removeImportingModel(modelId)
+                            state.removeImportingModel(modelId)
                             modelRepository.refreshAllModels()
-                            modelRefreshVersion++
+                            state.modelRefreshVersion++
                             scope.launch {
                                 snackbarHostState.showSnackbar(msgNpuModelAddedSuccess)
                             }
                         },
                         onError = { error ->
-                            removeImportingModel(modelId)
+                            state.removeImportingModel(modelId)
                             scope.launch {
                                 snackbarHostState.showSnackbar(
                                     msgNpuModelAddFailed.format(error)
@@ -320,15 +262,15 @@ fun AppContent() {
     }
 
     // Dialog: custom upscale model import
-    if (showCustomUpscaleModelDialog) {
+    if (state.showCustomUpscaleModelDialog) {
         CustomUpscaleModelDialog(
             context = context,
-            onDismiss = { showCustomUpscaleModelDialog = false },
+            onDismiss = { state.showCustomUpscaleModelDialog = false },
             onModelAdded = { modelName, fileUri ->
-                showCustomUpscaleModelDialog = false
+                state.showCustomUpscaleModelDialog = false
                 scope.launch {
                     try {
-                        withContext(Dispatchers.IO) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             val modelId = modelName.replace(" ", "")
                             val modelDir = File(Model.getModelsDir(context), modelId)
                             if (modelDir.exists()) {
@@ -347,7 +289,7 @@ fun AppContent() {
 
                             File(modelDir, "upscaler_custom").createNewFile()
                         }
-                        modelRefreshVersion++
+                        state.modelRefreshVersion++
                         scope.launch {
                             snackbarHostState.showSnackbar(
                                 context.getString(R.string.upscale_file_selected)
@@ -366,18 +308,18 @@ fun AppContent() {
     }
 
     // Dialog: rename model
-    if (showRenameDialog) {
-        val renameModel = remember(selectedModelId) {
-            modelRepository.models.find { it.id == selectedModelId }
+    if (state.showRenameDialog) {
+        val renameModel = remember(state.selectedModelId) {
+            modelRepository.models.find { it.id == state.selectedModelId }
         }
         val title = stringResource(R.string.rename_model)
         AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
+            onDismissRequest = { state.showRenameDialog = false },
             title = { Text(title) },
             text = {
                 OutlinedTextField(
-                    value = renameText,
-                    onValueChange = { renameText = it },
+                    value = state.renameText,
+                    onValueChange = { state.renameText = it },
                     label = { Text(stringResource(R.string.custom_model_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -386,13 +328,13 @@ fun AppContent() {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val newName = renameText.trim()
+                        val newName = state.renameText.trim()
                         if (newName.isNotEmpty() && renameModel != null) {
                             val success = renameModel.renameModel(context, newName)
                             if (success) {
                                 modelRepository.refreshAllModels()
-                                modelRefreshVersion++
-                                selectedModelId = newName.replace(" ", "")
+                                state.modelRefreshVersion++
+                                state.selectedModelId = newName.replace(" ", "")
                                 val renameSuccessMsg = context.getString(R.string.rename_success)
                                 scope.launch {
                                     snackbarHostState.showSnackbar(renameSuccessMsg)
@@ -404,13 +346,13 @@ fun AppContent() {
                                 }
                             }
                         }
-                        showRenameDialog = false
+                        state.showRenameDialog = false
                     },
-                    enabled = renameText.trim().isNotEmpty(),
+                    enabled = state.renameText.trim().isNotEmpty(),
                 ) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) {
+                TextButton(onClick = { state.showRenameDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
@@ -418,26 +360,26 @@ fun AppContent() {
     }
 
     // Dialog: delete model confirmation
-    if (showDeleteConfirm) {
+    if (state.showDeleteConfirm) {
         AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
+            onDismissRequest = { state.showDeleteConfirm = false },
             title = { Text(stringResource(R.string.delete_model)) },
             text = { Text(stringResource(R.string.delete_model_confirm_single)) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showDeleteConfirm = false
-                        val delModel = modelRepository.models.find { it.id == selectedModelId }
+                        state.showDeleteConfirm = false
+                        val delModel = modelRepository.models.find { it.id == state.selectedModelId }
                         if (delModel != null) {
-                            if (isModelLoaded && selectedModelId == delModel.id) {
+                            if (isModelLoaded && state.selectedModelId == delModel.id) {
                                 unloadModel()
                             }
                             scope.launch {
                                 val success = delModel.deleteModel(context)
                                 if (success) {
-                                    if (selectedModelId == delModel.id) selectedModelId = null
+                                    if (state.selectedModelId == delModel.id) state.selectedModelId = null
                                     modelRepository.refreshAllModels()
-                                    modelRefreshVersion++
+                                    state.modelRefreshVersion++
                                     val deleteSuccessMsg = context.getString(R.string.delete_success)
                                     snackbarHostState.showSnackbar(deleteSuccessMsg)
                                 } else {
@@ -450,7 +392,7 @@ fun AppContent() {
                 ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
+                TextButton(onClick = { state.showDeleteConfirm = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
@@ -489,23 +431,23 @@ fun AppContent() {
     ) {
         Scaffold(
             topBar = {
-                when (selectedTab) {
+                when (state.selectedTab) {
                     BottomTab.Models -> ModelsTopBar(
                         drawerState = drawerState,
-                        selectedModelId = selectedModelId,
+                        selectedModelId = state.selectedModelId,
                         isModelLoaded = isModelLoaded,
                         isModelLoading = isModelLoading,
                         onLoadModel = { loadModel(it) },
                         onUnloadModel = { unloadModel() },
-                        onImportModel = { showCustomModelDialog = true },
-                        onImportNpuModel = { showCustomNpuModelDialog = true },
-                        onImportUpscaleModel = { showCustomUpscaleModelDialog = true },
+                        onImportModel = { state.showCustomModelDialog = true },
+                        onImportNpuModel = { state.showCustomNpuModelDialog = true },
+                        onImportUpscaleModel = { state.showCustomUpscaleModelDialog = true },
                         onRenameModel = {
-                            val m = modelRepository.models.find { it.id == selectedModelId }
-                            renameText = m?.name ?: selectedModelId ?: ""
-                            showRenameDialog = true
+                            val m = modelRepository.models.find { it.id == state.selectedModelId }
+                            state.renameText = m?.name ?: (state.selectedModelId ?: "")
+                            state.showRenameDialog = true
                         },
-                        onDeleteModel = { showDeleteConfirm = true },
+                        onDeleteModel = { state.showDeleteConfirm = true },
                     )
                     BottomTab.Queue -> QueueTopBar(
                         drawerState = drawerState,
@@ -514,7 +456,7 @@ fun AppContent() {
                     )
                     BottomTab.Generate -> GenerateTopBar(
                         drawerState = drawerState,
-                        modelId = selectedModelId,
+                        modelId = state.selectedModelId,
                         isModelLoaded = isModelLoaded,
                     )
                     BottomTab.Upscale -> UpscaleTopBar(
@@ -529,8 +471,8 @@ fun AppContent() {
                 NavigationBar {
                     BottomTab.entries.forEach { tab ->
                         NavigationBarItem(
-                            selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
+                            selected = state.selectedTab == tab,
+                            onClick = { state.selectedTab = tab },
                             icon = { Icon(tab.icon, stringResource(tab.labelResId)) },
                             label = { Text(stringResource(tab.labelResId)) },
                         )
@@ -544,15 +486,15 @@ fun AppContent() {
                     .fillMaxSize()
                     .padding(paddingValues),
             ) {
-                when (selectedTab) {
+                when (state.selectedTab) {
                     BottomTab.Models -> ModelListTab(
-                        selectedModelId = selectedModelId,
+                        selectedModelId = state.selectedModelId,
                         isModelLoaded = isModelLoaded,
-                        onSelectModel = { selectedModelId = it },
+                        onSelectModel = { state.selectedModelId = it },
                         onLoadModel = { loadModel(it) },
                         modelRepository = modelRepository,
-                        refreshVersion = modelRefreshVersion,
-                        importingModels = importingModels,
+                        refreshVersion = state.modelRefreshVersion,
+                        importingModels = state.importingModels,
                         isUpscaleModelLoaded = isUpscaleModelLoaded,
                         onLoadUpscaleModel = { loadUpscaleModel(it) },
                         onUnloadUpscaleModel = { unloadUpscaleModel() },
@@ -568,47 +510,47 @@ fun AppContent() {
                         recordRepository = recordRepository,
                     )
                     BottomTab.Generate -> TabGenerateScreen(
-                        modelId = if (isModelLoaded) selectedModelId else null,
-                        prompt = genPrompt,
-                        onPromptChange = { genPrompt = it },
-                        negativePrompt = genNegativePrompt,
-                        onNegativePromptChange = { genNegativePrompt = it },
-                        steps = genSteps,
-                        onStepsChange = { genSteps = it },
-                        cfg = genCfg,
-                        onCfgChange = { genCfg = it },
-                        seed = genSeed,
-                        onSeedChange = { genSeed = it },
-                        batchCounts = genBatchCounts,
-                        onBatchCountsChange = { genBatchCounts = it },
-                        scheduler = genScheduler,
-                        onSchedulerChange = { genScheduler = it },
-                        denoiseStrength = genDenoiseStrength,
-                        onDenoiseStrengthChange = { genDenoiseStrength = it },
-                        useOpenCL = genUseOpenCL,
-                        onUseOpenCLChange = { genUseOpenCL = it },
-                        width = genWidth,
-                        onWidthChange = { genWidth = it },
-                        height = genHeight,
-                        onHeightChange = { genHeight = it },
+                        modelId = if (isModelLoaded) state.selectedModelId else null,
+                        prompt = state.genPrompt,
+                        onPromptChange = { state.genPrompt = it },
+                        negativePrompt = state.genNegativePrompt,
+                        onNegativePromptChange = { state.genNegativePrompt = it },
+                        steps = state.genSteps,
+                        onStepsChange = { state.genSteps = it },
+                        cfg = state.genCfg,
+                        onCfgChange = { state.genCfg = it },
+                        seed = state.genSeed,
+                        onSeedChange = { state.genSeed = it },
+                        batchCounts = state.genBatchCounts,
+                        onBatchCountsChange = { state.genBatchCounts = it },
+                        scheduler = state.genScheduler,
+                        onSchedulerChange = { state.genScheduler = it },
+                        denoiseStrength = state.genDenoiseStrength,
+                        onDenoiseStrengthChange = { state.genDenoiseStrength = it },
+                        useOpenCL = state.genUseOpenCL,
+                        onUseOpenCLChange = { state.genUseOpenCL = it },
+                        width = state.genWidth,
+                        onWidthChange = { state.genWidth = it },
+                        height = state.genHeight,
+                        onHeightChange = { state.genHeight = it },
                         recordRepository = recordRepository,
                         onAddToQueue = { count ->
-                            val modelId = selectedModelId ?: return@TabGenerateScreen
+                            val modelId = state.selectedModelId ?: return@TabGenerateScreen
                             queueRepository.addBatch(
                                 modelId = modelId,
-                                prompt = genPrompt,
-                                negativePrompt = genNegativePrompt,
-                                steps = genSteps.roundToInt(),
-                                cfg = genCfg,
-                                seed = genSeed,
-                                width = genWidth,
-                                height = genHeight,
-                                effectiveWidth = genWidth,
-                                effectiveHeight = genHeight,
-                                denoiseStrength = genDenoiseStrength,
-                                useOpenCL = genUseOpenCL,
-                                scheduler = genScheduler,
-                                aspectRatio = inferAspectRatioString(genWidth, genHeight),
+                                prompt = state.genPrompt,
+                                negativePrompt = state.genNegativePrompt,
+                                steps = state.genSteps.roundToInt(),
+                                cfg = state.genCfg,
+                                seed = state.genSeed,
+                                width = state.genWidth,
+                                height = state.genHeight,
+                                effectiveWidth = state.genWidth,
+                                effectiveHeight = state.genHeight,
+                                denoiseStrength = state.genDenoiseStrength,
+                                useOpenCL = state.genUseOpenCL,
+                                scheduler = state.genScheduler,
+                                aspectRatio = inferAspectRatioString(state.genWidth, state.genHeight),
                                 count = count.coerceAtLeast(1),
                             )
                             scope.launch {

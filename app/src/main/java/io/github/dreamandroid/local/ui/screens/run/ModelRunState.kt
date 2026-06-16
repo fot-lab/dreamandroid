@@ -55,7 +55,7 @@ class ModelRunState {
     var isCheckingBackend by mutableStateOf(true)
     var generationStartTime by mutableStateOf<Long?>(null)
     var hasInitialized by mutableStateOf(false)
-    var currentBatchIndex by mutableIntStateOf(0)
+    var currentBatchGroupId by mutableStateOf<String?>(null)
 
     // ── Prompt ────────────────────────────────────────────────
     var prompt by mutableStateOf("")
@@ -163,7 +163,6 @@ class ModelRunState {
 
     // ── Jobs ──────────────────────────────────────────────────
     var saveAllJob by mutableStateOf<Job?>(null)
-    var batchGenerationJob by mutableStateOf<Job?>(null)
 
     // ── Helpers ───────────────────────────────────────────────
     fun clearImg2imgState() {

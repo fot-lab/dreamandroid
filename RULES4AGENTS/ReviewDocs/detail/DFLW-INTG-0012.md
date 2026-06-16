@@ -15,18 +15,17 @@
 - `service/QueueRepository.kt`
 - `data/QueueModels.kt`
 
-## 修复方案
+## 修复方案 (已实施)
 
-需要 Room 持久化队列（参见 QUEU-SYST-0005）：
+Phase C 实施：统一 `TaskEntity` Room 持久化方案 (详见 QUEU-SYST-0005)。
 
-- 新建 `QueueDao` + `QueueTaskEntity`
-- DB migration
-- 启动时从 DB 恢复 PENDING/PROCESSING 任务
-
-方案设计已完成，待后续实施。
+- `QueueRepository` 启动时从 `taskDao().getRestorableQueueTasks()` 恢复 PENDING/PROCESSING 任务
+- 写操作同步 Room + StateFlow
+- 数据库 v3→v4 迁移合并旧表至统一 `tasks` 表
 
 ## 变更历史
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-15 | 方案设计完成，待 Room 集成 → 📅 TODO |
+| 2026-06-15 | 方案设计完成，待 Room 集成 |
+| 2026-06-16 | Phase C 完成：统一 TaskEntity 持久化，队列可恢复 → ✅ Fully Fixed |

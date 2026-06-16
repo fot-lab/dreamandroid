@@ -28,3 +28,4 @@
 |------|------|
 | 2026-06-13 | 初始发现 |
 | 2026-06-15 | 确认修复路径 (BackendService 删除后自动解决) |
+| 2026-06-16 | Phase A2 完成：`BackendService.kt` 已删除 → ✅ Fully Fixed |

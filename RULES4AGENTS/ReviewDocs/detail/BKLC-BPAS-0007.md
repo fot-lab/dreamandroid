@@ -26,4 +26,5 @@
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-15 | 初始发现，待 UpscaleBackendManager 删除 |
+| 2026-06-15 | 初始发现 |
+| 2026-06-16 | Phase A2 完成：`UpscaleBackendManager.kt` 已删除，统一使用 `BackendManager.state: StateFlow<State>` → ✅ Fully Fixed |

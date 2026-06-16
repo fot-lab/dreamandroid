@@ -263,7 +263,12 @@ data class UpscalerModel(
 class UpscalerRepository(private val context: Context) {
     private val generationPreferences = GenerationPreferences(context)
 
-    private var _baseUrl = mutableStateOf("https://huggingface.co/")
+    private val _baseUrl: MutableState<String> by lazy {
+        val url = runBlocking(Dispatchers.IO) {
+            generationPreferences.getBaseUrl()
+        }
+        mutableStateOf(url)
+    }
     var baseUrl: String
         get() = _baseUrl.value
         private set(value) {
@@ -272,13 +277,6 @@ class UpscalerRepository(private val context: Context) {
 
     var upscalers by mutableStateOf(initializeUpscalers())
         private set
-
-    init {
-        runBlocking(Dispatchers.IO) {
-            baseUrl = generationPreferences.getBaseUrl()
-        }
-        upscalers = initializeUpscalers()
-    }
 
     private fun initializeUpscalers(): List<UpscalerModel> {
         val soc = getDeviceSoc()
@@ -372,7 +370,12 @@ class UpscalerRepository(private val context: Context) {
 class ModelRepository(private val context: Context) {
     private val generationPreferences = GenerationPreferences(context)
 
-    private var _baseUrl = mutableStateOf("https://huggingface.co/")
+    private val _baseUrl: MutableState<String> by lazy {
+        val url = runBlocking(Dispatchers.IO) {
+            generationPreferences.getBaseUrl()
+        }
+        mutableStateOf(url)
+    }
     var baseUrl: String
         get() = _baseUrl.value
         private set(value) {
@@ -381,13 +384,6 @@ class ModelRepository(private val context: Context) {
 
     var models by mutableStateOf(initializeModels())
         private set
-
-    init {
-        runBlocking(Dispatchers.IO) {
-            baseUrl = generationPreferences.getBaseUrl()
-        }
-        models = initializeModels()
-    }
 
     private fun scanCustomModels(): List<Model> {
         val modelsDir = Model.getModelsDir(context)

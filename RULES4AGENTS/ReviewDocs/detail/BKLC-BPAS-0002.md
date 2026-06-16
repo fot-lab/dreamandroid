@@ -29,4 +29,5 @@ backendManager.startDiffusion(modelId, newWidth, newHeight, useOpenCL)
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-15 | 初始发现，待迁移 |
+| 2026-06-15 | 初始发现 |
+| 2026-06-16 | Phase A1 完成：`ACTION_RESTART` 迁移至 `backendManager.stop()` + `startDiffusion()` → ✅ Fully Fixed |

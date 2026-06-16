@@ -28,7 +28,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.edit
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.*
-import io.github.dreamandroid.local.service.BackendService
 import io.github.dreamandroid.local.service.ModelDownloadService
 import io.github.dreamandroid.local.ui.components.*
 import io.github.dreamandroid.local.utils.*
