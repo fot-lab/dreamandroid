@@ -7,11 +7,11 @@
 
 ## 1. 当前状态
 
-- **总问题数**: 57
+- **总问题数**: 58
 - **已 Fixed**: 39 (Phase A + B + C + E 完成 + Record→Room 统一)
-- **剩余未解决**: 18 (含 1 P0 (UILA-COMP-0001 AppContent God Object) / 1 P1 (UILA-COMP-0002 无法单独测试) / 7 Phase D 依赖 / 9 P2/P3 deferred)
+- **剩余未解决**: 19 (含 2 P0 (UILA-COMP-0001 AppContent God Object / LCLE-MEMO-0001 生命周期审计) / 1 P1 (UILA-COMP-0002 无法单独测试) / 7 Phase D 依赖 / 9 P2/P3 deferred)
 - **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence), E (P2/P3 收尾)
-- **最新**: RecordRepository 迁移至 Room TaskEntity 统一表 (TYPE_RECORD)
+- **最新**: LCLE-MEMO-0001 App 生命周期&内存安全完整审计 (13 findings: 2P0/4P1/5P2/2P3)
 
 ## 2. 执行阶段总览
 
@@ -59,6 +59,14 @@ Phase E: P2/P3 修复                ← ✅ COMPLETED (2026-06-16)
  ├── ✅ E4: 文件拆分 (UILA-COMP-0006/0007 → Fully Fixed)
  ├── 📅 E5: 依赖 ViewModel (UILA-COMP-0003/0004/0005, HTTP-CLNT-0004, DFLW-INTG-0013, DATA-STOR-0001 → Blocked on Phase D)
  └── 📅 E6: 推迟 (MODU-SPLT-0001, DFLW-INTG-0007 → Deferred)
+ │
+Phase F: Lifecycle & Memory Safety (NEW) ← 审计完成，待执行
+ │
+ └── 📋 F1: P0 紧急修复 — 孤儿进程 + Crash Hook
+     │    LCLE-MEMO-0001 // 1-2 (孤儿进程), 3 (UncaughtExceptionHandler)
+     │
+ └── 📋 F2: P1 高优 — 内存压力响应 + 线程管理
+          LCLE-MEMO-0001 // 4 (onTrimMemory), 5 (Thread leak), 6 (stopProcess 失败)
 ```
 
 ### 剩余未解决问题 (19)
@@ -66,6 +74,7 @@ Phase E: P2/P3 修复                ← ✅ COMPLETED (2026-06-16)
 | ID | P | 摘要 | 阻塞原因 |
 |----|---|------|----------|
 | UILA-COMP-0001 | P0 | AppContent God Object | Phase D |
+| **LCLE-MEMO-0001** | **P0** | **生命周期&内存安全审计 (13 findings)** | **Phase F — 新建** |
 | UILA-COMP-0002 | P1 | 无法单独测试 | 依赖 Phase D |
 | UILA-COMP-0003 | P2 | 错误处理不一致 | Blocked on Phase D |
 | UILA-COMP-0004 | P2 | 无 DI 框架 | Blocked on Phase D |
@@ -332,7 +341,59 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 
 ---
 
-## 9. 预估工作量
+## 9. Phase F: Lifecycle & Memory Safety (NEW — 审计完成，待执行)
+
+涉及 Issue: **LCLE-MEMO-0001**
+
+### 9.1 Sub-task F1: P0 紧急修复 — 孤儿进程 + Crash Hook
+
+**Step 1: Review Current Code**
+- `BackendManager.kt` L66 (`process` field), L325-341 (`stopProcess`)
+- `DreamAndroidApplication.kt` L95-98 (`onTerminate`)
+- 已有 health check API (`BackendManager.healthCheck()`)
+
+**Step 2: Plan Resolution**
+
+| 改动 | 文件 | 目的 |
+|------|------|------|
+| `Runtime.addShutdownHook` | `DreamAndroidApplication` | JVM 正常退出时 kill C++ 进程 |
+| `UncaughtExceptionHandler` | `DreamAndroidApplication` | Java crash 时 kill C++ 进程 |
+| `killOrphanedBackend()` | `BackendManager` (新增) | 启动时 health check + HTTP `/shutdown` 清理孤儿进程 |
+| `BackendManager.stopProcessImmediate()` | `BackendManager` (新增) | 不做 waitFor 等待的直接 kill (用于 shutdown hook) |
+
+**Step 3: Execute Resolution**
+修改 `DreamAndroidApplication.kt` + `BackendManager.kt`
+
+**Step 4: Update Review Detail**
+更新 LCLE-MEMO-0001.md
+
+**Step 5: Commit and Push**
+
+---
+
+### 9.2 Sub-task F2: P1 高优 — 内存压力响应 + 线程管理
+
+**Step 1: Review Current Code**
+- `MainActivity.kt` — 缺乏 `onTrimMemory`
+- `BackendManager.kt` L374-398 — raw Thread 创建
+
+**Step 2: Plan Resolution**
+
+| 改动 | 文件 | 目的 |
+|------|------|------|
+| `onTrimMemory()` | `DreamAndroidApplication` | 逐级释放 Bitmap/卸载模型 |
+| `monitorThread?.interrupt()` | `BackendManager` | stopProcess 时中断旧 monitor thread |
+| Double-check health check | `BackendManager.stopProcess()` | 验证进程实际已停止 |
+
+**Step 3: Execute Resolution**
+
+**Step 4: Update Review Detail**
+
+**Step 5: Commit and Push**
+
+---
+
+## 10. 预估工作量
 
 | Phase | Sub-tasks | 预估文件修改数 | 复杂度 | 状态 |
 |-------|-----------|--------------|--------|------|
@@ -345,6 +406,8 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | D1 | ViewModel | 6 files new + 1 rewrite | High | 📅 TODO |
 | D2 | 测试 | 6 files new | Medium | 📅 TODO |
 | E | 收尾 | ~10 files | Low-Medium | ✅ Done |
+| F1 | 孤儿进程 + Crash Hook | 2 files | Medium | 📋 Planned |
+| F2 | 内存压力 + 线程管理 | 2 files | Low-Medium | 📋 Planned |
 
 ## 10. 执行原则
 
@@ -360,4 +423,4 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | 日期 | 变更 |
 |------|------|
 | 2026-06-15 | 创建：全量剩余问题分批解决总体规划 |
-| 2026-06-16 | Phase A (Backend Consolidation) 全部完成；Phase B (Coroutine Safety) 完成；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；Phase E (P2/P3 收尾) 完成；RecordRepository 迁移至 Room (TYPE_RECORD) — Queue/History/Record 三合一统一 TaskEntity |
+| 2026-06-16 | Phase A~E 全部完成；RecordRepository 迁移至 Room (TYPE_RECORD) — Queue/History/Record 三合一 TaskEntity；LCLE-MEMO-0001 生命周期&内存安全完整审计新增：13 findings (2P0/4P1/5P2/2P3)，新增 Phase F 规划 |
