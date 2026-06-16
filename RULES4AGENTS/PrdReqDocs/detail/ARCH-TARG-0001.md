@@ -27,8 +27,14 @@
 │  ┌───────────────────────────┼──────────────────────────────────┐   │
 │  │                    Service Layer (Domain)                     │   │
 │  │  ┌────────────────────┐   │   ┌──────────────────────────┐   │   │
-│  │  │  BackendManager    │←──┼──→│  QueueProcessingService  │   │   │
-│  │  └────────────────────┘   │   └──────────────────────────┘   │   │
+│  │  │  BackendService    │   │   │  QueueProcessingService  │   │   │
+│  │  │  (HTTP middleware) │   │   │  (Android Service)       │   │   │
+│  │  └────────┬───────────┘   │   └──────────────────────────┘   │   │
+│  │           │               │   ┌──────────────────────────┐   │   │
+│  │  ┌────────┴───────────┐   │   │  GenerationWorker        │   │   │
+│  │  │  BackendManager    │←──┼───│  (WorkManager)           │   │   │
+│  │  │  (process owner)   │   │   └──────────────────────────┘   │   │
+│  │  └────────────────────┘   │                                   │   │
 │  └───────────────────────────┼──────────────────────────────────┘   │
 │                              │                                      │
 │  ┌───────────────────────────┼──────────────────────────────────┐   │
@@ -54,18 +60,19 @@
 
 1. **单向依赖:** Presentation → Service → Data。下层不知道上层的存在。
 2. **StateFlow 通信:** Service 层通过 `StateFlow` 暴露状态给 ViewModel，ViewModel 通过 `collectAsState()` 驱动 UI。
-3. **Single Source of Truth:** Room 是模型/历史数据的唯一数据源。
-4. **协程安全:** 所有 I/O 操作必须在 `Dispatchers.IO` 中执行；禁止 `runBlocking` 出现在主线程。
-5. **统一错误模型:** 所有错误通过 `sealed class AppError` 体系传播。
+3. **UI 不直接接触 BackendManager:** ViewModel/Screen 通过 `BackendService` (HTTP 中间件) 代理所有后端通信。
+4. **Single Source of Truth:** Room 是模型/历史数据的唯一数据源。
+5. **协程安全:** 所有 I/O 操作必须在 `Dispatchers.IO` 中执行；禁止 `runBlocking` 出现在主线程。
+6. **统一错误模型:** 所有错误通过 `sealed class AppError` 体系传播。
 
 ## 数据流
 
 ```
 ┌──────────┐    StateFlow        ┌──────────┐    suspend/Flow    ┌──────────────┐
 │  Compose │←───────────────────│ViewModel │←───────────────────│ Service      │
-│  UI      │   collectAsState()  │          │   launch/call      │ (BackendMgr  │
-│          │                     │          │                    │  QueueProc)  │
-│          │  events             │          │  domain types      │              │
+│  UI      │   collectAsState()  │          │   launch/call      │ (BackendSvc  │
+│          │                     │          │                    │  BackendMgr  │
+│          │  events             │          │  domain types      │  QueueProc)  │
 │          │────────────────────→│          │───────────────────→│              │
 └──────────┘                     └──────────┘                    └──────┬───────┘
                                                                        │
@@ -83,3 +90,4 @@
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 从 PrdReqDoc.md 提取 §10 内容，创建独立文件 |
+| 2026-06-16 | 架构图: 新增 BackendService (HTTP 中间件) 层于 BackendManager 之上；新增原则 §3 "UI 不直接接触 BackendManager" |

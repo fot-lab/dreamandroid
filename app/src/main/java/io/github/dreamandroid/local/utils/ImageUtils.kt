@@ -54,10 +54,10 @@ suspend fun performUpscale(context: Context, bitmap: Bitmap, upscalerId: String)
         "Prepare RGB data took: ${System.currentTimeMillis() - prepareStartTime}ms",
     )
 
-    // Use shared BackendManager for HTTP (shared OkHttpClient connection pool)
+    // Use BackendService (HTTP middleware) for upscale request
     val app = context.applicationContext as DreamAndroidApplication
     val sendStartTime = System.currentTimeMillis()
-    val imageBytes = app.backendManager.upscale(rgbBytes, width, height, upscalerFile.absolutePath)
+    val imageBytes = app.backendService.upscale(rgbBytes, width, height, upscalerFile.absolutePath)
     Log.d(
         "UpscaleBinary",
         "Send data took: ${System.currentTimeMillis() - sendStartTime}ms",

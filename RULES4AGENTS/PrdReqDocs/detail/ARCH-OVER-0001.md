@@ -21,21 +21,26 @@ DreamHub 是一款本地 AI 图像生成 Android 应用。它通过原生 C++ �
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘   │
 │       │              │             │             │           │
 │  ┌────┴──────────────┴─────────────┴─────────────┴───────┐  │
-│  │            MainActivity (Orchestrator / God Class)     │  │
-│  └────────────────────┬──────────────────────────────────┘  │
-└───────────────────────┼──────────────────────────────────────┘
-                        │
-┌───────────────────────┼──────────────────────────────────────┐
-│  Service Layer        │                                      │
-│  ┌────────────────────┴──────────────────────────────────┐  │
+│  │  ViewModels (GenerateVM · ModelsVM · UpscaleVM · ...) │  │
+│  └────────────────────────┬──────────────────────────────┘  │
+└───────────────────────────┼──────────────────────────────────┘
+                            │
+┌───────────────────────────┼──────────────────────────────────┐
+│  Service Layer            │                                  │
+│  ┌────────────────────────┴──────────────────────────────┐  │
+│  │  BackendService (HTTP middleware, UI boundary)        │  │
+│  │  Thin proxy — ViewModels never touch BackendManager   │  │
+│  └────────────────────────┬──────────────────────────────┘  │
+│                           │                                  │
+│  ┌────────────────────────┴──────────────────────────────┐  │
+│  │  BackendManager (C++ process lifecycle owner)         │  │
+│  │  ┌─ startDiffusion / startUpscaler / stop             │  │
+│  │  └─ healthCheck / generate / tokenize / upscale       │  │
+│  └──────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────┐  │
 │  │  Queue Processing (2 parallel paths)                   │  │
 │  │  ┌─ GenerationWorker (WorkManager, primary)           │  │
 │  │  └─ QueueProcessingService (Foreground, legacy)        │  │
-│  └──────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Backend Management (2 parallel systems)             │  │
-│  │  ┌─ BackendService (legacy Foreground Service)       │  │
-│  │  └─ BackendManager (new unified manager)             │  │
 │  └──────────────────────────────────────────────────────┘  │
 │  ┌─ QueueRepository (process-wide singleton, StateFlow) ─┐  │
 │  └─ HistoryManager (file + Room DB) ─────────────────────┘  │
@@ -43,42 +48,40 @@ DreamHub 是一款本地 AI 图像生成 Android 应用。它通过原生 C++ �
                         │ HTTP (OkHttp, single shared client)
 ┌───────────────────────┴──────────────────────────────────────┐
 │  C++ Backend (libstable_diffusion_core.so)                   │
-│  HTTP Server: http://localhost:8081                           │
+│  HTTP Server: http://localhost:8081 (or 0.0.0.0:8081 LAN)   │
 │  - /health      (GET)  — health check, 3s timeout            │
 │  - /generate    (POST) — SSE streaming generation, 3600s     │
 │  - /upscale     (POST) — raw RGB → 4× upscaled, 300s         │
 │  - /tokenize    (POST) — CLIP token count, 5s                │
+│  - /shutdown    (POST) — graceful shutdown (orphan cleanup)  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ## 核心数据流
 
-### 生成任务主路径: Generate → Queue → Worker → Backend → History
+### 生成任务主路径: Generate → Queue → Worker → BackendManager → C++ HTTP
 
-1. User fills params → MainActivity gen* StateFlow variables
-2. GenerateScreen calls back to MainActivity → `QueueRepository.addBatch()`
-3. LaunchedEffect detects hasPendingTasks()
-4. `QueueController.start(context)` → WorkManager
-5. `GenerationWorker.doWork()` → `processLoop()` → `waitForBackend()` → `generate()` → `HistoryManager.save()`
+1. User fills params → ViewModel state
+2. GenerateSection calls → `QueueRepository.addBatch()`
+3. `QueueController.start(context)` → WorkManager
+4. `GenerationWorker.doWork()` → `processLoop()` → `waitForBackend()` → `backendManager.generate()` → `HistoryManager.save()`
 
 ### 模型加载与后端生命周期
 
-- User clicks Load Model → `MainActivity.loadModel()` → Stop current BackendService → Start Foreground Service with model params
-- User clicks Unload → Send ACTION_STOP broadcast → `stopService()`
-- ⚠️ Dual Backend System: `BackendService` (legacy) vs `BackendManager` (new)
+- User clicks Load Model → `ModelsViewModel.loadModel()` → `BackendService.startDiffusion()` → `BackendManager.startDiffusion()` → ProcessBuilder.start(C++ binary)
+- User clicks Unload → `ModelsViewModel.unloadModel()` → `BackendService.stop()` → `BackendManager.stop()` → SIGTERM → destroyForcibly()
+- BackendManager 为 C++ 进程的**唯一管理者**，UI/Queue 层不直接操作进程
 
 ## 状态管理全景
 
 | 状态 | 存储位置 | 观察者 |
 |------|---------|--------|
-| 队列任务列表 | QueueRepository `_tasks` StateFlow | MainActivity → QueueScreen |
-| 队列处理中 | QueueRepository `processingActive` + WorkInfo.State | MainActivity |
-| 生成参数 | ~20 `gen*` 变量在 MainActivity.kt | GenerateScreen |
-| 后端扩散状态 | BackendService `backendState` (static) | MainActivity |
-| 后端管理器状态 | BackendManager `state` (instance) | (无 UI 观察者) |
-| 超分辨率状态 | UpscaleBackendManager `state` (static) | MainActivity |
-| 模型列表 | ModelRepository | MainActivity → ModelsTab |
-| 参数偏好 | GenerationPreferences (SharedPreferences) | MainActivity + GenerateScreen |
+| 队列任务列表 | QueueRepository `_tasks` StateFlow | QueueViewModel → QueueScreen |
+| 队列处理中 | QueueRepository `processingActive` + WorkInfo.State | QueueViewModel |
+| 生成参数 | GenerateViewModel StateFlow | GenerateScreen |
+| 后端状态 | BackendManager `state` (instance) → BackendService proxy | AppContent, ModelRunScreen, UpscaleScreen |
+| 模型列表 | ModelRepository | ModelsViewModel → ModelsTab |
+| 参数偏好 | GenerationPreferences (SharedPreferences) | GenerateViewModel |
 | 历史记录 | HistoryManager (Room DB + files) | BrowseScreen |
 | 参数记录 | RecordRepository (JSON file) | GenerateScreen Records Tab |
 
@@ -103,3 +106,4 @@ AppError.from(e: Throwable) — 自动分类:
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 从 PrdReqDoc.md 提取 §1-2 内容，创建独立文件 |
+| 2026-06-16 | 更新架构图: 删除旧 BackendService (前台Service) / UpscaleBackendManager；新增 BackendService (HTTP 中间件) 层；ViewModel 层替代 MainActivity 状态管理；LAN 暴露说明；/shutdown 端点 |

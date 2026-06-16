@@ -62,7 +62,21 @@ if (historyItem != null) {
 ## 执行优先级
 
 ```
-Phase 2: 数据完整性 (A) → Phase 3: 协程与并发 (B) → Phase 4: 双路径统一 (C) → Phase 5: 内存与UX (D+E)
+Phase 2: 数据完整性 (A) → Phase 3: 协程与并发 (B) → Phase 4: 双路径统一 (C) → Phase 5: 内存与UX (D+E) → Phase F: BackendService 中间件
+```
+
+### 16.F BackendService HTTP 中间件（Phase F，已完成）
+
+**目标:** UI 层不再直接引用 `BackendManager`，所有 HTTP 通过 `BackendService` 统一代理。
+
+**涉及文件 (10 个):**
+- 新建: `service/backend/BackendService.kt`
+- 修改: `DreamAndroidApplication.kt`, `GenerateViewModel.kt`, `ModelsViewModel.kt`, `UpscaleViewModel.kt`, `AppContent.kt`, `ModelRunScreen.kt`, `UpscaleScreen.kt`, `ModelRunGeneration.kt`, `ImageUtils.kt`
+
+**架构变化:**
+```
+旧: UI (Screen/ViewModel) → BackendManager (direct HTTP)
+新: UI (Screen/ViewModel) → BackendService (middleware) → BackendManager (implementation)
 ```
 
 ## 变更历史
@@ -70,3 +84,4 @@ Phase 2: 数据完整性 (A) → Phase 3: 协程与并发 (B) → Phase 4: 双�
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 从 PrdReqDoc.md 提取 §16 内容，创建独立文件 |
+| 2026-06-16 | 新增 §16.F: BackendService HTTP 中间件 (Phase F，已完成) |

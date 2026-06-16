@@ -34,7 +34,7 @@ fun TabGenerateScreen(
     onHeightChange: (Int) -> Unit,
     onAddToQueue: (Int) -> Unit = {},
     recordRepository: RecordRepository? = null,
-    // Tokenize callbacks (UILA-COMP-0005: from ViewModel)
+    // Tokenize callbacks (via BackendService HTTP middleware, surfaced through ViewModel)
     onTokenizePrompt: (suspend (String) -> TokenizeResult?)? = null,
     onTokenizeNegativePrompt: (suspend (String) -> TokenizeResult?)? = null,
     promptTokenCount: Int = 0,

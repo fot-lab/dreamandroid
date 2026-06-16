@@ -8,6 +8,7 @@ import io.github.dreamandroid.local.data.MigrationState
 import io.github.dreamandroid.local.data.db.AppDatabase
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.service.backend.RuntimeDirPreparer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,13 @@ class DreamAndroidApplication : Application(), ComponentCallbacks2 {
             }
         }
     }
+
+    /**
+     * Unified HTTP middleware for UI layer.
+     * Screen Composables and ViewModels MUST use [backendService] instead of
+     * directly accessing [backendManager] for all backend communication.
+     */
+    val backendService: BackendService by lazy { BackendService(backendManager) }
 
     /** Process-wide singleton queue repository, shared between UI and WorkManager Worker. */
     val queueRepository: QueueRepository

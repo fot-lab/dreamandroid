@@ -21,7 +21,7 @@ import androidx.core.graphics.scale
 import io.github.dreamandroid.local.data.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
-import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.utils.computeAspectTargetSize
 import io.github.dreamandroid.local.utils.padBitmapToCanvas
 import io.github.dreamandroid.local.utils.saveImage
@@ -363,12 +363,12 @@ fun cleanupModelRun(
     context: Context,
     coroutineScope: CoroutineScope,
     pagerState: androidx.compose.foundation.pager.PagerState,
-    backendManager: BackendManager,
+    backendService: BackendService,
 ) {
     try {
         state.currentBitmap = null; state.generationParams = null
         coroutineScope.launch {
-            try { backendManager.stop() } catch (_: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", it) }
+            try { backendService.stop() } catch (_: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", it) }
         }
         state.isRunning = false; state.progress = 0f; state.errorMessage = null
         state.generationStartTime = null

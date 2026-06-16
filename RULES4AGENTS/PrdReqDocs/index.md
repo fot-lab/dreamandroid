@@ -1,7 +1,8 @@
 # DreamHub Product Requirements — 需求总索引
 
-> 版本: 1.0
-> 更新日期: 2026-06-15
+> 版本: 2.0
+> 更新日期: 2026-06-16
+> BackendService 中间件 + 架构文档同步
 
 ## 1. 需求总表
 

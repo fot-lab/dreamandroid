@@ -12,7 +12,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.data.ModelRepository
-import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.frontend.ImportingModelState
 import io.github.dreamandroid.local.ui.screens.model.ExtractByteProgress
 import io.github.dreamandroid.local.ui.screens.model.convertCustomModel
@@ -35,7 +35,7 @@ import java.io.File
 class ModelsViewModel(application: Application) : ViewModel() {
 
     val app = application as DreamAndroidApplication
-    val backendManager: BackendManager = app.backendManager
+    val backendService: BackendService = app.backendService
     val modelRepository = ModelRepository(application)
 
     // ── Model Selection ───────────────────────────────────────
@@ -87,14 +87,14 @@ class ModelsViewModel(application: Application) : ViewModel() {
         genHeight: Int,
         genUseOpenCL: Boolean,
     ): Result<Unit> {
-        val result = backendManager.startDiffusion(mId, genWidth, genHeight, genUseOpenCL)
+        val result = backendService.startDiffusion(mId, genWidth, genHeight, genUseOpenCL)
         result.onSuccess { selectedModelId = mId }
         return result
     }
 
     suspend fun unloadModel(): Result<Unit> {
         return try {
-            backendManager.stop()
+            backendService.stop()
             selectedModelId = null
             Result.success(Unit)
         } catch (e: Exception) {
@@ -103,7 +103,7 @@ class ModelsViewModel(application: Application) : ViewModel() {
     }
 
     suspend fun loadUpscaleModel(upscalerId: String): Result<Unit> {
-        val result = backendManager.startUpscaler(upscalerId)
+        val result = backendService.startUpscaler(upscalerId)
         result.onSuccess {
             upscalerPreferences?.edit {
                 putString("upscaler_standalone_selected_upscaler", upscalerId)
@@ -114,7 +114,7 @@ class ModelsViewModel(application: Application) : ViewModel() {
 
     suspend fun unloadUpscaleModel(): Result<Unit> {
         return try {
-            backendManager.stop()
+            backendService.stop()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

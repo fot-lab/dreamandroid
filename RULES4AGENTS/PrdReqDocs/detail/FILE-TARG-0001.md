@@ -22,7 +22,8 @@ app/src/main/java/io/github/dreamandroid/local/
 │
 ├── service/                            # 服务层（业务逻辑）
 │   ├── backend/
-│   │   ├── BackendManager.kt           # 统一后端管理器
+│   │   ├── BackendManager.kt           # 统一后端进程管理器 (C++ 进程唯一管理者)
+│   │   ├── BackendService.kt           # HTTP 中间件 (UI 层边界，薄代理)
 │   │   └── RuntimeDirPreparer.kt       # QNN 运行时准备
 │   ├── queue/
 │   │   ├── QueueProcessingService.kt   # 队列处理前台服务
@@ -74,3 +75,4 @@ app/src/main/java/io/github/dreamandroid/local/
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | 从 PrdReqDoc.md 提取 §13 内容，创建独立文件 |
+| 2026-06-16 | service/backend/ 新增 BackendService.kt (HTTP 中间件) |
