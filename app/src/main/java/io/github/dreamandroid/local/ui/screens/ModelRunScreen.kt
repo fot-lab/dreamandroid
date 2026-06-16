@@ -21,6 +21,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -77,9 +78,11 @@ import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.components.*
 import io.github.dreamandroid.local.ui.screens.run.*
 import io.github.dreamandroid.local.utils.*
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -445,9 +448,9 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     // ── Scaffold ──────────────────────────────────────────────
 
-    Box(modifier = modifier.fillMaxSize()
+    val boxModifier = modifier.fillMaxSize()
         .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { focusManager.clearFocus() }
-    ) {
+    Box(modifier = boxModifier) {
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {

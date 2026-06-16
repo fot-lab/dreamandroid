@@ -20,6 +20,9 @@ import io.github.dreamandroid.local.ui.backend.*
 import io.github.dreamandroid.local.ui.frontend.*
 import io.github.dreamandroid.local.ui.queue.TabQueueScreen
 import io.github.dreamandroid.local.ui.screens.*
+import io.github.dreamandroid.local.ui.screens.model.CustomModelDialog
+import io.github.dreamandroid.local.ui.screens.model.CustomNpuModelDialog
+import io.github.dreamandroid.local.ui.screens.model.CustomUpscaleModelDialog
 import io.github.dreamandroid.local.ui.viewmodel.GenerateViewModel
 import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel

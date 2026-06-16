@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 /**
  * History page + filter bar + filter sheet, extracted from ModelRunScreen.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ModelRunHistoryPage(
     state: ModelRunState,
@@ -211,16 +212,16 @@ fun HistoryFilterBar(
             FilterChip(
                 selected = filter.modelIds == setOf(currentModelId),
                 onClick = onSetCurrentModelOnly,
-                label = { Text(stringResource(R.string.current_model), maxLines = 1) },
+                label = { Text(stringResource(R.string.history_filter_current_model_only), maxLines = 1) },
             )
             FilterChip(
                 selected = filter.modelIds == null,
                 onClick = onSetAllModels,
-                label = { Text(stringResource(R.string.all_models)) },
+                label = { Text(stringResource(R.string.history_filter_all_models)) },
             )
         }
         IconButton(onClick = onShowFilterSheet) {
-            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.filter))
+            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.history_view_filter))
         }
     }
 }

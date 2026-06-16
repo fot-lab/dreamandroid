@@ -74,10 +74,12 @@ fun BrowseScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val deleted = browseViewModel.batchDelete()
-                        Toast.makeText(
-                            context, "Deleted $deleted items", Toast.LENGTH_SHORT,
-                        ).show()
+                        scope.launch {
+                            val deleted = browseViewModel.batchDelete()
+                            Toast.makeText(
+                                context, "Deleted $deleted items", Toast.LENGTH_SHORT,
+                            ).show()
+                        }
                     }
                 ) {
                     Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
@@ -146,8 +148,10 @@ fun BrowseScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val saved = recordRepository?.let { browseViewModel.batchSaveParams(it) } ?: 0
-                        Toast.makeText(context, "$saved parameters saved", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            val saved = recordRepository?.let { browseViewModel.batchSaveParams(it) } ?: 0
+                            Toast.makeText(context, "$saved parameters saved", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 ) {
                     Text(stringResource(R.string.save_info))
@@ -172,7 +176,9 @@ fun BrowseScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            browseViewModel.deleteSingleItem(item)
+                            scope.launch {
+                                browseViewModel.deleteSingleItem(item)
+                            }
                             showDelete = false
                         }
                     ) {

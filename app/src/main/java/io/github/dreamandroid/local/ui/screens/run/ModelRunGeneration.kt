@@ -22,8 +22,7 @@ import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.service.backend.BackendService
-import io.github.dreamandroid.local.utils.computeAspectTargetSize
-import io.github.dreamandroid.local.utils.padBitmapToCanvas
+
 import io.github.dreamandroid.local.utils.saveImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

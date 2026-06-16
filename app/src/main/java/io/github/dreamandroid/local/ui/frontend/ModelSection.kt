@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.*
+import io.github.dreamandroid.local.ui.screens.model.ExtractByteProgress
 import androidx.core.content.edit
 import io.github.dreamandroid.local.service.ModelDownloadService
 import kotlin.math.roundToInt
