@@ -8,9 +8,10 @@
 ## 1. 当前状态
 
 - **总问题数**: 57
-- **已 Fixed**: 38 (Phase A + B + C + E 完成，累计 +21)
-- **剩余未解决**: 19 (含 1 P0 (UILA-COMP-0001 AppContent God Object) / 1 P1 (UILA-COMP-0002 无法单独测试) / 7 Phase D 依赖 / 8 P2/P3 deferred)
+- **已 Fixed**: 39 (Phase A + B + C + E 完成 + Record→Room 统一)
+- **剩余未解决**: 18 (含 1 P0 (UILA-COMP-0001 AppContent God Object) / 1 P1 (UILA-COMP-0002 无法单独测试) / 7 Phase D 依赖 / 9 P2/P3 deferred)
 - **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence), E (P2/P3 收尾)
+- **最新**: RecordRepository 迁移至 Room TaskEntity 统一表 (TYPE_RECORD)
 
 ## 2. 执行阶段总览
 
@@ -359,4 +360,4 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | 日期 | 变更 |
 |------|------|
 | 2026-06-15 | 创建：全量剩余问题分批解决总体规划 |
-| 2026-06-16 | Phase A (Backend Consolidation) 全部完成；Phase B (Coroutine Safety) 完成；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；Phase E (P2/P3 收尾) 完成：HTTP Client 统一 + Bitmap recycle + 文件拆分归档 + 7 问题标记 blocked on Phase D；累计38个Issue → Fully Fixed |
+| 2026-06-16 | Phase A (Backend Consolidation) 全部完成；Phase B (Coroutine Safety) 完成；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；Phase E (P2/P3 收尾) 完成；RecordRepository 迁移至 Room (TYPE_RECORD) — Queue/History/Record 三合一统一 TaskEntity |

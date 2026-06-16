@@ -9,10 +9,10 @@ import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Unified data access for [TaskEntity] (queue tasks + history items).
+ * Unified data access for [TaskEntity] (queue tasks + history items + records).
  *
  * All write operations are suspend; reactive queries return [Flow].
- * [taskType] discriminator filters queue vs. history operations.
+ * [taskType] discriminator filters queue vs. history vs. record operations.
  */
 @Dao
 interface TaskDao {
@@ -94,4 +94,18 @@ interface TaskDao {
 
     @Query("SELECT DISTINCT (width || 'x' || height) FROM tasks WHERE task_type = 'HISTORY' ORDER BY width * height DESC")
     fun observeHistoryKnownSizes(): Flow<List<String>>
+
+    // ── Record operations ──
+
+    @Query("SELECT * FROM tasks WHERE task_type = 'RECORD' ORDER BY timestamp DESC")
+    fun observeRecords(): Flow<List<TaskEntity>>
+
+    @Query("SELECT * FROM tasks WHERE task_type = 'RECORD' ORDER BY timestamp DESC")
+    suspend fun getAllRecords(): List<TaskEntity>
+
+    @Query("DELETE FROM tasks WHERE id = :id AND task_type = 'RECORD'")
+    suspend fun deleteRecordById(id: String)
+
+    @Query("DELETE FROM tasks WHERE task_type = 'RECORD'")
+    suspend fun deleteAllRecords()
 }
