@@ -120,11 +120,13 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     }
 
     fun removeTask(id: String) {
+        _tasks.value.firstOrNull { it.id == id }?.resultBitmap?.recycle()
         _tasks.update { it.filterNot { t -> t.id == id } }
         scope.launch { db.taskDao().deleteQueueById(id) }
     }
 
     fun removeBatch(batchGroupId: String) {
+        _tasks.value.filter { it.batchGroupId == batchGroupId }.forEach { it.resultBitmap?.recycle() }
         _tasks.update { it.filterNot { t -> t.batchGroupId == batchGroupId } }
         scope.launch { db.taskDao().deleteQueueByBatch(batchGroupId) }
     }
@@ -221,6 +223,8 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     }
 
     fun clearCompleted() {
+        _tasks.value.filter { it.status == TaskStatus.COMPLETED || it.status == TaskStatus.ERROR || it.status == TaskStatus.CANCELLED }
+            .forEach { it.resultBitmap?.recycle() }
         _tasks.update { it.filterNot { t -> t.status == TaskStatus.COMPLETED || t.status == TaskStatus.ERROR || t.status == TaskStatus.CANCELLED } }
         scope.launch { db.taskDao().clearQueueCompleted() }
     }

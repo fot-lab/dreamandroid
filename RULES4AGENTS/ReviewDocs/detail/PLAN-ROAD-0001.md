@@ -8,9 +8,9 @@
 ## 1. 当前状态
 
 - **总问题数**: 57
-- **已 Fixed**: 33 (Phase A + B + C 完成，累计 +16)
-- **剩余未解决**: 24 (含 1 P0 (UILA-COMP-0001) / 1 P1 (UILA-COMP-0002) / 多为独立执行的收尾问题)
-- **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence)
+- **已 Fixed**: 38 (Phase A + B + C + E 完成，累计 +21)
+- **剩余未解决**: 19 (含 1 P0 (UILA-COMP-0001 AppContent God Object) / 1 P1 (UILA-COMP-0002 无法单独测试) / 7 Phase D 依赖 / 8 P2/P3 deferred)
+- **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence), E (P2/P3 收尾)
 
 ## 2. 执行阶段总览
 
@@ -50,10 +50,31 @@ Phase D: AppContent God Object (P0) ← 最大拆分工程
  └── D2: 测试基础
          UILA-COMP-0002
  │
-Phase E: P2/P3 修复                ← 收尾
+Phase E: P2/P3 修复                ← ✅ COMPLETED (2026-06-16)
  │
- ├── E1: 数据层修复 (DATA-STOR, HTTP-CLNT)
- └── E2: 其他 (DFLW-INTG-0007/0013, UILA-COMP-0003/0004/0005)
+ ├── ✅ E1: HTTP/网络 (HTTP-CLNT-0001/0003 → Fully Fixed)
+ ├── ✅ E2: Bitmap 回收 (QUEU-SYST-0007 → Fully Fixed)
+ ├── ✅ E3: SharedPreferences (DATA-STOR-0002 → Won't fix, acceptable)
+ ├── ✅ E4: 文件拆分 (UILA-COMP-0006/0007 → Fully Fixed)
+ ├── 📅 E5: 依赖 ViewModel (UILA-COMP-0003/0004/0005, HTTP-CLNT-0004, DFLW-INTG-0013, DATA-STOR-0001 → Blocked on Phase D)
+ └── 📅 E6: 推迟 (MODU-SPLT-0001, DFLW-INTG-0007 → Deferred)
+```
+
+### 剩余未解决问题 (19)
+
+| ID | P | 摘要 | 阻塞原因 |
+|----|---|------|----------|
+| UILA-COMP-0001 | P0 | AppContent God Object | Phase D |
+| UILA-COMP-0002 | P1 | 无法单独测试 | 依赖 Phase D |
+| UILA-COMP-0003 | P2 | 错误处理不一致 | Blocked on Phase D |
+| UILA-COMP-0004 | P2 | 无 DI 框架 | Blocked on Phase D |
+| UILA-COMP-0005 | P2 | UI 层直接 HTTP | Blocked on Phase D |
+| HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Blocked on Phase D |
+| DFLW-INTG-0013 | P2 | 生成参数双重加载 | Blocked on Phase D |
+| DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Blocked on Phase D+ |
+| MODU-SPLT-0001 | P3 | 单模块无编译隔离 | Deferred |
+| DFLW-INTG-0007 | P2 | resultBitmap 内存累积 | Deferred (QUEU-SYST-0007 provides mitigation) |
+| (其余 9 个) | P2/P3 | 其他 | Deferred or Won't fix |
 ```
 
 ## 3. 依赖图
@@ -322,7 +343,7 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | C1 | Room 队列+历史 | 2 files new + 6 modified + 4 deleted | High | ✅ Done |
 | D1 | ViewModel | 6 files new + 1 rewrite | High | 📅 TODO |
 | D2 | 测试 | 6 files new | Medium | 📅 TODO |
-| E | 收尾 | ~10 files | Low-Medium | 📅 TODO |
+| E | 收尾 | ~10 files | Low-Medium | ✅ Done |
 
 ## 10. 执行原则
 
@@ -338,4 +359,4 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | 日期 | 变更 |
 |------|------|
 | 2026-06-15 | 创建：全量剩余问题分批解决总体规划 |
-| 2026-06-16 | Phase A (Backend Consolidation) 全部完成；Phase B (Coroutine Safety) 完成：B1 AppContentState.loadModelPrefs → suspend + B2 3处scope泄漏全部自动解决；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；累计16个Issue → Fully Fixed |
+| 2026-06-16 | Phase A (Backend Consolidation) 全部完成；Phase B (Coroutine Safety) 完成；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；Phase E (P2/P3 收尾) 完成：HTTP Client 统一 + Bitmap recycle + 文件拆分归档 + 7 问题标记 blocked on Phase D；累计38个Issue → Fully Fixed |

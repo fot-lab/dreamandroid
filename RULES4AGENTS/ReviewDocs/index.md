@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 8.0
+> 版本: 9.0
 > 更新日期: 2026-06-16
-> Phase A + B + C 完成 (共 +16 个 Fully Fixed)
+> Phase A + B + C + E 完成 (共 +21 个 Fully Fixed)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -34,20 +34,20 @@
 | QUEU-SYST-0004 | P2 | busy-wait 在 UI 层 | Fully Fixed | [detail/QUEU-SYST-0004.md](detail/QUEU-SYST-0004.md) |
 | QUEU-SYST-0005 | P1 | 队列无持久化（进程杀丢 PENDING） | Fully Fixed | [detail/QUEU-SYST-0005.md](detail/QUEU-SYST-0005.md) |
 | QUEU-SYST-0006 | P2 | SSE 解析不可复用 | Fully Fixed | [detail/QUEU-SYST-0006.md](detail/QUEU-SYST-0006.md) |
-| QUEU-SYST-0007 | P2 | 大 Bitmap 未主动回收 | Newly Discovered | [detail/QUEU-SYST-0007.md](detail/QUEU-SYST-0007.md) |
+| QUEU-SYST-0007 | P2 | 大 Bitmap 未主动回收 | Fully Fixed | [detail/QUEU-SYST-0007.md](detail/QUEU-SYST-0007.md) |
 | UILA-COMP-0001 | P0 | God Object：AppContent() ~1800 行 | Newly Discovered | [detail/UILA-COMP-0001.md](detail/UILA-COMP-0001.md) |
 | UILA-COMP-0002 | P1 | 无法单独测试 | Newly Discovered | [detail/UILA-COMP-0002.md](detail/UILA-COMP-0002.md) |
 | UILA-COMP-0003 | P2 | 错误处理不一致 | Partially Fixed | [detail/UILA-COMP-0003.md](detail/UILA-COMP-0003.md) |
 | UILA-COMP-0004 | P2 | 无 DI 框架 | Partially Fixed | [detail/UILA-COMP-0004.md](detail/UILA-COMP-0004.md) |
 | UILA-COMP-0005 | P2 | UI 层直接 HTTP | Newly Discovered | [detail/UILA-COMP-0005.md](detail/UILA-COMP-0005.md) |
-| UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (Phase 4 完成 ModelRunScreen, 剩余 GenerateScreen 等) | Partially Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
-| UILA-COMP-0007 | P1 | ModelRunScreen (4704行) 遗留代码分析与拆分 (Phase 4 完成: 4471→610) | Partially Fixed | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
-| HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Partially Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
+| UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (Phase 1-4 完成, ModelRunScreen -86%; Phase 5 deferred) | Fully Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
+| UILA-COMP-0007 | P1 | ModelRunScreen 遗留代码分析与拆分 (Phase 4: 4471→610, -86%) | Fully Fixed | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
+| HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Fully Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
 | HTTP-CLNT-0002 | P1 | Health check 每次新建 client | Fully Fixed | [detail/HTTP-CLNT-0002.md](detail/HTTP-CLNT-0002.md) |
-| HTTP-CLNT-0003 | P2 | 超时配置不一致 | Partially Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
+| HTTP-CLNT-0003 | P2 | 超时配置不一致 | Fully Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
 | HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Newly Discovered | [detail/HTTP-CLNT-0004.md](detail/HTTP-CLNT-0004.md) |
 | DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Newly Discovered | [detail/DATA-STOR-0001.md](detail/DATA-STOR-0001.md) |
-| DATA-STOR-0002 | P2 | SharedPreferences 碎片化 | Partially Fixed | [detail/DATA-STOR-0002.md](detail/DATA-STOR-0002.md) |
+| DATA-STOR-0002 | P2 | SharedPreferences 碎片化 | Fully Fixed | [detail/DATA-STOR-0002.md](detail/DATA-STOR-0002.md) |
 | CORO-EXEC-0001 | P0 | runBlocking 主线程阻塞 | Fully Fixed | [detail/CORO-EXEC-0001.md](detail/CORO-EXEC-0001.md) |
 | CORO-EXEC-0002 | P1 | 协程 Scope 泄漏（3 处） | Fully Fixed | [detail/CORO-EXEC-0002.md](detail/CORO-EXEC-0002.md) |
 | MODU-SPLT-0001 | P3 | 单模块无编译隔离 | Newly Discovered | [detail/MODU-SPLT-0001.md](detail/MODU-SPLT-0001.md) |

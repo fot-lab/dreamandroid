@@ -13,6 +13,7 @@ import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.functional.bitmapToRgbBytes
 import io.github.dreamandroid.local.data.Model
 import io.github.dreamandroid.local.ui.screens.GenerationParameters
+import io.github.dreamandroid.local.service.http.HttpClientProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -22,7 +23,6 @@ import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -121,11 +121,7 @@ suspend fun reportImage(
                 put("image_data", base64Image)
             }
 
-            val client = OkHttpClient.Builder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .writeTimeout(Duration.ofSeconds(60))
-                .readTimeout(Duration.ofSeconds(30))
-                .build()
+            val client = HttpClientProvider.create()
 
             val requestBody = jsonObject.toString()
                 .toRequestBody("application/json".toMediaTypeOrNull())

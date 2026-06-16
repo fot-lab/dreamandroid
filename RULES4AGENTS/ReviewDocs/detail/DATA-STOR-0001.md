@@ -20,32 +20,13 @@
 - `data/HistoryManager.kt`
 - Room DAO/Entities
 
-## 修复方案
+## 当前状态 (Phase E)
 
+模型数据存在两个独立数据源：文件系统扫描 + Room (History/Queue via TaskEntity)。
 
-Room 作为唯一数据源，文件系统仅作存储位置：
+**修复方案** (已有设计): 引入 `ModelEntity` Room 表作为 SSOT，`ModelRepository` 通过 Room 管理模型状态，文件系统仅作存储位置。
 
-```kotlin
-@Entity(tableName = "models")
-data class ModelEntity(
-    @PrimaryKey val modelId: String,
-    val name: String,
-    val type: ModelType,
-    val filePath: String,
-    val sizeBytes: Long,
-    val downloaded: Boolean
-)
-
-class ModelRepository(db: AppDatabase) {
-    suspend fun deleteModel(modelId: String) {
-        db.withTransaction {
-            modelDao.delete(modelId)
-            historyDao.clearForModel(modelId)  // 同一事务
-        }
-        File(modelsDir, modelId).deleteRecursively()  // 事务成功后再清理
-    }
-}
-```
+**阻塞**: 需要 Phase D 后配合 ViewModel 重构实施。
 
 ## 变更历史
 
@@ -53,3 +34,4 @@ class ModelRepository(db: AppDatabase) {
 |------|------|
 | 2026-06-13 | 初始发现 |
 | 2026-06-15 | 方案设计完成，待 Room 集成 |
+| 2026-06-16 | Phase E: 更新状态 → Blocked on Phase D+ (需 ModelEntity Room 表 + ModelRepository 重构) |

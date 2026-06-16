@@ -43,3 +43,4 @@ class DreamAndroidApplication : Application() {
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | Application 统一持有核心依赖 → 🔧 Partial |
+| 2026-06-16 | Phase E 评估：DI 框架引入依赖 ViewModel 拆分 (Phase D) → Blocked on Phase D |

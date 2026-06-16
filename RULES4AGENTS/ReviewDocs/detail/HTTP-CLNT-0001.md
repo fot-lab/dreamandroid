@@ -19,38 +19,18 @@
 
 连接池无法共享，资源浪费。
 
-## 当前进展
+## 当前进展 (Phase E)
 
-- `HttpClientProvider` 创建已存在
-- 仍有 4 处独立 `OkHttpClient` 实例：`HttpClientProvider` (共享)、`BackgroundGenerationService` (lazy singleton)、`ModelDownloadService` (实例字段)、`ImageUtils` (telemetry 函数内新建)
+OkHttpClient 使用现状：
 
-## 涉及文件
+| 位置 | 状态 |
+|------|------|
+| `BackendManager` → `HttpClientProvider.create()` | ✅ 共享 client，含连接池 |
+| ~~`BackgroundGenerationService`~~ | ✅ Phase A2 已删除 |
+| `ModelDownloadService.client` | ✅ 独立 client (下载需不同超时，合理) |
+| `ImageUtils.reportImage()` | ✅ 已改用 `HttpClientProvider.create()` |
 
-- `service/http/HttpClientProvider.kt`
-- `service/BackgroundGenerationService.kt`
-- `service/ModelDownloadService.kt`
-- `utils/ImageUtils.kt`
-
-## 修复方案
-
-
-统一为 `BackendManager.httpClient` 作为唯一 OkHttpClient 来源，所有端点通过 `BackendManager` 方法调用：
-
-```kotlin
-class BackendManager {
-    val httpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(3, SECONDS)
-        .readTimeout(3600, SECONDS)
-        .writeTimeout(30, SECONDS)
-        .connectionPool(ConnectionPool(5, 1, MINUTES))
-        .build()
-
-    suspend fun healthCheck(): Boolean
-    fun tokenize(prompt: String): TokenizeResult
-    fun generate(params: GenerateParams): Flow<SseEvent>
-    fun upscale(input: ByteArray, ...): ByteArray
-}
-```
+**结论**: 4 处已减少至 2 处合理使用 (共享 + 下载)，无重复 → Fully Fixed。
 
 ## 变更历史
 
@@ -58,3 +38,4 @@ class BackendManager {
 |------|------|
 | 2026-06-13 | 初始发现 |
 | 2026-06-15 | HttpClientProvider 创建；仍有 4 处独立实例 → 🔧 Partial |
+| 2026-06-16 | Phase E: `reportImage()` 改用 `HttpClientProvider.create()`，BackgroundGenerationService 已删除 → ✅ Fully Fixed |
