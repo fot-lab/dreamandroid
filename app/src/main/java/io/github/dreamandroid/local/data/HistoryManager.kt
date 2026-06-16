@@ -6,7 +6,7 @@ import android.util.Log
 import androidx.compose.runtime.Immutable
 import io.github.dreamandroid.local.data.db.AppDatabase
 import io.github.dreamandroid.local.data.db.TaskEntity
-import io.github.dreamandroid.local.ui.screens.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers

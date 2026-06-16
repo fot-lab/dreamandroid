@@ -48,7 +48,7 @@ class SseStreamParser(
     fun events(): Flow<SseEvent> = channelFlow {
         val reader = BufferedReader(InputStreamReader(inputStream))
         try {
-            var currentLine: String?
+            var currentLine: String? = null
             while (isActive && reader.readLine().also { currentLine = it } != null) {
                 val line = currentLine ?: continue
                 if (!line.startsWith("data: ")) continue

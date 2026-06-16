@@ -13,7 +13,7 @@ import io.github.dreamandroid.local.core.model.GenerateParams
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.service.QueueRepository
-import io.github.dreamandroid.local.ui.screens.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -200,7 +200,22 @@ class QueueProcessingService : Service() {
                                     mode = GenerationMode.TXT2IMG,
                                 )
                                 if (historyItem != null) {
-                                    queueRepository.markTaskComplete(task.id, bitmap, event.seed)
+                                    // Save bitmap to queue cache file (not memory)
+                                    var cachePath: String? = null
+                                    try {
+                                        val cacheFile = java.io.File(
+                                            cacheDir,
+                                            "queue_result_${task.id}.jpg",
+                                        )
+                                        cacheFile.outputStream().use { out ->
+                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                                        }
+                                        cachePath = cacheFile.absolutePath
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "Failed to cache result bitmap", e)
+                                    }
+                                    bitmap.recycle()
+                                    queueRepository.markTaskComplete(task.id, cachePath, event.seed)
                                     updateNotification(
                                         "Complete: ${task.prompt.take(30)}...",
                                         100,

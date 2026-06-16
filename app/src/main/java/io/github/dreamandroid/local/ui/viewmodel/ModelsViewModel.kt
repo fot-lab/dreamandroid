@@ -17,6 +17,7 @@ import io.github.dreamandroid.local.ui.frontend.ImportingModelState
 import io.github.dreamandroid.local.ui.screens.model.ExtractByteProgress
 import io.github.dreamandroid.local.ui.screens.model.convertCustomModel
 import io.github.dreamandroid.local.ui.screens.model.extractNpuModel
+import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

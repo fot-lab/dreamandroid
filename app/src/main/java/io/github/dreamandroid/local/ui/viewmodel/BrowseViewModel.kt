@@ -87,7 +87,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
 
     // ── Batch Delete ──────────────────────────────────────────
 
-    fun batchDelete(): Int {
+    suspend fun batchDelete(): Int {
         var successCount = 0
         selectedItems.toList().forEach { item ->
             if (historyManager.deleteHistoryItem(item)) successCount++
@@ -126,7 +126,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
 
     // ── Batch Save Params ─────────────────────────────────────
 
-    fun batchSaveParams(recordRepository: RecordRepository): Int {
+    suspend fun batchSaveParams(recordRepository: RecordRepository): Int {
         var savedCount = 0
         selectedItems.toList().forEach { item ->
             try {
@@ -155,7 +155,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
 
     // ── Single Item Actions ───────────────────────────────────
 
-    fun deleteSingleItem(item: HistoryItem) {
+    suspend fun deleteSingleItem(item: HistoryItem) {
         historyManager.deleteHistoryItem(item)
         showHistoryDetailDialog = null
     }
@@ -173,7 +173,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
         }
     }
 
-    fun saveSingleParams(item: HistoryItem, recordRepository: RecordRepository) {
+    suspend fun saveSingleParams(item: HistoryItem, recordRepository: RecordRepository) {
         val record = GenerateParameterRecord(
             prompt = item.params.prompt,
             negativePrompt = item.params.negativePrompt,

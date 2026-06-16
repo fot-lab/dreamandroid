@@ -12,7 +12,7 @@ import android.util.Log
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.functional.bitmapToRgbBytes
 import io.github.dreamandroid.local.data.Model
-import io.github.dreamandroid.local.ui.screens.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.service.http.HttpClientProvider
 import java.io.ByteArrayOutputStream
 import java.io.File

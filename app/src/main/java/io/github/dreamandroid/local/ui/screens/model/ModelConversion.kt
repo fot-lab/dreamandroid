@@ -2,6 +2,7 @@ package io.github.dreamandroid.local.ui.screens.model
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.compose.runtime.Immutable
 import io.github.dreamandroid.local.data.Model
