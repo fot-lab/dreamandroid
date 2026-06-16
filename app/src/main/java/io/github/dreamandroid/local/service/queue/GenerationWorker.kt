@@ -11,7 +11,6 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.core.model.GenerateParams
@@ -83,7 +82,7 @@ class GenerationWorker(
     }
 
     private suspend fun processLoop(): Result {
-        while (isActive) {
+        while (!isStopped) {
             val task = queueRepository.getNextPending()
             if (task == null) {
                 Log.d(TAG, "No pending tasks, worker complete")
@@ -129,7 +128,7 @@ class GenerationWorker(
             // ── 3. Execute generation via BackendManager (SSE Flow) ──
             try {
                 backendManager.generate(params).collect { event ->
-                    if (!isActive) throw CancellationException("Worker cancelled")
+                    if (isStopped) throw CancellationException("Worker cancelled")
 
                     when (event) {
                         is SseStreamParser.SseEvent.Progress -> {
@@ -269,7 +268,7 @@ class GenerationWorker(
             KEY_PROMPT to "Backend unavailable",
         ))
 
-        while (isActive) {
+        while (!isStopped) {
             delay(BACKEND_POLL_INTERVAL_MS)
             if (backendManager.healthCheck()) {
                 Log.d(TAG, "Backend is now available — resuming queue processing")

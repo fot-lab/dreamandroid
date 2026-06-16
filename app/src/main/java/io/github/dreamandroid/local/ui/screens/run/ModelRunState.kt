@@ -17,6 +17,7 @@ import io.github.dreamandroid.local.data.HistoryFilter
 import io.github.dreamandroid.local.data.HistoryItem
 import io.github.dreamandroid.local.data.Resolution
 import io.github.dreamandroid.local.data.TagSuggestion
+import io.github.dreamandroid.local.ui.screens.PathData
 import io.github.dreamandroid.local.utils.ImportedParams
 import kotlinx.coroutines.Job
 
