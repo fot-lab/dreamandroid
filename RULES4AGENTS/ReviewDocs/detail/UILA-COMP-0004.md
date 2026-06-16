@@ -22,13 +22,17 @@ class DreamAndroidApplication : Application() {
 }
 ```
 
-但无正式 DI 框架，仍依赖 `(context.applicationContext as DreamAndroidApplication).xxx` 获取。
+**决议 (2026-06-16)**: Won't Fix — Application 单例模式对当前项目规模足够：
+- 依赖数量有限 (~5 核心对象)
+- ViewModel 通过 `(application as DreamAndroidApplication)` 获取依赖，模式一致
+- 引入 Hilt/Koin 增加 KAPT/KSP 编译开销和配置复杂度，P2 优先级下不划算
+- 如果未来模块化拆分 (MODU-SPLT-0001)，届时再引入 DI 框架
 
 ## 涉及文件
 
 - `DreamAndroidApplication.kt`
 - `MainActivity.kt`
-- `ui/screens/*.kt`
+- `ui/viewmodel/*.kt`
 
 ## 修复方案
 
@@ -38,9 +42,12 @@ class DreamAndroidApplication : Application() {
 
 配合 ViewModel 拆分 (UILA-COMP-0001)，通过构造函数注入。
 
+## 状态: Won't Fix (P2 优先级下 acceptable)
+
 ## 变更历史
 
 | 日期 | 描述 |
 |------|------|
 | 2026-06-15 | Application 统一持有核心依赖 → 🔧 Partial |
 | 2026-06-16 | Phase E 评估：DI 框架引入依赖 ViewModel 拆分 (Phase D) → Blocked on Phase D |
+| 2026-06-16 | Phase E5: Won't Fix — Application 单例模式对当前项目规模足够，留待模块化拆分时引入 |

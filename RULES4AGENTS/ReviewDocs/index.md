@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 13.0
+> 版本: 14.0
 > 更新日期: 2026-06-16
-> Phase A + B + C + D + E + F 完成 (58 总数, 54 Fixed, 4 剩余)
+> Phase A~F 完成 + E5 收尾 (58 总数, 55 Fixed/Won'tFix, 3 剩余)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -37,15 +37,15 @@
 | QUEU-SYST-0007 | P2 | 大 Bitmap 未主动回收 | Fully Fixed | [detail/QUEU-SYST-0007.md](detail/QUEU-SYST-0007.md) |
 | UILA-COMP-0001 | P0 | God Object：AppContent() ~1800 行 | Fully Fixed | [detail/UILA-COMP-0001.md](detail/UILA-COMP-0001.md) |
 | UILA-COMP-0002 | P1 | 无法单独测试 | Fully Fixed | [detail/UILA-COMP-0002.md](detail/UILA-COMP-0002.md) |
-| UILA-COMP-0003 | P2 | 错误处理不一致 | Partially Fixed | [detail/UILA-COMP-0003.md](detail/UILA-COMP-0003.md) |
-| UILA-COMP-0004 | P2 | 无 DI 框架 | Partially Fixed | [detail/UILA-COMP-0004.md](detail/UILA-COMP-0004.md) |
-| UILA-COMP-0005 | P2 | UI 层直接 HTTP | Newly Discovered | [detail/UILA-COMP-0005.md](detail/UILA-COMP-0005.md) |
+| UILA-COMP-0003 | P2 | 错误处理不一致 | Fully Fixed | [detail/UILA-COMP-0003.md](detail/UILA-COMP-0003.md) |
+| UILA-COMP-0004 | P2 | 无 DI 框架 | Won't Fix | [detail/UILA-COMP-0004.md](detail/UILA-COMP-0004.md) |
+| UILA-COMP-0005 | P2 | UI 层直接 HTTP | Fully Fixed | [detail/UILA-COMP-0005.md](detail/UILA-COMP-0005.md) |
 | UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (Phase 1-4 完成, ModelRunScreen -86%; Phase 5 deferred) | Fully Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
 | UILA-COMP-0007 | P1 | ModelRunScreen 遗留代码分析与拆分 (Phase 4: 4471→610, -86%) | Fully Fixed | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
 | HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Fully Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
 | HTTP-CLNT-0002 | P1 | Health check 每次新建 client | Fully Fixed | [detail/HTTP-CLNT-0002.md](detail/HTTP-CLNT-0002.md) |
 | HTTP-CLNT-0003 | P2 | 超时配置不一致 | Fully Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
-| HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Newly Discovered | [detail/HTTP-CLNT-0004.md](detail/HTTP-CLNT-0004.md) |
+| HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Fully Fixed | [detail/HTTP-CLNT-0004.md](detail/HTTP-CLNT-0004.md) |
 | DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Newly Discovered | [detail/DATA-STOR-0001.md](detail/DATA-STOR-0001.md) |
 | DATA-STOR-0002 | P2 | SharedPreferences 碎片化 | Fully Fixed | [detail/DATA-STOR-0002.md](detail/DATA-STOR-0002.md) |
 | CORO-EXEC-0001 | P0 | runBlocking 主线程阻塞 | Fully Fixed | [detail/CORO-EXEC-0001.md](detail/CORO-EXEC-0001.md) |
@@ -63,7 +63,7 @@
 | DFLW-INTG-0010 | P1 | processingActive 双重数据源 | Fully Fixed | [detail/DFLW-INTG-0010.md](detail/DFLW-INTG-0010.md) |
 | DFLW-INTG-0011 | P2 | QueueController.stop() 竞态 | Fully Fixed | [detail/DFLW-INTG-0011.md](detail/DFLW-INTG-0011.md) |
 | DFLW-INTG-0012 | P0 | 进程被杀 PENDING 全丢 | Fully Fixed | [detail/DFLW-INTG-0012.md](detail/DFLW-INTG-0012.md) |
-| DFLW-INTG-0013 | P2 | 生成参数双重加载 | Resolution Planned | [detail/DFLW-INTG-0013.md](detail/DFLW-INTG-0013.md) |
+| DFLW-INTG-0013 | P2 | 生成参数双重加载 | Fully Fixed | [detail/DFLW-INTG-0013.md](detail/DFLW-INTG-0013.md) |
 | DFLW-INTG-0014 | P3 | Add to Queue 静默失败 | Fully Fixed | [detail/DFLW-INTG-0014.md](detail/DFLW-INTG-0014.md) |
 | DFLW-INTG-0015 | P3 | 无效 Seed 静默忽略 | Fully Fixed | [detail/DFLW-INTG-0015.md](detail/DFLW-INTG-0015.md) |
 | LCLE-MEMO-0001 | P0 | App 生命周期&内存安全完整审计 (13 findings) | Fully Fixed | [detail/LCLE-MEMO-0001.md](detail/LCLE-MEMO-0001.md) |

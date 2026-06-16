@@ -2,6 +2,7 @@ package io.github.dreamandroid.local.ui.frontend
 
 import androidx.compose.runtime.Composable
 import io.github.dreamandroid.local.data.RecordRepository
+import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResult
 import io.github.dreamandroid.local.ui.screens.GenerateScreen
 
 // =========== Generate Tab (parameterized wrapper) ===========
@@ -33,6 +34,15 @@ fun TabGenerateScreen(
     onHeightChange: (Int) -> Unit,
     onAddToQueue: (Int) -> Unit = {},
     recordRepository: RecordRepository? = null,
+    // Tokenize callbacks (UILA-COMP-0005: from ViewModel)
+    onTokenizePrompt: (suspend (String) -> TokenizeResult?)? = null,
+    onTokenizeNegativePrompt: (suspend (String) -> TokenizeResult?)? = null,
+    promptTokenCount: Int = 0,
+    promptTokenMax: Int = 77,
+    promptOverflowOffset: Int = -1,
+    negativePromptTokenCount: Int = 0,
+    negativePromptTokenMax: Int = 77,
+    negativePromptOverflowOffset: Int = -1,
 ) {
     GenerateScreen(
         modelId = modelId,
@@ -60,5 +70,13 @@ fun TabGenerateScreen(
         onHeightChange = onHeightChange,
         onAddToQueue = onAddToQueue,
         recordRepository = recordRepository,
+        onTokenizePrompt = onTokenizePrompt,
+        onTokenizeNegativePrompt = onTokenizeNegativePrompt,
+        promptTokenCount = promptTokenCount,
+        promptTokenMax = promptTokenMax,
+        promptOverflowOffset = promptOverflowOffset,
+        negativePromptTokenCount = negativePromptTokenCount,
+        negativePromptTokenMax = negativePromptTokenMax,
+        negativePromptOverflowOffset = negativePromptOverflowOffset,
     )
 }

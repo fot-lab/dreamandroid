@@ -1,7 +1,6 @@
 package io.github.dreamandroid.local.ui.screens
 
 import android.content.Context
-import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,10 +34,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
-import io.github.dreamandroid.local.DreamAndroidApplication
-import io.github.dreamandroid.local.service.backend.BackendManager
+import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResult
 
 /**
  * GenerateScreen – image generation parameter configuration.
@@ -81,6 +78,16 @@ fun GenerateScreen(
     onAddToQueue: (Int) -> Unit = {},
     // Record Manager
     recordRepository: RecordRepository? = null,
+    // Tokenize callbacks (UILA-COMP-0005: moved from direct BackendManager in UI to ViewModel)
+    onTokenizePrompt: (suspend (String) -> TokenizeResult?)? = null,
+    onTokenizeNegativePrompt: (suspend (String) -> TokenizeResult?)? = null,
+    // Tokenize read state (from GenerateViewModel)
+    promptTokenCount: Int = 0,
+    promptTokenMax: Int = 77,
+    promptOverflowOffset: Int = -1,
+    negativePromptTokenCount: Int = 0,
+    negativePromptTokenMax: Int = 77,
+    negativePromptOverflowOffset: Int = -1,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -88,15 +95,8 @@ fun GenerateScreen(
     val modelRepository = remember { ModelRepository(context) }
     val model = remember(modelId) { modelRepository.models.find { it.id == modelId } }
     val generationPreferences = remember { GenerationPreferences(context) }
-    val backendManager = remember { (context.applicationContext as DreamAndroidApplication).backendManager }
 
-    // ---- Token count / CLIP limit (77 tokens) ----
-    var promptTokenCount by remember { mutableIntStateOf(2) }
-    var negativePromptTokenCount by remember { mutableIntStateOf(2) }
-    var promptTokenMax by remember { mutableIntStateOf(77) }
-    var negativePromptTokenMax by remember { mutableIntStateOf(77) }
-    var promptOverflowOffset by remember { mutableIntStateOf(-1) }
-    var negativePromptOverflowOffset by remember { mutableIntStateOf(-1) }
+    // ---- Load preferences for this model (global prefs + per-model) ----
 
     // ---- Sub-tab selection ----
     var selectedGenerateTab by remember { mutableIntStateOf(0) }
@@ -119,47 +119,14 @@ fun GenerateScreen(
         )
     }
 
-    // Load preferences for this model
-    LaunchedEffect(modelId) {
-        if (modelId != null) {
-            withContext(Dispatchers.IO) {
-                val prefs = generationPreferences.getPreferences(modelId).first()
-                withContext(Dispatchers.Main) {
-                    if (prefs.steps > 0) onStepsChange(prefs.steps)
-                    if (prefs.cfg > 0) onCfgChange(prefs.cfg)
-                    if (prefs.seed.isNotEmpty()) onSeedChange(prefs.seed)
-                    onSchedulerChange(prefs.scheduler)
-                    onDenoiseStrengthChange(prefs.denoiseStrength)
-                    onUseOpenCLChange(prefs.useOpenCL)
-                    if (prefs.width != -1) onWidthChange(prefs.width)
-                    if (prefs.height != -1) onHeightChange(prefs.height)
-                }
-            }
-        }
-    }
-
-    // ---- Token count / CLIP limit debounced requests ----
+    // ---- Token count / CLIP limit debounced requests (UILA-COMP-0005: via ViewModel callbacks) ----
     LaunchedEffect(prompt) {
         delay(400)
-        try {
-            val result = withContext(Dispatchers.IO) { backendManager.tokenize(prompt) }
-            promptTokenCount = result.count
-            promptTokenMax = result.maxLength
-            promptOverflowOffset = result.overflowOffset
-        } catch (_: Exception) {
-            // Silently ignore tokenize failures — non-critical UX
-        }
+        onTokenizePrompt?.invoke(prompt)
     }
     LaunchedEffect(negativePrompt) {
         delay(400)
-        try {
-            val result = withContext(Dispatchers.IO) { backendManager.tokenize(negativePrompt) }
-            negativePromptTokenCount = result.count
-            negativePromptTokenMax = result.maxLength
-            negativePromptOverflowOffset = result.overflowOffset
-        } catch (_: Exception) {
-            // Silently ignore tokenize failures — non-critical UX
-        }
+        onTokenizeNegativePrompt?.invoke(negativePrompt)
     }
 
     // Clear queue feedback message after a delay
