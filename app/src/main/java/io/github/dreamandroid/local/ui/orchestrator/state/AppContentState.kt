@@ -89,13 +89,11 @@ class AppContentState {
         genHeight = prefs.getGlobalHeight().coerceIn(64, 4096)
     }
 
-    fun loadModelPrefs(
+    suspend fun loadModelPrefs(
         modelId: String,
         prefs: io.github.dreamandroid.local.data.GenerationPreferences,
     ) {
-        val p = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-            prefs.getPreferences(modelId).first()
-        }
+        val p = prefs.getPreferences(modelId).first()
         if (genPrompt.isEmpty() && p.prompt.isNotEmpty()) genPrompt = p.prompt
         if (genNegativePrompt.isEmpty() && p.negativePrompt.isNotEmpty()) genNegativePrompt = p.negativePrompt
         if (genBatchCounts == 1 && p.batchCounts > 1) genBatchCounts = p.batchCounts

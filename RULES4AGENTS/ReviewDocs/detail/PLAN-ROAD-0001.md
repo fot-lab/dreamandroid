@@ -8,9 +8,9 @@
 ## 1. 当前状态
 
 - **总问题数**: 57
-- **已 Fixed**: 31 (Phase A 全部 + Phase C 完成，累计 +14)
-- **剩余未解决**: 26 (含 4 P0 / 4 P1 / 2 P2 → 多为独立执行的收尾问题)
-- **已完成 Phase**: A (Backend Consolidation), C (Queue Persistence)
+- **已 Fixed**: 33 (Phase A + B + C 完成，累计 +16)
+- **剩余未解决**: 24 (含 1 P0 (UILA-COMP-0001) / 1 P1 (UILA-COMP-0002) / 多为独立执行的收尾问题)
+- **已完成 Phase**: A (Backend Consolidation), B (Coroutine Safety), C (Queue Persistence)
 
 ## 2. 执行阶段总览
 
@@ -28,12 +28,12 @@ Phase A: Backend Consolidation (P0)        ← ✅ COMPLETED (2026-06-16)
  └── ✅ A3: 前台通知保护
          BKND-PROC-0005
  │
-Phase B: Coroutine Safety (P0)     ← 待执行，无外部依赖
+Phase B: Coroutine Safety (P0)     ← ✅ COMPLETED (2026-06-16)
  │
- ├── B1: runBlocking → suspend
+ ├── ✅ B1: runBlocking → suspend
  │       CORO-EXEC-0001
  │
- └── B2: Scope 泄漏修复
+ └── ✅ B2: Scope 泄漏修复
          CORO-EXEC-0002
  │
 Phase C: Queue Persistence (P0)    ← ✅ COMPLETED (2026-06-16)
@@ -68,7 +68,7 @@ BKND-PROC-0003 ───────────┘
                           └──→ BKND-PROC-0004 (自动解决)  ← ✅
                           └──→ BKND-PROC-0005 (并行)      ← ✅
 
-CORO-EXEC-0001 ──→ CORO-EXEC-0002        ← 无外部依赖 (待执行)
+CORO-EXEC-0001 ──→ CORO-EXEC-0002        ← ✅ Phase B done
 DFLW-INTG-0012 ──→ QUEU-SYST-0005        ← ✅ Phase C done
 UILA-COMP-0001  ──→ UILA-COMP-0002        ← 无外部依赖 (待执行)
 ```
@@ -171,7 +171,7 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 
 ---
 
-## 5. Phase B: Coroutine Safety (优先级 P0)
+## 5. Phase B: Coroutine Safety (优先级 P0) — ✅ COMPLETED (2026-06-16)
 
 ### 5.1 Sub-task B1: runBlocking 修复
 
@@ -317,8 +317,8 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | A1 | 迁移 bypass | 3-4 文件 | Medium | ✅ Done |
 | A2 | 删除旧文件 | 3 files delete + 1 search | Low | ✅ Done |
 | A3 | 通知保护 | 1 file | Low | ✅ Done |
-| B1 | runBlocking | 1 file | Low | 📅 TODO |
-| B2 | scope 泄漏 | 2 files | Low | 📅 TODO |
+| B1 | runBlocking | 1 file | Low | ✅ Done |
+| B2 | scope 泄漏 | 0 files (auto-resolved) | Low | ✅ Done |
 | C1 | Room 队列+历史 | 2 files new + 6 modified + 4 deleted | High | ✅ Done |
 | D1 | ViewModel | 6 files new + 1 rewrite | High | 📅 TODO |
 | D2 | 测试 | 6 files new | Medium | 📅 TODO |
@@ -338,4 +338,4 @@ Phase 4 拆分后，bypass 代码已从 ModelRunScreen.kt 分离到：
 | 日期 | 变更 |
 |------|------|
 | 2026-06-15 | 创建：全量剩余问题分批解决总体规划 |
-| 2026-06-16 | Phase A (Backend Consolidation) 全部完成：A1 ModelRunScreen迁移至BackendManager + A2删除BackendService/UpscaleBackendManager/BackgroundGenerationService + A3前台通知保护；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；累计14个Issue → Fully Fixed |
+| 2026-06-16 | Phase A (Backend Consolidation) 全部完成；Phase B (Coroutine Safety) 完成：B1 AppContentState.loadModelPrefs → suspend + B2 3处scope泄漏全部自动解决；Phase C (Queue+History Persistence) 完成：统一TaskEntity Room持久化方案；累计16个Issue → Fully Fixed |
