@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 16.0
+> 版本: 17.0
 > 更新日期: 2026-06-16
-> Phase A~F 完成 (59 总数, 56 Fixed/Won'tFix, 3 剩余)
+> Phase A~F+startup 审计 (64 总数, 56 Fixed/Won'tFix, 8 剩余)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -18,6 +18,7 @@
 | BKND-PROC-0004 | P1 | prepareRuntimeDir 代码重复 | Fully Fixed | [detail/BKND-PROC-0004.md](detail/BKND-PROC-0004.md) |
 | BKND-PROC-0005 | P1 | Upscale 无前台通知保护 | Fully Fixed | [detail/BKND-PROC-0005.md](detail/BKND-PROC-0005.md) |
 | BKND-PROC-0006 | P0 | 僵尸进程风险 | Fully Fixed | [detail/BKND-PROC-0006.md](detail/BKND-PROC-0006.md) |
+| BKND-PROC-0007 | P0 | ViewModel 构造函数触发 BackendManager 重量级初始化链 | Newly Discovered | [detail/BKND-PROC-0007.md](detail/BKND-PROC-0007.md) |
 | BKLC-BPAS-0001 | P0 | ModelRunScreen startForegroundService 绕过 | Fully Fixed | [detail/BKLC-BPAS-0001.md](detail/BKLC-BPAS-0001.md) |
 | BKLC-BPAS-0002 | P0 | ModelRunScreen ACTION_RESTART 绕过 | Fully Fixed | [detail/BKLC-BPAS-0002.md](detail/BKLC-BPAS-0002.md) |
 | BKLC-BPAS-0003 | P1 | ModelRunScreen cleanup() stopService 绕过 | Fully Fixed | [detail/BKLC-BPAS-0003.md](detail/BKLC-BPAS-0003.md) |
@@ -43,14 +44,17 @@
 | UILA-COMP-0005 | P2 | UI 层直接 HTTP | Fully Fixed | [detail/UILA-COMP-0005.md](detail/UILA-COMP-0005.md) |
 | UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (Phase 1-4 完成, ModelRunScreen -86%; Phase 5 deferred) | Fully Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
 | UILA-COMP-0007 | P1 | ModelRunScreen 遗留代码分析与拆分 (Phase 4: 4471→610, -86%) | Fully Fixed | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
+| UILA-COMP-0008 | P3 | MainActivity.onCreate() 未使用 val app 变量 (重构遗留) | Newly Discovered | [detail/UILA-COMP-0008.md](detail/UILA-COMP-0008.md) |
 | HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Fully Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
 | HTTP-CLNT-0002 | P1 | Health check 每次新建 client | Fully Fixed | [detail/HTTP-CLNT-0002.md](detail/HTTP-CLNT-0002.md) |
 | HTTP-CLNT-0003 | P2 | 超时配置不一致 | Fully Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
 | HTTP-CLNT-0004 | P3 | UI 层处理 HTTP 错误 | Fully Fixed | [detail/HTTP-CLNT-0004.md](detail/HTTP-CLNT-0004.md) |
 | DATA-STOR-0001 | P1 | 模型数据双源无 SSOT | Newly Discovered | [detail/DATA-STOR-0001.md](detail/DATA-STOR-0001.md) |
 | DATA-STOR-0002 | P2 | SharedPreferences 碎片化 | Fully Fixed | [detail/DATA-STOR-0002.md](detail/DATA-STOR-0002.md) |
+| DATA-STOR-0003 | P0 | RecordRepository 在 ViewModel 构造中同步触发 Room DB | Newly Discovered | [detail/DATA-STOR-0003.md](detail/DATA-STOR-0003.md) |
 | CORO-EXEC-0001 | P0 | runBlocking 主线程阻塞 | Fully Fixed | [detail/CORO-EXEC-0001.md](detail/CORO-EXEC-0001.md) |
 | CORO-EXEC-0002 | P1 | 协程 Scope 泄漏（3 处） | Fully Fixed | [detail/CORO-EXEC-0002.md](detail/CORO-EXEC-0002.md) |
+| CORO-EXEC-0003 | P1 | ModelRepository.runBlocking 在 by lazy 中阻塞主线程 | Newly Discovered | [detail/CORO-EXEC-0003.md](detail/CORO-EXEC-0003.md) |
 | MODU-SPLT-0001 | P3 | 单模块无编译隔离 | Newly Discovered | [detail/MODU-SPLT-0001.md](detail/MODU-SPLT-0001.md) |
 | DFLW-INTG-0001 | P0 | saveGeneratedImage 返回值被忽略 | Fully Fixed | [detail/DFLW-INTG-0001.md](detail/DFLW-INTG-0001.md) |
 | DFLW-INTG-0002 | P2 | HistoryManager 文件-DB 写入不一致 | Fully Fixed | [detail/DFLW-INTG-0002.md](detail/DFLW-INTG-0002.md) |
@@ -68,5 +72,6 @@
 | DFLW-INTG-0014 | P3 | Add to Queue 静默失败 | Fully Fixed | [detail/DFLW-INTG-0014.md](detail/DFLW-INTG-0014.md) |
 | DFLW-INTG-0015 | P3 | 无效 Seed 静默忽略 | Fully Fixed | [detail/DFLW-INTG-0015.md](detail/DFLW-INTG-0015.md) |
 | LCLE-MEMO-0001 | P0 | App 生命周期&内存安全完整审计 (13 findings) | Fully Fixed | [detail/LCLE-MEMO-0001.md](detail/LCLE-MEMO-0001.md) |
+| LCLE-MEMO-0002 | P1 | 惰性初始化依赖未就绪时的空降处理完整审计 (6 种模式, 5 个问题) | Newly Discovered | [detail/LCLE-MEMO-0002.md](detail/LCLE-MEMO-0002.md) |
 
 

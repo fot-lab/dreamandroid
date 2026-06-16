@@ -35,15 +35,20 @@ class DreamAndroidApplication : Application(), ComponentCallbacks2 {
     val database: AppDatabase by lazy { AppDatabase.get(this) }
 
     val backendManager: BackendManager by lazy {
-        BackendManager(this).also {
-            // Pre-warm runtime dir
-            appScope.launch {
-                try {
-                    RuntimeDirPreparer.prepare(this@DreamAndroidApplication)
-                } catch (_: Exception) {
-                    // Non-fatal; will retry on first backend use
+        try {
+            BackendManager(this).also {
+                // Pre-warm runtime dir
+                appScope.launch {
+                    try {
+                        RuntimeDirPreparer.prepare(this@DreamAndroidApplication)
+                    } catch (_: Exception) {
+                        // Non-fatal; will retry on first backend use
+                    }
                 }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "BackendManager initialization failed", e)
+            throw IllegalStateException("BackendManager not available", e)
         }
     }
 
@@ -52,7 +57,14 @@ class DreamAndroidApplication : Application(), ComponentCallbacks2 {
      * Screen Composables and ViewModels MUST use [backendService] instead of
      * directly accessing [backendManager] for all backend communication.
      */
-    val backendService: BackendService by lazy { BackendService(backendManager) }
+    val backendService: BackendService by lazy {
+        try {
+            BackendService(backendManager)
+        } catch (e: Exception) {
+            Log.e(TAG, "BackendService initialization failed", e)
+            throw IllegalStateException("BackendService not available", e)
+        }
+    }
 
     /** Process-wide singleton queue repository, shared between UI and WorkManager Worker. */
     val queueRepository: QueueRepository
@@ -67,6 +79,15 @@ class DreamAndroidApplication : Application(), ComponentCallbacks2 {
 
     override fun onCreate() {
         super.onCreate()
+
+        // ── P0: Pre-warm backend service chain (BKND-PROC-0007) ──
+        // If initialization fails, backend features degrade gracefully
+        // instead of crashing during ViewModel construction.
+        try {
+            backendService
+        } catch (e: Exception) {
+            Log.e(TAG, "BackendService init failed, backend features unavailable", e)
+        }
 
         // ── P0: Register shutdown hook to kill C++ backend on JVM normal exit ──
         Runtime.getRuntime().addShutdownHook(Thread({

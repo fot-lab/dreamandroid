@@ -1,13 +1,33 @@
 # ACTION.md — Build & CI/CD 行为规范
 
-> 版本: 1.0
+> 版本: 1.2
 > 更新日期: 2026-06-16
 
 ## 核心原则
 
 **本仓库没有本地构建工具链。所有构建在云端 CI/CD 完成，禁止 Agent 在本地执行 Gradle 构建。**
 
-## CI/CD 工作流 (`.github/workflows/build.yml`)
+## CI/CD 工作流
+
+### 工作流协作关系
+
+```
+push/PR to master
+  └─ build.yml: apk job
+       ├─ assembleBasicRelease (release APK)
+       ├─ assembleBasicDebug + assembleBasicDebugAndroidTest (debug APKs for test)
+       └─ upload debug-apks artifact
+            └─ (workflow_run 自动触发)
+                 └─ test.yml: instrumentation-test job
+                      ├─ download debug-apks artifact
+                      ├─ KVM + emulator (AVD snapshot cache)
+                      └─ adb install → am instrument
+```
+
+- **test.yml 不会重复编译** — 直接从 build.yml 下载预构建的 debug APK
+- **test.yml 仅在 build.yml 成功时触发** (`workflow_run` + 结论=success)
+
+### `build.yml` — 编译 & 发布 (`.github/workflows/build.yml`)
 
 ### 触发规则
 
@@ -25,9 +45,12 @@
 
 ### 构建产物
 
-- **APK Artifact** (`dreamandroid-APK`): 仅在 tag push 或 manual dispatch 时上传，保留 30 天
-- **Build Log** (`build-gradle.log`): 每次构建上传，保留 7 天
-- **Native Build Log** (`build-native.log`): native job 执行后上传，保留 7 天
+| Artifact | 条件 | 保留 |
+|----------|------|------|
+| `dreamandroid-APK` | tag push / manual dispatch (release=true) | 30 天 |
+| `debug-apks` | `apk` job 成功 | 1 天 |
+| `build-gradle.log` | `apk` job 运行 | 7 天 |
+| `build-native.log` | native job 运行 | 7 天 |
 
 ### 关键配置
 
@@ -37,14 +60,60 @@
 | JDK | 17 (Temurin) |
 | Android SDK | `platforms;android-36`, `build-tools;36.0.0` |
 | NDK | `28.2.13676358` (仅 native job) |
-| Gradle 任务 | `assembleBasicRelease` (skip ktlint/detekt) |
+| Gradle 任务 | `assembleBasicRelease` → `assembleBasicDebug` + `assembleBasicDebugAndroidTest` |
 | APK 输出 | `app/build/outputs/apk/basic/release/*.apk` |
+| Debug APK 输出 | `app/build/outputs/apk/**/debug/*.apk` |
 
 ### Version 管理
 
 - `VERSION_NAME`: 格式 `YYYY.MM.DD.HH.mm`（如 `2026.06.13.15.08`），在 `apk` job 中校验
 - `VERSION_CODE`: 递增整数（当前 `245`）
 - Release 时 APK 重命名为 `DreamHub-{version}-arm64-v8a-release.apk`
+
+### `test.yml` — 模拟器启动测试 (`.github/workflows/test.yml`)
+
+#### 触发规则
+
+| 触发事件 | 行为 |
+|----------|------|
+| `workflow_run` (build.yml 成功) | 自动下载 `debug-apks` → 模拟器测试 |
+| `workflow_dispatch` | 手动触发，需提供 `build-run-id` |
+
+#### 工作流特点
+
+- **无 checkout** — 不拉代码
+- **无 Gradle** — 不编译，直接使用 build.yml 产物
+- **adb install + am instrument** — 绕过 Gradle 直接运行测试
+
+#### 关键配置
+
+| 配置项 | 值 |
+|--------|-----|
+| Runner | `ubuntu-latest` |
+| 模拟器 Action | `reactivecircus/android-emulator-runner@v2` |
+| 系统镜像 | `system-images;android-30;google_apis;x86_64` |
+| KVM | 通过 udev 规则启用 |
+| 测试方式 | `adb install` APK → `am instrument -e class AppLaunchInstrumentationTest` |
+| AVD 快照 | 两步模式 (generate snapshot → load + test) |
+
+#### 缓存策略
+
+- AVD 数据 (`~/.android/avd/*`, `~/.android/adb*`) — key: `avd-{api-level}-{arch}-{target}-v2`
+
+#### 产物
+
+- Logcat (`logcat-{api-level}-{target}`): 保留 7 天
+
+#### 构建配置配合
+
+Debug APK 需包含 `x86_64` ABI（`app/build.gradle.kts` debug block 已配置），Release APK 保持 `arm64-v8a` only 不变。
+
+#### 测试覆盖
+
+见 `app/src/androidTest/java/io/github/dreamandroid/local/AppLaunchInstrumentationTest.kt`：
+- Application 类型正确 & onCreate 不崩溃
+- Activity 全链路启动
+- 关键依赖 (database/backendService/queueRepository) 逐个初始化不崩溃
 
 ## Agent 行为规则
 

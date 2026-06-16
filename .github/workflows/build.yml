@@ -337,6 +337,14 @@ jobs:
           fi
           ./gradlew $GRADLE_ARGS 2>&1 | tee build-log.txt
 
+      # -------- assemble debug APKs for emulator tests ──
+      - name: Gradle assemble debug + test APK
+        if: steps.gradle-build.outcome == 'success'
+        run: |
+          ./gradlew assembleBasicDebug assembleBasicDebugAndroidTest \
+            -x ktlintCheck -x detekt \
+            --quiet
+
       # -------- upload APK (only on success + tag/manual, independent step) --------
       - name: Upload APK
         if: steps.gradle-build.outcome == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
@@ -345,6 +353,15 @@ jobs:
           name: dreamandroid-APK
           path: app/build/outputs/apk/basic/release/*.apk
           retention-days: 30
+
+      # -------- upload debug APKs for emulator test (always on success) ──
+      - name: Upload debug APKs
+        if: steps.gradle-build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apks
+          path: app/build/outputs/apk/**/debug/*.apk
+          retention-days: 1
 
       # -------- upload build log (always, independent step) --------
       - name: Upload build log

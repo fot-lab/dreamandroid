@@ -12,8 +12,6 @@ import androidx.compose.runtime.setValue
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.service.ModelDownloadService
 import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 
 @Immutable
 data class Resolution(val width: Int, val height: Int) {
@@ -267,10 +265,7 @@ class UpscalerRepository(private val context: Context) {
     private val generationPreferences = GenerationPreferences(context)
 
     private val _baseUrl: MutableState<String> by lazy {
-        val url = runBlocking(Dispatchers.IO) {
-            generationPreferences.getBaseUrl()
-        }
-        mutableStateOf(url)
+        mutableStateOf(generationPreferences.getBaseUrl())
     }
     var baseUrl: String
         get() = _baseUrl.value
@@ -374,10 +369,7 @@ class ModelRepository(private val context: Context) {
     private val generationPreferences = GenerationPreferences(context)
 
     private val _baseUrl: MutableState<String> by lazy {
-        val url = runBlocking(Dispatchers.IO) {
-            generationPreferences.getBaseUrl()
-        }
-        mutableStateOf(url)
+        mutableStateOf(generationPreferences.getBaseUrl())
     }
     var baseUrl: String
         get() = _baseUrl.value
