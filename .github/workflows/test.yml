@@ -1,9 +1,12 @@
 name: Test APK on Emulator
 
 on:
-  workflow_run:
-    workflows: ["Build Android APK"]
-    types: [completed]
+  workflow_call:
+    inputs:
+      build-run-id:
+        description: 'Run ID of the build.yml workflow that uploaded debug APKs'
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       build-run-id:
@@ -13,8 +16,6 @@ on:
 
 jobs:
   instrumentation-test:
-    # Only run when the triggering build workflow succeeded
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -26,13 +27,19 @@ jobs:
         target: [google_apis]
 
     steps:
-      # ── Download pre-built debug APKs from build.yml's apk job ──
+      # ── Resolve run ID (dispatch vs call) ──
+      - name: Resolve build run ID
+        id: run-id
+        run: |
+          echo "id=${{ github.event.inputs.build-run-id || inputs.build-run-id }}" >> $GITHUB_OUTPUT
+
+      # ── Download pre-built debug APKs from build.yml ──
       - name: Download debug APKs
         uses: actions/download-artifact@v4
         with:
           name: debug-apks
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build-run-id || github.event.workflow_run.id }}
+          run-id: ${{ steps.run-id.outputs.id }}
           path: apks/
 
       # ── Verify APKs exist ──
@@ -103,7 +110,7 @@ jobs:
               -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
               io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner
 
-      # ── Upload test report (always) ──
+      # ── Upload logcat (always) ──
       - name: Capture logcat
         if: always()
         run: |

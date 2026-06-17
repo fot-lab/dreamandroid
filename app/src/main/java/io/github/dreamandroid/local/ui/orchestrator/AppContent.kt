@@ -47,6 +47,7 @@ fun AppContent() {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val snackbarHostState = remember { SnackbarHostState() }
+    val recordRepository = remember { RecordRepository(context) }
 
     // ── ViewModels (Activity-scoped, shared across tabs) ──
     val mainViewModel: MainViewModel = viewModel()
@@ -360,7 +361,7 @@ fun AppContent() {
                         processingActive = queueProcessing,
                         onRemoveTask = { queueViewModel.removeTask(it) },
                         onRemoveBatch = { queueViewModel.removeBatch(it) },
-                        recordRepository = queueViewModel.recordRepository,
+                        recordRepository = recordRepository,
                     )
                     BottomTab.Generate -> TabGenerateScreen(
                         modelId = if (isModelLoaded) modelsViewModel.selectedModelId else null,
@@ -386,7 +387,7 @@ fun AppContent() {
                         onWidthChange = { generateViewModel.genWidth = it },
                         height = generateViewModel.genHeight,
                         onHeightChange = { generateViewModel.genHeight = it },
-                        recordRepository = queueViewModel.recordRepository,
+                        recordRepository = recordRepository,
                         // Tokenize via ViewModel → BackendService (HTTP middleware, no direct BackendManager)
                         onTokenizePrompt = { prompt ->
                             generateViewModel.tokenizePrompt(prompt)
@@ -411,7 +412,7 @@ fun AppContent() {
                         },
                     )
                     BottomTab.Upscale -> UpscaleScreen()
-                    BottomTab.Browse -> BrowseScreen(recordRepository = queueViewModel.recordRepository)
+                    BottomTab.Browse -> BrowseScreen(recordRepository = recordRepository)
                 }
             }
         }
