@@ -117,6 +117,24 @@ jobs:
             MAIN_APK=$(find "$APKS" -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
             TEST_APK=$(find "$APKS" -name "*androidTest*.apk" -o -name "*test*.apk" | head -1)
 
+            # Trap: capture logcat on any exit (install failure, crash, normal)
+            capture_logcat() {
+              {
+                echo "=== logcat (errors) ==="
+                adb logcat -d -s AndroidRuntime:E System.err:W '*:F' DEBUG:I ActivityManager:I 2>/dev/null || true
+                echo ""
+                echo "=== logcat (package) ==="
+                adb logcat -d 2>/dev/null | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
+                echo ""
+                echo "=== tombstone (native crash) ==="
+                adb shell ls -t /data/tombstones/ 2>/dev/null | head -3 | while read f; do
+                  echo "--- $f ---"
+                  adb shell cat "/data/tombstones/$f" 2>/dev/null || true
+                done
+              } > logcat.txt
+            }
+            trap capture_logcat EXIT
+
             echo "Installing: $MAIN_APK"
             adb install -r -g "$MAIN_APK"
 
@@ -128,15 +146,6 @@ jobs:
             adb shell am instrument -w -r \
               -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
               io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner || TEST_EXIT=$?
-
-            # Capture logcat while emulator is still alive
-            {
-              echo "=== logcat (errors) ==="
-              adb logcat -d -s AndroidRuntime:E System.err:W '*:F' || true
-              echo ""
-              echo "=== logcat (package) ==="
-              adb logcat -d | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
-            } > logcat.txt
 
             exit $TEST_EXIT
 
