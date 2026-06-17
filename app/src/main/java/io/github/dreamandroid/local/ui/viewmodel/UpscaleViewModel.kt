@@ -10,7 +10,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.BuildConfig
 import io.github.dreamandroid.local.DreamAndroidApplication
@@ -31,7 +31,7 @@ import java.io.File
  * - Bitmap lifecycle (recycle on clear / dispose)
  * - Zoom/pan state (shared between input and output images)
  */
-class UpscaleViewModel(application: Application) : ViewModel() {
+class UpscaleViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as DreamAndroidApplication
     val backendService: BackendService = app.backendService

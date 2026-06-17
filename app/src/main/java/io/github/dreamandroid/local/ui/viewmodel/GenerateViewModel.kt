@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
@@ -30,7 +30,7 @@ import kotlin.math.roundToInt
  * - Tokenize calls (via BackendService HTTP middleware) with AppError-based error handling
  * - Add-to-queue logic
  */
-class GenerateViewModel(application: Application) : ViewModel() {
+class GenerateViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as DreamAndroidApplication
     private val backendService: BackendService = app.backendService
