@@ -5,7 +5,7 @@ on:
     inputs:
       build-run-id:
         description: 'Run ID of the build.yml workflow that uploaded debug APKs'
-        required: true
+        required: false
         type: string
   workflow_dispatch:
     inputs:
@@ -27,19 +27,13 @@ jobs:
         target: [google_apis]
 
     steps:
-      # ── Resolve run ID (dispatch vs call) ──
-      - name: Resolve build run ID
-        id: run-id
-        run: |
-          echo "id=${{ github.event.inputs.build-run-id || inputs.build-run-id }}" >> $GITHUB_OUTPUT
-
       # ── Download pre-built debug APKs from build.yml ──
+      # When called via workflow_call, artifact is in the same run — no run-id needed.
+      # When called via workflow_dispatch, use the provided run-id.
       - name: Download debug APKs
         uses: actions/download-artifact@v4
         with:
           name: debug-apks
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ steps.run-id.outputs.id }}
           path: apks/
 
       # ── Verify APKs exist ──
@@ -47,21 +41,11 @@ jobs:
         run: |
           echo "APK files:"
           find apks/ -name "*.apk" -exec ls -lh {} \;
-          # Expect: app-basic-debug.apk + app-basic-debug-androidTest.apk
           if [ $(find apks/ -name "*.apk" | wc -l) -lt 2 ]; then
             echo "❌ Expected 2 APK files (app + test), found fewer"
             exit 1
           fi
           echo "✅ APKs ready"
-
-      # ── AVD cache (official recommended caching pattern) ──
-      - name: Cache AVD
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{ matrix.target }}-v2
 
       # ── Enable KVM (required for hardware acceleration on Linux) ──
       - name: Enable KVM
@@ -70,8 +54,19 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # ── First run: create AVD + generate snapshot for caching ──
+      # ── AVD cache ──
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-v3
+
+      # ── Create AVD + generate snapshot (only on cache miss) ──
       - name: Create AVD and generate snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -79,9 +74,10 @@ jobs:
           target: ${{ matrix.target }}
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
           script: echo "AVD snapshot generated for caching."
 
-      # ── Second run: load cached snapshot + install APKs + run tests ──
+      # ── Run tests (use cached snapshot, do not save new snapshot) ──
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -94,7 +90,6 @@ jobs:
           script: |
             set -euo pipefail
 
-            # Install main APK + test APK
             MAIN_APK=$(find apks/ -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
             TEST_APK=$(find apks/ -name "*androidTest*.apk" -o -name "*test*.apk" | head -1)
 
@@ -104,7 +99,6 @@ jobs:
             echo "Installing: $TEST_APK"
             adb install -r -g "$TEST_APK"
 
-            # Run instrumentation tests
             echo "Running tests..."
             adb shell am instrument -w -r \
               -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
