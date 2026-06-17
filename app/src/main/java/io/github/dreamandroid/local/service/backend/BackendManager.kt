@@ -227,10 +227,13 @@ class BackendManager(context: Context) {
     /**
      * Graceful shutdown: SIGTERM → waitFor(5s) → destroyForcibly() → waitFor()
      * Process must fully exit before returning (prevents zombie processes).
+     *
+     * IMPORTANT: Does NOT cancel [scope] — the scope must survive for future
+     * restart (memory monitor uses scope.launch). The memory monitor job is
+     * cancelled separately by [stopProcess] → [stopMemoryMonitor].
      */
     suspend fun stop() {
         withContext(Dispatchers.IO) { stopProcess() }
-        scope.cancel()
     }
 
     // ── Health Check ──
@@ -413,6 +416,10 @@ class BackendManager(context: Context) {
                 backendPid = -1
             }
         }
+        // Reset state to Idle so UI correctly reflects that no model is loaded.
+        // This is safe even when called from startDiffusion() / startUpscaler(),
+        // because those methods immediately set Starting → Running afterward.
+        _state.value = State.Idle
         cancelBackendNotification()
     }
 
@@ -435,6 +442,7 @@ class BackendManager(context: Context) {
                 backendPid = -1
             }
         }
+        _state.value = State.Idle
     }
 
     private fun buildLibraryPathEnv(): Map<String, String> {
@@ -485,6 +493,11 @@ class BackendManager(context: Context) {
                     if (_state.value is State.Running) {
                         _state.value = State.Error("Process exited with code: $exitCode")
                     }
+                    // Clean up: process is dead, release references and stop monitors
+                    process = null
+                    backendPid = -1
+                    stopMemoryMonitor()
+                    cancelBackendNotification()
                 }
             } catch (e: InterruptedException) {
                 Log.i(TAG, "Backend process monitor interrupted (expected during stop)")
