@@ -17,4 +17,6 @@ app/src/main/assets/qnnlibs
 *.keystore
 keystore.properties
 build-log.txt
+.codebuddy/automations/
+_ci-log.txt
 $null

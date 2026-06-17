@@ -144,12 +144,37 @@ jobs:
           adb install -r -g "$TEST_APK"
 
           echo "Running tests..."
-          TEST_EXIT=0
-          adb shell am instrument -w -r \
-            -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
-            io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner || TEST_EXIT=$?
 
-          exit $TEST_EXIT
+          # Capture full instrumentation output so we can detect failures
+          # that am instrument masks (e.g. app process crash still returns 0).
+          INSTR_OUT="$(adb shell am instrument -w -r \
+            -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
+            io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner 2>&1)" || true
+          echo "$INSTR_OUT"
+
+          # Parse: detect any test failure
+          # - "FAILURES!!!" = standard JUnit runner failure summary
+          # - INSTRUMENTATION_STATUS_CODE: -2 = individual test failed
+          # - INSTRUMENTATION_RESULT: shortMsg= = process crash
+          FAILED=0
+          if echo "$INSTR_OUT" | grep -q "FAILURES!!!"; then
+            echo "❌ Test runner reported failures"
+            FAILED=1
+          fi
+          if echo "$INSTR_OUT" | grep -q "INSTRUMENTATION_STATUS_CODE: -2"; then
+            echo "❌ Individual test returned failure status (-2)"
+            FAILED=1
+          fi
+          if echo "$INSTR_OUT" | grep -q "INSTRUMENTATION_RESULT: shortMsg="; then
+            echo "❌ Instrumentation result contains error message"
+            FAILED=1
+          fi
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "❌ TESTS FAILED"
+            exit 1
+          fi
+          echo "✅ All tests passed"
           SCRIPT_EOF
           chmod +x test-script.sh
 
