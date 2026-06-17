@@ -1,12 +1,16 @@
 package io.github.dreamandroid.local
 
 import android.app.Application
-import androidx.test.core.app.ActivityScenario
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -18,9 +22,18 @@ import org.junit.runner.RunWith
  * - BKND-PROC-0007: BackendManager heavy init chain from ViewModel constructors
  * - CORO-EXEC-0003: runBlocking in by lazy blocking main thread
  * - LCLE-MEMO-0002: Lazy-init patterns with absent dependencies
+ * - NAVI-COMP-0001: Bottom NavigationBar tab switching
  */
 @RunWith(AndroidJUnit4::class)
 class AppLaunchInstrumentationTest {
+
+    @get:Rule
+    val composeTestRule = createAndroidComposeRule<MainActivity>()
+
+    private fun tabLabel(resId: Int): String =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(resId)
+
+    // ── Application-level smoke tests ──
 
     @Test
     fun applicationContext_isDreamAndroidApplication() {
@@ -42,17 +55,13 @@ class AppLaunchInstrumentationTest {
 
     @Test
     fun mainActivity_launchesWithoutCrash() {
-        try {
-            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                scenario.onActivity { activity ->
-                    assertNotNull("MainActivity should not be null", activity)
-                    assertTrue("Activity should not be finishing", !activity.isFinishing)
-                }
-            }
-        } catch (e: Exception) {
-            fail("MainActivity launch crashed: ${e.javaClass.simpleName}: ${e.message}")
-        }
+        composeTestRule.waitForIdle()
+        val activity = composeTestRule.activity
+        assertNotNull("MainActivity should not be null", activity)
+        assertTrue("Activity should not be finishing", !activity.isFinishing)
     }
+
+    // ── Dependency resolution ──
 
     @Test
     fun criticalDependencies_resolveWithoutCrash() {
@@ -86,5 +95,60 @@ class AppLaunchInstrumentationTest {
         } catch (e: Exception) {
             fail("queueRepository init crashed: ${e.javaClass.simpleName}: ${e.message}")
         }
+    }
+
+    // ── Navigation bar smoke tests ──
+
+    @Test
+    fun navigationBar_defaultTabIsModels() {
+        composeTestRule.waitForIdle()
+        composeTestRule
+            .onNodeWithText(tabLabel(R.string.nav_models))
+            .assertExists()
+        composeTestRule
+            .onNodeWithText(tabLabel(R.string.nav_models))
+            .assertIsSelected()
+    }
+
+    @Test
+    fun navigationBar_switchToEachTabWithoutCrash() {
+        composeTestRule.waitForIdle()
+
+        val tabs = listOf(
+            R.string.nav_queue,
+            R.string.nav_generate,
+            R.string.nav_upscale,
+            R.string.nav_browse,
+        )
+        for (tabResId in tabs) {
+            val label = tabLabel(tabResId)
+            composeTestRule
+                .onNodeWithText(label)
+                .performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule
+                .onNodeWithText(label)
+                .assertIsSelected()
+        }
+    }
+
+    @Test
+    fun navigationBar_switchBackToModelsTab() {
+        composeTestRule.waitForIdle()
+
+        // Switch away from Models
+        composeTestRule
+            .onNodeWithText(tabLabel(R.string.nav_queue))
+            .performClick()
+        composeTestRule.waitForIdle()
+
+        // Switch back to Models
+        composeTestRule
+            .onNodeWithText(tabLabel(R.string.nav_models))
+            .performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule
+            .onNodeWithText(tabLabel(R.string.nav_models))
+            .assertIsSelected()
     }
 }
