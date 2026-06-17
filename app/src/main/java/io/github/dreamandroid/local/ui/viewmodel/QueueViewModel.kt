@@ -3,7 +3,7 @@ package io.github.dreamandroid.local.ui.viewmodel
 import android.app.Application
 import android.content.Context
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.service.QueueRepository
@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
  * - Auto-start processing when tasks are added
  * - WorkManager state logging
  */
-class QueueViewModel(application: Application) : ViewModel() {
+class QueueViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as DreamAndroidApplication
 

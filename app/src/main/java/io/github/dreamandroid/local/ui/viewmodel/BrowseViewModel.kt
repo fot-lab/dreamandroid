@@ -7,7 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.data.HistoryFilter
 import io.github.dreamandroid.local.data.HistoryItem
@@ -33,7 +33,7 @@ import kotlinx.coroutines.withContext
  * - Filtering by modelId
  * - Detail/preview dialogs
  */
-class BrowseViewModel(application: Application) : ViewModel() {
+class BrowseViewModel(application: Application) : AndroidViewModel(application) {
 
     private val historyManager = HistoryManager(application)
 
