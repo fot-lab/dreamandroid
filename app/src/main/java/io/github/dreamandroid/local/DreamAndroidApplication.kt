@@ -163,11 +163,10 @@ class DreamAndroidApplication : Application(), ComponentCallbacks2 {
                 RuntimeDirPreparer.cleanup(this)
             }
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
-                // Critical: stop backend, recycle all bitmaps
-                Log.wtf(TAG, "onTrimMemory: TRIM_MEMORY_RUNNING_CRITICAL — stopping backend")
-                appScope.launch {
-                    runCatching { backendManager.stop() }
-                }
+                // Critical pressure: recycle bitmaps but NEVER auto-stop backend.
+                // Backend lifecycle is managed manually by the user; auto-stop
+                // would kill queue processing mid-flight.
+                Log.wtf(TAG, "onTrimMemory: TRIM_MEMORY_RUNNING_CRITICAL — recycling bitmaps (backend untouched)")
                 queueRepository.recycleCompletedBitmaps()
             }
             ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {

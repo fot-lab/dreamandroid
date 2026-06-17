@@ -22,8 +22,6 @@ import io.github.dreamandroid.local.ui.screens.PathData
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
-import io.github.dreamandroid.local.service.backend.BackendService
-
 import io.github.dreamandroid.local.utils.saveImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -363,13 +361,12 @@ fun cleanupModelRun(
     context: Context,
     coroutineScope: CoroutineScope,
     pagerState: androidx.compose.foundation.pager.PagerState,
-    backendService: BackendService,
 ) {
     try {
         state.currentBitmap = null; state.generationParams = null
-        coroutineScope.launch {
-            try { backendService.stop() } catch (e: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", e) }
-        }
+        // Do NOT auto-stop backend — lifecycle is manually managed.
+        // Auto-stop would kill queue processing; the backend is shared
+        // across all queue tasks and managed by BackendManager.
         state.isRunning = false; state.progress = 0f; state.errorMessage = null
         state.generationStartTime = null
         coroutineScope.launch { pagerState.scrollToPage(0) }

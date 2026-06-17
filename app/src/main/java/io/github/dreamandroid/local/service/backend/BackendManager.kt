@@ -19,6 +19,7 @@ import io.github.dreamandroid.local.service.http.HttpClientProvider
 import io.github.dreamandroid.local.service.queue.SseStreamParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -52,6 +54,7 @@ class BackendManager(context: Context) {
         private const val TAG = "BackendManager"
         private const val NOTIFICATION_CHANNEL_ID = "backend_process_channel"
         private const val NOTIFICATION_ID = 6
+        private const val MEMORY_MONITOR_INTERVAL_MS = 5_000L
     }
 
     enum class Mode { Diffusion, Upscaler }
@@ -76,6 +79,11 @@ class BackendManager(context: Context) {
 
     @Volatile
     private var monitorThread: Thread? = null
+
+    @Volatile
+    private var backendPid: Int = -1
+
+    private var memoryMonitorJob: Job? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -148,7 +156,9 @@ class BackendManager(context: Context) {
             }
 
             process = processBuilder.start()
+            backendPid = getProcessPid(process!!)
             startProcessMonitor()
+            startMemoryMonitor()
 
             _state.value = State.Running(Mode.Diffusion, modelId)
             showBackendNotification("Diffusion: $modelId")
@@ -198,7 +208,9 @@ class BackendManager(context: Context) {
             }
 
             process = processBuilder.start()
+            backendPid = getProcessPid(process!!)
             startProcessMonitor()
+            startMemoryMonitor()
 
             _state.value = State.Running(Mode.Upscaler, upscalerId)
             showBackendNotification("Upscaler: $upscalerId")
@@ -383,6 +395,7 @@ class BackendManager(context: Context) {
 
     private fun stopProcess() {
         monitorThread?.interrupt()
+        stopMemoryMonitor()
         process?.let { proc ->
             try {
                 proc.destroy()
@@ -396,6 +409,7 @@ class BackendManager(context: Context) {
             } finally {
                 process = null
                 monitorThread = null
+                backendPid = -1
             }
         }
         cancelBackendNotification()
@@ -407,6 +421,7 @@ class BackendManager(context: Context) {
      */
     fun stopProcessImmediate() {
         monitorThread?.interrupt()
+        stopMemoryMonitor()
         process?.let { proc ->
             try {
                 proc.destroyForcibly()
@@ -416,6 +431,7 @@ class BackendManager(context: Context) {
             } finally {
                 process = null
                 monitorThread = null
+                backendPid = -1
             }
         }
     }
@@ -481,10 +497,70 @@ class BackendManager(context: Context) {
         }
     }
 
+    // ── Memory Monitoring ──
+
+    /**
+     * Extract the native PID from a Java [Process] via reflection.
+     * Required because Process.pid() is only available on API 26+.
+     */
+    private fun getProcessPid(process: Process): Int {
+        return try {
+            val pidField = process.javaClass.getDeclaredField("pid")
+            pidField.isAccessible = true
+            pidField.getInt(process)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get PID via reflection", e)
+            -1
+        }
+    }
+
+    /** Read VmRSS and VmSize (in KB) from /proc/{pid}/status. Returns null on failure. */
+    private fun readProcessMemory(pid: Int): Pair<Long, Long>? {
+        if (pid <= 0) return null
+        return try {
+            var vmRss = 0L
+            var vmSize = 0L
+            File("/proc/$pid/status").forEachLine { line ->
+                when {
+                    line.startsWith("VmRSS:") -> vmRss = line.replace(Regex("[^0-9]"), "").toLong()
+                    line.startsWith("VmSize:") -> vmSize = line.replace(Regex("[^0-9]"), "").toLong()
+                }
+            }
+            Pair(vmRss, vmSize)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun formatMemoryKB(kb: Long): String = when {
+        kb >= 1_000_000 -> String.format("%.1f GB", kb / 1_000_000.0)
+        kb >= 1_000 -> String.format("%.1f MB", kb / 1_000.0)
+        else -> "${kb} KB"
+    }
+
+    private fun startMemoryMonitor() {
+        stopMemoryMonitor()
+        memoryMonitorJob = scope.launch {
+            while (isActive && backendPid > 0) {
+                delay(MEMORY_MONITOR_INTERVAL_MS)
+                val (rss, _) = readProcessMemory(backendPid) ?: continue
+                updateNotificationMemory(rss)
+            }
+        }
+    }
+
+    private fun stopMemoryMonitor() {
+        memoryMonitorJob?.cancel()
+        memoryMonitorJob = null
+    }
+
     // ── Notification ──
+
+    private var lastNotifiedMemoryKb: Long = -1L
 
     private fun showBackendNotification(title: String) {
         ensureNotificationChannel()
+        lastNotifiedMemoryKb = -1L
         val launchIntent = context.packageManager
             .getLaunchIntentForPackage(context.packageName)
         val pendingIntent = PendingIntent.getActivity(
@@ -498,6 +574,32 @@ class BackendManager(context: Context) {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun updateNotificationMemory(rssKb: Long) {
+        ensureNotificationChannel()
+        val launchIntent = context.packageManager
+            .getLaunchIntentForPackage(context.packageName)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, launchIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val currentState = _state.value
+        val modelName = when (currentState) {
+            is State.Running -> currentState.modelId
+            else -> return
+        }
+        val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle("Backend Running")
+            .setContentText("$modelName  ·  RSS ${formatMemoryKB(rssKb)}")
+            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true) // Memory updates should not chime
             .build()
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, notification)
