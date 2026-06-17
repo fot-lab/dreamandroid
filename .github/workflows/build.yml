@@ -416,7 +416,8 @@ jobs:
   # ============================================================
   test:
     needs: [apk]
-    if: needs.apk.result == 'success'
+    if: ${{ always() && needs.apk.result == 'success' }}
     uses: ./.github/workflows/test.yml
+    secrets: inherit
     with:
       build-run-id: ${{ github.run_id }}
