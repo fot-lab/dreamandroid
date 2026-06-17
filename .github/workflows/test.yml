@@ -110,8 +110,8 @@ jobs:
           script: |
             set -eu
 
-            APKS="${GITHUB_WORKSPACE:-.}/apks"
-            echo "Searching APKs in $APKS ..."
+            APKS="apks"
+            echo "Searching APKs in $PWD/$APKS ..."
             ls -la "$APKS"/
 
             MAIN_APK=$(find "$APKS" -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
