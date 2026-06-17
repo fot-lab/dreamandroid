@@ -202,27 +202,29 @@ static void releaseSdxlClipMnn() {
 
 ```
 app/src/main/cpp/src/
-├── server_main.cpp         ← main() + HTTP 路由注册 (~400行)
+├── server_main.cpp         ← 🔜 main() + HTTP 路由注册 (~400行)
 │   【新建】从 main.cpp 提取 HTTP 服务器设置 + handler lambdas
 ├── ServerState.hpp         ← ✅ 已创建：状态机 + 超时检测
-├── context.hpp             ← 【新建】RequestContext 结构体 (~50行)
-├── generate.cpp/.hpp       ← 【新建】generateImage() (~1250行)
+├── VaeTilingHelper.cpp/.hpp ← ✅ 已创建：VAE encoder/decoder tiling blender + tile pos (~270行)
+│   【新建】blendVaeEncoderTiles / blendVaeOutputTiles / calculateVaeTilePositions
+├── context.hpp             ← 🔜 【新建】RequestContext 结构体 (~50行)
+├── generate.cpp/.hpp       ← 🔜 【新建】generateImage() (~1250行)
 │   【核心】从 main.cpp 提取，改为接受 const RequestContext& 参数
-├── lowram.cpp/.hpp         ← 【新建】SDXL lowram 6 个 load/release helpers (~90行)
-├── upscale.cpp/.hpp        ← 【新建】upscaleImageWithModel / upscaleImageWithMNN (~200行)
-├── server_cli.cpp/.hpp     ← 【新建】processCommandLine() (~400行)
-├── tokenize.cpp/.hpp       ← 【新建】tokenize handler + prefixBytesWithinBudget (~100行)
-└── utils.cpp/.hpp          ← 【新建】UTF-8, base64, SHA256, prompt_cache (~350行)
+├── lowram.cpp/.hpp         ← ✅ 已完成：load/release helpers 已迁入 QnnHelper.cpp / MnnHelper.cpp
+├── upscale.cpp/.hpp        ← ✅ 已完成：upscaleImageWithModel / upscaleImageWithMNN 已迁入 QnnHelper.cpp / MnnHelper.cpp
+├── server_cli.cpp/.hpp     ← 🔜 【新建】processCommandLine() (~400行)
+├── tokenize.cpp/.hpp       ← 🔜 【新建】tokenize handler + prefixBytesWithinBudget (~100行)
+└── utils.cpp/.hpp          ← 🔜 【新建】UTF-8, base64, SHA256, prompt_cache (~350行)
 ```
 
 **拆分优先级**：
 1. `context.hpp` + `generate.cpp`（解决 P0 的核心变更，约需修改 200 处全局变量引用）
 2. `utils.cpp`（350 行工具函数，零依赖，独立性强）
-3. `lowram.cpp` + `upscale.cpp` + `tokenize.cpp`（各 ~100-200 行，依赖明确）
+3. ~~`lowram.cpp` + `upscale.cpp` + `tokenize.cpp`（各 ~100-200 行，依赖明确）~~ lowram + upscale 已完成；tokenize 待拆分
 4. `server_cli.cpp`（CLI 解析，与 HTTP 服务器解耦）
 5. `server_main.cpp`（最终极简 main，仅含服务器路由注册）
 
-**CMakeLists.txt 变更**：将 `file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")` 改为 glob 多个 `.cpp` 文件。
+**CMakeLists.txt 变更**：✅ 已完成 — 已将 `file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")` 改为 glob 所有 `src/*.cpp`，新增 `.cpp` 文件自动纳入编译。
 
 ---
 
@@ -263,3 +265,4 @@ app/src/main/cpp/src/
 | 2026-06-17 | **新增：POST /shutdown** — 优雅关闭，发送 200 后异步 stop |
 | 2026-06-17 | Kotlin 侧：BackendManager 改为检测 HTTP 503 + 解析 `Retry-After` 头 |
 | 2026-06-17 | 📋 **文件拆分计划** — 记录于 §2.8：context.hpp → generate.cpp → utils.cpp → lowram.cpp → upscale.cpp → tokenize.cpp → server_cli.cpp → server_main.cpp |
+| 2026-06-17 | 🔧 **P2 拆分：VAE Tiling Helper** — 新建 `VaeTilingHelper.cpp/.hpp`，提取 `blendVaeEncoderTiles()`、`blendVaeOutputTiles()`、`calculateVaeTilePositions()`、`calculateTilePositions()` 四个函数；main.cpp 更新 include 并重命名 call sites 为 camelCase；CMakeLists.txt 无需变更（已 glob `src/*.cpp`）；Kotlin 侧无需变更（HTTP API 不受内部重构影响） |
