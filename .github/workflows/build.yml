@@ -137,6 +137,7 @@ jobs:
       # -------- cmake configure & build --------
       - name: CMake configure & build
         id: cmake-build
+        timeout-minutes: 30
         working-directory: app/src/main/cpp
         run: |
           set -euo pipefail
@@ -273,6 +274,7 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
 
       - name: Get or create release keystore from qairt
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           # Default Android debug credentials (public, known values)
@@ -324,6 +326,7 @@ jobs:
 
       - name: Gradle assemble
         id: gradle-build
+        timeout-minutes: 20
         run: |
           set -euo pipefail
           GRADLE_ARGS="assembleBasicRelease -x ktlintCheck -x detekt"
@@ -377,6 +380,7 @@ jobs:
   # ============================================================
   github-release:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [native, apk]
     if: |
       always() &&
