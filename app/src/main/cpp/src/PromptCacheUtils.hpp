@@ -8,7 +8,6 @@
 #include "Sha256.hpp"
 
 class PromptProcessor;
-extern PromptProcessor promptProcessor;
 
 // ── Persistent per-prompt CLIP cache lives on disk under
 //     {modelDir}/cache/prompt_<sha32>.bin
@@ -16,6 +15,8 @@ extern PromptProcessor promptProcessor;
 //     hit still skips half the CLIP work.  A prompt that uses a
 //     textual-inversion embedding is excluded (its CLIP output depends on
 //     embedding state we don't want baked into a stable file).
+// ── BKND-PROC-0008: promptHasEmbedding() accepts PromptProcessor& — pure
+//     function, no extern dependency.
 namespace prompt_cache {
 
 constexpr char kMagic[4] = {'P', 'C', 'L', 'P'};
@@ -41,9 +42,9 @@ struct Header {
 int utf8ByteOffsetToUtf16(const std::string &s, size_t byteOffset);
 
 // True if any token of `prompt_text` resolves to a textual-inversion
-// embedding loaded by promptProcessor. Used to opt that side out of the
-// persistent prompt cache.
-bool promptHasEmbedding(const std::string &prompt_text);
+// embedding loaded by the given PromptProcessor. Used to opt that side
+// out of the persistent prompt cache.  Pure function — no globals.
+bool promptHasEmbedding(PromptProcessor &pp, const std::string &prompt_text);
 
 std::string promptCachePath(const std::string &cache_dir,
                             const std::string &prompt_text);

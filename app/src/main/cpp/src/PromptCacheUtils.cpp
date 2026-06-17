@@ -30,8 +30,8 @@ int utf8ByteOffsetToUtf16(const std::string &s, size_t byteOffset) {
   return units;
 }
 
-bool promptHasEmbedding(const std::string &prompt_text) {
-  auto tokens = promptProcessor.process(prompt_text);
+bool promptHasEmbedding(PromptProcessor &pp, const std::string &prompt_text) {
+  auto tokens = pp.process(prompt_text);
   for (const auto &t : tokens) {
     if (t.is_embedding) return true;
   }

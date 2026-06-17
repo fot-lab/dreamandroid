@@ -47,18 +47,12 @@ struct PatchedModelBuffer {
   }
 };
 
-// ── Extern globals (defined in main.cpp) ──────────────────────────
-extern std::unique_ptr<QnnModel> unetApp;
-extern std::unique_ptr<QnnModel> vaeDecoderApp;
-extern std::unique_ptr<QnnModel> vaeEncoderApp;
-extern std::string unetPath;
-extern std::string vaeDecoderPath;
-extern std::string vaeEncoderPath;
-extern QnnFunctionPointers g_qnnSystemFuncs;
-extern std::string g_backendPathCmd;
-extern std::unique_ptr<PatchedModelBuffer> g_unetPatchedBuffer;
+// Forward declarations
+struct AppContext;
 
 // ── QNN Helpers ───────────────────────────────────────────────────
+// BKND-PROC-0008 P3: Pure functions — no extern globals.
+// Lowram load/release accept AppContext&.
 
 /// Create a QnnModel from a .bin file, loading the QNN backend and
 /// function pointers dynamically.
@@ -66,22 +60,22 @@ std::unique_ptr<QnnModel> createQnnModel(const std::string &modelPath,
                                          const std::string &modelName);
 
 /// SDXL lowram: lazy-load QNN UNET.
-void loadSdxlQnnUnetIfNeeded();
+void loadSdxlQnnUnetIfNeeded(AppContext &ctx);
 
 /// SDXL lowram: release QNN UNET.
-void releaseSdxlQnnUnet();
+void releaseSdxlQnnUnet(AppContext &ctx);
 
 /// SDXL lowram: lazy-load QNN VAE Decoder.
-void loadSdxlQnnVaeDecoderIfNeeded();
+void loadSdxlQnnVaeDecoderIfNeeded(AppContext &ctx);
 
 /// SDXL lowram: release QNN VAE Decoder.
-void releaseSdxlQnnVaeDecoder();
+void releaseSdxlQnnVaeDecoder(AppContext &ctx);
 
 /// SDXL lowram: lazy-load QNN VAE Encoder.
-void loadSdxlQnnVaeEncoderIfNeeded();
+void loadSdxlQnnVaeEncoderIfNeeded(AppContext &ctx);
 
 /// SDXL lowram: release QNN VAE Encoder.
-void releaseSdxlQnnVaeEncoder();
+void releaseSdxlQnnVaeEncoder(AppContext &ctx);
 
 /// Upscale image using QNN model with tiling and blending.
 xt::xarray<uint8_t> upscaleImageWithModel(

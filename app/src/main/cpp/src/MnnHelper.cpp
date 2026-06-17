@@ -16,6 +16,7 @@
 #include <iostream>
 #include <mutex>
 
+#include "AppContext.hpp"
 #include "SDUtils.hpp"
 #include "ServerState.hpp"
 
@@ -74,16 +75,18 @@ MNN::Interpreter *createMnnInterpreterMmap(const char *path) {
 }
 
 // ── SDXL Lowram CLIP (MNN) ────────────────────────────────────────
-void loadSdxlClipMnnIfNeeded() {
+void loadSdxlClipMnnIfNeeded(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!clipInterpreter) {
-    clipInterpreter = createMnnInterpreterMmap(clipPath.c_str());
-    if (!clipInterpreter)
+  auto &m = ctx.models;
+  auto &c = ctx.conf;
+  if (!m.clipInterpreter) {
+    m.clipInterpreter = createMnnInterpreterMmap(c.clipPath.c_str());
+    if (!m.clipInterpreter)
       throw std::runtime_error("[lowram] Failed load SDXL CLIP1 MNN");
   }
-  if (!clip2Interpreter) {
-    clip2Interpreter = createMnnInterpreterMmap(clip2Path.c_str());
-    if (!clip2Interpreter)
+  if (!m.clip2Interpreter) {
+    m.clip2Interpreter = createMnnInterpreterMmap(c.clip2Path.c_str());
+    if (!m.clip2Interpreter)
       throw std::runtime_error("[lowram] Failed load SDXL CLIP2 MNN");
   }
   MNN::ScheduleConfig cfg;
@@ -93,45 +96,46 @@ void loadSdxlClipMnnIfNeeded() {
   bk.memory = MNN::BackendConfig::Memory_Low;
   bk.power = MNN::BackendConfig::Power_High;
   cfg.backendConfig = &bk;
-  if (!clipSession) {
-    clipSession = clipInterpreter->createSession(cfg);
-    if (!clipSession)
+  if (!m.clipSession) {
+    m.clipSession = m.clipInterpreter->createSession(cfg);
+    if (!m.clipSession)
       throw std::runtime_error("[lowram] Failed create SDXL CLIP1 session");
-    auto in1 = clipInterpreter->getSessionInput(clipSession, "input_embedding");
-    clipInterpreter->resizeTensor(in1, {1, 77, text_embedding_size});
-    clipInterpreter->resizeSession(clipSession);
-    clipInterpreter->releaseModel();
+    auto in1 = m.clipInterpreter->getSessionInput(m.clipSession, "input_embedding");
+    m.clipInterpreter->resizeTensor(in1, {1, 77, text_embedding_size});
+    m.clipInterpreter->resizeSession(m.clipSession);
+    m.clipInterpreter->releaseModel();
   }
-  if (!clip2Session) {
-    clip2Session = clip2Interpreter->createSession(cfg);
-    if (!clip2Session)
+  if (!m.clip2Session) {
+    m.clip2Session = m.clip2Interpreter->createSession(cfg);
+    if (!m.clip2Session)
       throw std::runtime_error("[lowram] Failed create SDXL CLIP2 session");
     auto in2 =
-        clip2Interpreter->getSessionInput(clip2Session, "input_embedding");
-    clip2Interpreter->resizeTensor(in2, {1, 77, text_embedding_size_2});
-    clip2Interpreter->resizeSession(clip2Session);
-    clip2Interpreter->releaseModel();
+        m.clip2Interpreter->getSessionInput(m.clip2Session, "input_embedding");
+    m.clip2Interpreter->resizeTensor(in2, {1, 77, text_embedding_size_2});
+    m.clip2Interpreter->resizeSession(m.clip2Session);
+    m.clip2Interpreter->releaseModel();
   }
   QNN_INFO("[lowram] SDXL CLIP MNN loaded");
 }
 
-void releaseSdxlClipMnn() {
+void releaseSdxlClipMnn(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (clipSession && clipInterpreter) {
-    clipInterpreter->releaseSession(clipSession);
+  auto &m = ctx.models;
+  if (m.clipSession && m.clipInterpreter) {
+    m.clipInterpreter->releaseSession(m.clipSession);
   }
-  clipSession = nullptr;
-  if (clip2Session && clip2Interpreter) {
-    clip2Interpreter->releaseSession(clip2Session);
+  m.clipSession = nullptr;
+  if (m.clip2Session && m.clip2Interpreter) {
+    m.clip2Interpreter->releaseSession(m.clip2Session);
   }
-  clip2Session = nullptr;
-  if (clipInterpreter) {
-    delete clipInterpreter;
-    clipInterpreter = nullptr;
+  m.clip2Session = nullptr;
+  if (m.clipInterpreter) {
+    delete m.clipInterpreter;
+    m.clipInterpreter = nullptr;
   }
-  if (clip2Interpreter) {
-    delete clip2Interpreter;
-    clip2Interpreter = nullptr;
+  if (m.clip2Interpreter) {
+    delete m.clip2Interpreter;
+    m.clip2Interpreter = nullptr;
   }
   QNN_INFO("[lowram] SDXL CLIP MNN released");
 }

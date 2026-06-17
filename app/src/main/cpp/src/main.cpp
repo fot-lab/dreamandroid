@@ -1,4 +1,4 @@
-#include <fcntl.h>
+﻿#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -18,6 +18,7 @@
 #include <thread>
 #include <vector>
 
+#include "AppContext.hpp"
 #include "Config.hpp"
 #include "DPMSolverMultistepScheduler.hpp"
 #include "EulerAncestralDiscreteScheduler.hpp"
@@ -115,53 +116,69 @@ class TokenEmbTable {
 // MmapFile moved to QnnHelper.hpp — its only consumer (applyZstdPatchToBuffer)
 // now lives in QnnHelper.cpp.
 
-// The server runs exactly one of three fixed model formats, selected by
-// --type. Each format implies the full file layout under --model_dir, the
-// diffusion backend (MNN vs QNN), and the CLIP pipeline; nothing else is
-// configurable per component.
-//   sd15cpu: tokenizer.json clip_v2.mnn pos_emb.bin token_emb.bin
-//            unet.mnn vae_encoder.mnn vae_decoder.mnn
-//   sd15npu: tokenizer.json clip_v2.mnn pos_emb.bin token_emb.bin
-//            unet.bin vae_encoder.bin vae_decoder.bin [+resolution patches]
-//   sdxl:    tokenizer.json clip.mnn pos_emb.bin token_emb.bin clip_2.mnn
-//            pos_emb_2.bin token_emb_2.bin unet.bin vae_encoder.bin
-//            vae_decoder.bin
-// CLIP always runs on MNN (CPU) with precomputed token/pos embeddings.
-int port = 8081;
-std::string listen_address = "127.0.0.1";
-bool use_v_pred = false;
-bool use_mnn = false;    // --type sd15cpu: whole pipeline on MNN
-bool sdxl_mode = false;  // --type sdxl
-bool use_safety_checker = false;
-bool upscaler_mode = false;
-bool lowram_mode = false;
-bool no_img2img = false;  // skip the VAE encoder entirely
-float nsfw_threshold = 0.5f;
-std::string clipPath, clip2Path, unetPath, vaeDecoderPath, vaeEncoderPath,
-    safetyCheckerPath, tokenizerPath, patchPath, modelDir;
-std::vector<float> pos_emb;
-TokenEmbTable token_emb;  // FP16, mmap-backed when stored as FP16 on disk
-std::vector<float> pos_emb_2;
-TokenEmbTable token_emb_2;  // SDXL encoder 2 token embeddings (FP16)
-std::shared_ptr<tokenizers::Tokenizer> tokenizer;
-PromptProcessor promptProcessor;
-std::unique_ptr<QnnModel> unetApp = nullptr;
-std::unique_ptr<QnnModel> vaeDecoderApp = nullptr;
-std::unique_ptr<QnnModel> vaeEncoderApp = nullptr;
-MNN::Interpreter *clipInterpreter = nullptr;
-MNN::Interpreter *clip2Interpreter = nullptr;
-MNN::Interpreter *safetyCheckerInterpreter = nullptr;
+// ── BKND-PROC-0008 P2: Centralised Application State
+//
+// All mutable application state lives in AppContext, owned by main().
+// Per-request mutable state is isolated in RequestContext (passed as const&
+// to generateImage).  Model objects (MNN/QNN/CLIP) are legitimate shared
+// resources loaded once at startup.
+//
+// Macro aliases provide backward-compatible access during migration;
+// the long-term goal is explicit AppContext& parameters on all functions.
 
-// MNN Session Pointers
-MNN::Session *clipSession = nullptr;
-MNN::Session *clip2Session = nullptr;
-MNN::Session *safetyCheckerSession = nullptr;
+#define gctx  (appCtx)
+#define gconf (appCtx.conf)
+#define gmod  (appCtx.models)
+#define gsvr  (appCtx.serverState)
 
+// Shorthand macros for frequently-accessed fields.
+// All expand to appCtx.conf.xxx or appCtx.models.xxx.
+#define sdxl_mode           (gconf.sdxl_mode)
+#define use_mnn             (gconf.use_mnn)
+#define upscaler_mode       (gconf.upscaler_mode)
+#define lowram_mode         (gconf.lowram_mode)
+#define no_img2img          (gconf.no_img2img)
+#define use_v_pred          (gconf.use_v_pred)
+#define use_safety_checker  (gconf.use_safety_checker)
+#define cvt_model           (gconf.cvt_model)
+#define nsfw_threshold      (gconf.nsfw_threshold)
+#define port                (gconf.port)
+#define listen_address      (gconf.listen_address)
+#define clip_skip_2         (gmod.clip_skip_2)
+#define clipPath            (gconf.clipPath)
+#define clip2Path           (gconf.clip2Path)
+#define unetPath            (gconf.unetPath)
+#define vaeDecoderPath      (gconf.vaeDecoderPath)
+#define vaeEncoderPath      (gconf.vaeEncoderPath)
+#define safetyCheckerPath   (gconf.safetyCheckerPath)
+#define tokenizerPath       (gconf.tokenizerPath)
+#define patchPath           (gconf.patchPath)
+#define modelDir            (gconf.modelDir)
+#define g_backendPathCmd    (gconf.backendPathCmd)
+#define g_qnnSystemFuncs    (gmod.qnnSystemFuncs)
+#define g_unetPatchedBuffer (gmod.unetPatchedBuffer)
+#define unetApp             (gmod.unetApp)
+#define vaeDecoderApp       (gmod.vaeDecoderApp)
+#define vaeEncoderApp       (gmod.vaeEncoderApp)
+#define clipInterpreter     (gmod.clipInterpreter)
+#define clip2Interpreter    (gmod.clip2Interpreter)
+#define safetyCheckerInterpreter (gmod.safetyCheckerInterpreter)
+#define clipSession         (gmod.clipSession)
+#define clip2Session        (gmod.clip2Session)
+#define safetyCheckerSession (gmod.safetyCheckerSession)
+#define pos_emb             (gmod.pos_emb)
+#define token_emb           (gmod.token_emb)
+#define pos_emb_2           (gmod.pos_emb_2)
+#define token_emb_2         (gmod.token_emb_2)
+#define tokenizer           (gmod.tokenizer)
+#define promptProcessor     (gmod.promptProcessor)
+#define g_serverState       (gsvr)
+
+// ── Per-request globals (to be migrated to RequestContext in next step)
+//     These are still global for now to minimize diff; the /generate handler
+//     fills them, and generateImage() reads them.
 std::string prompt;
 std::string negative_prompt;
-
-// prompt_cache namespace → PromptCacheUtils.hpp (BKND-PROC-0008 P2 split)
-
 int steps;
 float cfg;
 unsigned seed;
@@ -173,47 +190,13 @@ float denoise_strength;
 bool request_img2img;
 bool request_has_mask;
 bool use_opencl;
-
-// SDXL aspect-ratio padded inpaint: when a non-1:1 ratio is requested for an
-// SDXL model, the pipeline still generates a 1024x1024 canvas, masks the
-// outer black border, and crops the centered region before returning.
 bool aspect_pad_inpaint = false;
 int target_crop_width = 0;
 int target_crop_height = 0;
-// True only when the base image is the synthetic white-on-black canvas
-// (txt2img path); this lets the VAE-encoder cache safely persist the encoded
-// latents per target size. False when the user uploaded their own image
-// (img2img / inpaint), where the base image is content-dependent.
 bool aspect_pad_synthetic_base = false;
-// True when the request actually carried a "mask" field (real inpaint).
-// False when the mask was auto-installed by the aspect-padding pipeline
-// (txt2img / img2img-with-aspect). Used to decide whether to laplacian-blend
-// the decoded image against the original after generation.
 bool user_supplied_mask = false;
-
-bool cvt_model = false;
 bool show_diffusion_process = false;
 int show_diffusion_stride = 1;
-
-// PatchedModelBuffer struct moved to QnnHelper.hpp (used by QNN patching code).
-
-std::unique_ptr<PatchedModelBuffer> g_unetPatchedBuffer;
-bool clip_skip_2 = false;
-
-// QNN function pointers and backend path for dynamic model loading
-QnnFunctionPointers g_qnnSystemFuncs;
-std::string g_backendPathCmd;
-
-// ── BKND-PROC-0008: Concurrency & Progress Guards ──
-//
-// Replaced scattered atomic/mutex globals with a centralised ServerState
-// object (see ServerState.hpp).  This provides:
-//   - Idle/Busy/ShuttingDown state machine
-//   - Atomic progress tracking for GET /progress
-//   - Generation watchdog with configurable timeout (prevents deadlock)
-//   - Clean acquire/release semantics
-
-ServerState g_serverState;
 
 // utf8ByteOffsetToUtf16 → PromptCacheUtils.cpp (BKND-PROC-0008 P2 split)
 
@@ -894,10 +877,10 @@ GenerationResult generateImage(
   ScopeExit lowramReleaseGuard;
   if (sdxl_lowram) {
     lowramReleaseGuard.fn = []() {
-      if (clipInterpreter || clip2Interpreter) releaseSdxlClipMnn();
-      if (unetApp) releaseSdxlQnnUnet();
-      if (vaeDecoderApp) releaseSdxlQnnVaeDecoder();
-      if (vaeEncoderApp) releaseSdxlQnnVaeEncoder();
+      if (clipInterpreter || clip2Interpreter) releaseSdxlClipMnn(gctx);
+      if (unetApp) releaseSdxlQnnUnet(gctx);
+      if (vaeDecoderApp) releaseSdxlQnnVaeDecoder(gctx);
+      if (vaeEncoderApp) releaseSdxlQnnVaeEncoder(gctx);
     };
   }
 
@@ -942,8 +925,8 @@ GenerationResult generateImage(
     // caching: the CLIP output then depends on currently-loaded embedding
     // data we don't want frozen into a stable file.
     std::string prompt_cache_dir = ensureCacheDir(modelDir);
-    bool neg_has_emb = promptHasEmbedding(negative_prompt);
-    bool pos_has_emb = promptHasEmbedding(prompt);
+    bool neg_has_emb = promptHasEmbedding(promptProcessor, negative_prompt);
+    bool pos_has_emb = promptHasEmbedding(promptProcessor, prompt);
     bool neg_cache_eligible = !prompt_cache_dir.empty() && !neg_has_emb;
     bool pos_cache_eligible = !prompt_cache_dir.empty() && !pos_has_emb;
 
@@ -989,7 +972,7 @@ GenerationResult generateImage(
       float *embed_ptr = text_embedding_float.data();
 
       if (sdxl_mode) {
-        if (sdxl_lowram) loadSdxlClipMnnIfNeeded();
+        if (sdxl_lowram) loadSdxlClipMnnIfNeeded(gctx);
         if (!clipInterpreter || !clip2Interpreter)
           throw std::runtime_error("SDXL CLIP interpreters not initialized!");
 
@@ -1058,7 +1041,7 @@ GenerationResult generateImage(
               sdxl_encoder_hidden_states.data() + 77 * sdxl_concat_dim,
               sdxl_text_embeds.data() + text_embedding_size_2);
         }
-        if (sdxl_lowram) releaseSdxlClipMnn();
+        if (sdxl_lowram) releaseSdxlClipMnn(gctx);
       } else {
         // SD1.5: persistent CLIP session on NPU builds, per-request load on
         // CPU builds to keep idle memory low.
@@ -1320,7 +1303,7 @@ GenerationResult generateImage(
             currentVaeEncoderInterpreter->releaseSession(currentVaeEncSession);
             delete currentVaeEncoderInterpreter;
           } else {
-            if (sdxl_lowram) loadSdxlQnnVaeEncoderIfNeeded();
+            if (sdxl_lowram) loadSdxlQnnVaeEncoderIfNeeded(gctx);
             if (!vaeEncoderApp)
               throw std::runtime_error("Global vaeEncoderApp not init!");
             if (sdxl_mode) {
@@ -1334,7 +1317,7 @@ GenerationResult generateImage(
                       img_data.data(), vae_enc_mean.data(), vae_enc_std.data()))
                 throw std::runtime_error("QNN VAE enc exec failed");
             }
-            if (sdxl_lowram) releaseSdxlQnnVaeEncoder();
+            if (sdxl_lowram) releaseSdxlQnnVaeEncoder(gctx);
           }
 
           // Persist the freshly-computed aspect-canvas latent stats for reuse
@@ -1543,7 +1526,7 @@ GenerationResult generateImage(
       currentUnetInterpreter->releaseModel();
     }
 
-    if (sdxl_lowram) loadSdxlQnnUnetIfNeeded();
+    if (sdxl_lowram) loadSdxlQnnUnetIfNeeded(gctx);
 
     for (int i = start_step; i < timesteps.size(); ++i) {
       if (show_diffusion_process && !use_mnn && !sdxl_lowram &&
@@ -1825,7 +1808,7 @@ GenerationResult generateImage(
       if (currentUnetInterpreter) delete currentUnetInterpreter;
     }
 
-    if (sdxl_lowram) releaseSdxlQnnUnet();
+    if (sdxl_lowram) releaseSdxlQnnUnet(gctx);
 
     // --- VAE Decode ---
     auto vae_dec_start = std::chrono::high_resolution_clock::now();
@@ -1912,7 +1895,7 @@ GenerationResult generateImage(
         currentVaeDecoderInterpreter->releaseSession(currentVaeDecSession);
         delete currentVaeDecoderInterpreter;
       } else {
-        if (sdxl_lowram) loadSdxlQnnVaeDecoderIfNeeded();
+        if (sdxl_lowram) loadSdxlQnnVaeDecoderIfNeeded(gctx);
         if (!vaeDecoderApp)
           throw std::runtime_error("Global vaeDecoderApp not init!");
 
@@ -1927,7 +1910,7 @@ GenerationResult generateImage(
                                                      vae_dec_out_pixels.data()))
             throw std::runtime_error("QNN VAE dec exec failed");
         }
-        if (sdxl_lowram) releaseSdxlQnnVaeDecoder();
+        if (sdxl_lowram) releaseSdxlQnnVaeDecoder(gctx);
       }
 
       std::vector<int> pixel_shape = {1, 3, output_height, output_width};
@@ -2120,6 +2103,11 @@ GenerationResult generateImage(
 
 // --- Main Function ---
 int main(int argc, char **argv) {
+  // ── BKND-PROC-0008 P2: Centralised application state ──
+  // All model objects, config, and server state are owned here.
+  // Macro aliases (defined above) expand to appCtx.conf.xxx / appCtx.models.xxx.
+  AppContext appCtx;
+
   using namespace qnn::tools;
   if (!qnn::log::initializeLogging()) {
     std::cerr << "ERROR: Init logging failed!\n";

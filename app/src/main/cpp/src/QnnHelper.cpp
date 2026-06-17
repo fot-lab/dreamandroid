@@ -3,6 +3,8 @@
 
 #include "QnnHelper.hpp"
 
+#include "AppContext.hpp"
+
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -178,67 +180,73 @@ std::unique_ptr<PatchedModelBuffer> applyZstdPatchToBuffer(
 }  // namespace qnn
 
 // ── SDXL Lowram QNN helpers ────────────────────────────────────────
-void loadSdxlQnnUnetIfNeeded() {
+void loadSdxlQnnUnetIfNeeded(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (unetApp) return;
-  unetApp = createQnnModel(unetPath, "unet");
-  if (!unetApp) throw std::runtime_error("[lowram] Failed create SDXL UNET");
-  if (qnn::tools::sample_app::initializeQnnApp("UNET", unetApp) !=
+  auto &m = ctx.models;
+  auto &c = ctx.conf;
+  if (m.unetApp) return;
+  m.unetApp = createQnnModel(c.unetPath, "unet");
+  if (!m.unetApp) throw std::runtime_error("[lowram] Failed create SDXL UNET");
+  if (qnn::tools::sample_app::initializeQnnApp("UNET", m.unetApp) !=
       EXIT_SUCCESS) {
-    unetApp.reset();
+    m.unetApp.reset();
     throw std::runtime_error("[lowram] Failed init SDXL UNET");
   }
   QNN_INFO("[lowram] SDXL UNET loaded");
 }
 
-void releaseSdxlQnnUnet() {
+void releaseSdxlQnnUnet(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!unetApp) return;
-  unetApp.reset();
+  if (!ctx.models.unetApp) return;
+  ctx.models.unetApp.reset();
   QNN_INFO("[lowram] SDXL UNET released");
 }
 
-void loadSdxlQnnVaeDecoderIfNeeded() {
+void loadSdxlQnnVaeDecoderIfNeeded(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (vaeDecoderApp) return;
-  vaeDecoderApp = createQnnModel(vaeDecoderPath, "vae_decoder");
-  if (!vaeDecoderApp)
+  auto &m = ctx.models;
+  auto &c = ctx.conf;
+  if (m.vaeDecoderApp) return;
+  m.vaeDecoderApp = createQnnModel(c.vaeDecoderPath, "vae_decoder");
+  if (!m.vaeDecoderApp)
     throw std::runtime_error("[lowram] Failed create SDXL VAE Decoder");
-  if (qnn::tools::sample_app::initializeQnnApp("VAEDecoder", vaeDecoderApp) !=
+  if (qnn::tools::sample_app::initializeQnnApp("VAEDecoder", m.vaeDecoderApp) !=
       EXIT_SUCCESS) {
-    vaeDecoderApp.reset();
+    m.vaeDecoderApp.reset();
     throw std::runtime_error("[lowram] Failed init SDXL VAE Decoder");
   }
   QNN_INFO("[lowram] SDXL VAE Decoder loaded");
 }
 
-void releaseSdxlQnnVaeDecoder() {
+void releaseSdxlQnnVaeDecoder(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!vaeDecoderApp) return;
-  vaeDecoderApp.reset();
+  if (!ctx.models.vaeDecoderApp) return;
+  ctx.models.vaeDecoderApp.reset();
   QNN_INFO("[lowram] SDXL VAE Decoder released");
 }
 
-void loadSdxlQnnVaeEncoderIfNeeded() {
+void loadSdxlQnnVaeEncoderIfNeeded(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (vaeEncoderApp) return;
-  if (vaeEncoderPath.empty())
+  auto &m = ctx.models;
+  auto &c = ctx.conf;
+  if (m.vaeEncoderApp) return;
+  if (c.vaeEncoderPath.empty())
     throw std::runtime_error("[lowram] SDXL VAE Encoder path missing");
-  vaeEncoderApp = createQnnModel(vaeEncoderPath, "vae_encoder");
-  if (!vaeEncoderApp)
+  m.vaeEncoderApp = createQnnModel(c.vaeEncoderPath, "vae_encoder");
+  if (!m.vaeEncoderApp)
     throw std::runtime_error("[lowram] Failed create SDXL VAE Encoder");
-  if (qnn::tools::sample_app::initializeQnnApp("VAEEncoder", vaeEncoderApp) !=
+  if (qnn::tools::sample_app::initializeQnnApp("VAEEncoder", m.vaeEncoderApp) !=
       EXIT_SUCCESS) {
-    vaeEncoderApp.reset();
+    m.vaeEncoderApp.reset();
     throw std::runtime_error("[lowram] Failed init SDXL VAE Encoder");
   }
   QNN_INFO("[lowram] SDXL VAE Encoder loaded");
 }
 
-void releaseSdxlQnnVaeEncoder() {
+void releaseSdxlQnnVaeEncoder(AppContext &ctx) {
   std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!vaeEncoderApp) return;
-  vaeEncoderApp.reset();
+  if (!ctx.models.vaeEncoderApp) return;
+  ctx.models.vaeEncoderApp.reset();
   QNN_INFO("[lowram] SDXL VAE Encoder released");
 }
 

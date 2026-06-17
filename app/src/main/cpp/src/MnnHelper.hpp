@@ -3,8 +3,13 @@
 //
 // Extracted from main.cpp per BKND-PROC-0008 P2 file-split plan.
 // Contains MNN model loading, CLIP session management, and MNN-based
-// upscaling.  All functions operate on shared globals declared extern
-// here (defined in main.cpp).
+// upscaling.
+//
+// BKND-PROC-0008 P3: Pure functions — no extern globals.
+//   - loadSdxlClipMnnIfNeeded / releaseSdxlClipMnn accept AppContext&.
+//   - createMnnInterpreterMmap is fully self-contained.
+//   - upscaleImageWithMNN is fully self-contained.
+//   - ensureCacheDir is fully self-contained.
 
 #include <MNN/Interpreter.hpp>
 #include <functional>
@@ -14,16 +19,8 @@
 
 #include "xtensor/xarray.hpp"
 
-// ── Extern globals (defined in main.cpp) ──────────────────────────
-extern MNN::Interpreter *clipInterpreter;
-extern MNN::Interpreter *clip2Interpreter;
-extern MNN::Session *clipSession;
-extern MNN::Session *clip2Session;
-extern std::string clipPath;
-extern std::string clip2Path;
-extern int text_embedding_size;
-extern int text_embedding_size_2;
-extern bool sdxl_mode;
+// Forward declarations
+struct AppContext;
 
 // ── MNN Helpers ───────────────────────────────────────────────────
 
@@ -36,10 +33,10 @@ std::string ensureCacheDir(const std::string &model_dir);
 MNN::Interpreter *createMnnInterpreterMmap(const char *path);
 
 /// SDXL lowram: lazy-load CLIP1/CLIP2 MNN interpreters + sessions.
-void loadSdxlClipMnnIfNeeded();
+void loadSdxlClipMnnIfNeeded(AppContext &ctx);
 
 /// SDXL lowram: release CLIP1/CLIP2 MNN interpreters + sessions.
-void releaseSdxlClipMnn();
+void releaseSdxlClipMnn(AppContext &ctx);
 
 /// Upscale image using MNN model with tiling and blending.
 xt::xarray<uint8_t> upscaleImageWithMNN(

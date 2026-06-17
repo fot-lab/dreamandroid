@@ -198,44 +198,69 @@ static void releaseSdxlClipMnn() {
 
 新增 `POST /shutdown`：设置 `ShuttingDown` 状态 → 返回 200 → 异步 `svr.stop()`。BackendManager 的 orphan detection 通过 health check 感知。
 
-### 2.8 🔜 P2: 文件拆分计划（BKND-PROC-0008 阶段 2）
+### 2.8 🏗️ P2/P3: 文件拆分 + 集中状态管理（BKND-PROC-0008 阶段 2 & 3）
+
+**P3 架构：AppContext 统一状态管理**
+
+```
+AppContext appCtx;  // owned by main()
+├── Config (immutable after CLI parsing)
+│   ├── Pipeline: use_mnn, sdxl_mode, use_v_pred, ...
+│   ├── Paths:    clipPath, unetPath, vaeDecoderPath, ...
+│   └── Server:   port, listen_address, nsfw_threshold
+├── Models (mutable, loaded once or on-demand)
+│   ├── MNN:      clip/clip2/safety interpreters + sessions
+│   ├── QNN:      unet/vae apps + function pointers
+│   ├── CLIP:     pos_emb, token_emb tables
+│   └── Tokenizer + PromptProcessor
+└── ServerState (concurrency, progress, watchdog)
+```
+
+**宏别名兼容层**（main.cpp 内部）：
+```cpp
+#define sdxl_mode  (gconf.sdxl_mode)   // → appCtx.conf.sdxl_mode
+#define unetApp    (gmod.unetApp)      // → appCtx.models.unetApp
+#define g_serverState (gsvr)           // → appCtx.serverState
+// ... 共 40+ 别名
+```
+
+**拆分文件状态**：
 
 ```
 app/src/main/cpp/src/
-├── server_main.cpp         ← 🔜 main() + HTTP 路由注册 (~400行)
-│   【延期】依赖 30+ 全局变量，需待 context.hpp 就绪后推进
+├── AppContext.hpp          ← ✅ 已创建：集中状态管理 struct
+├── RequestContext.hpp      ← ✅ 已创建：每次请求不可变参数
 ├── ServerState.hpp         ← ✅ 已创建：状态机 + 超时检测
-├── VaeTilingHelper.cpp/.hpp ← ✅ 已创建：VAE encoder/decoder tiling blender + tile pos (~270行)
-│   【已提取】blendVaeEncoderTiles / blendVaeOutputTiles / calculateVaeTilePositions / calculateTilePositions
-├── PromptCacheUtils.cpp/.hpp ← ✅ 已创建：prompt_cache 命名空间 + 缓存 I/O + UTF-8 转换 (~170行)
-│   【已提取】prompt_cache::Header/kMagic/kVersion/kModeSd15/kModeSdxl/kSeqLen,
-│             utf8ByteOffsetToUtf16, promptHasEmbedding, promptCachePath, loadPromptCache, savePromptCache
-├── TokenizeHandler.cpp/.hpp ← ✅ 已创建：tokenize HTTP handler + BPE budget search (~145行)
-│   【已提取】prefixBytesWithinBudget, handleTokenize；main.cpp lambda ↓ 为 1 行委托
-├── context.hpp             ← 🔜 【新建】RequestContext 结构体 (~50行)
-├── generate.cpp/.hpp       ← 🔜 【新建】generateImage() (~1250行)
-│   【核心】从 main.cpp 提取，改为接受 const RequestContext& 参数
-├── lowram.cpp/.hpp         ← ✅ 已完成：load/release helpers 已迁入 QnnHelper.cpp / MnnHelper.cpp
-├── upscale.cpp/.hpp        ← ✅ 已完成：upscaleImageWithModel / upscaleImageWithMNN 已迁入 QnnHelper.cpp / MnnHelper.cpp
-├── server_cli.cpp/.hpp     ← 🔜 【延期】processCommandLine() (~400行) 依赖 30+ 全局变量
-│   showHelp / showHelpAndExit 已可独立提取；processCommandLine 需 context.hpp 后重访
-└── utils.cpp/.hpp          ← ✅ 已完成 → PromptCacheUtils + TokenizeHandler (见上)
+├── VaeTilingHelper.cpp/.hpp ← ✅ 纯函数：VAE tiling blender + tile pos
+├── PromptCacheUtils.cpp/.hpp ← ✅ 纯函数：prompt cache I/O + UTF-8
+│   （promptHasEmbedding 接受 PromptProcessor&，无 extern 依赖）
+├── TokenizeHandler.cpp/.hpp ← ✅ 纯函数：tokenize handler + BPE budget
+│   （所有依赖通过参数传递）
+├── MnnHelper.cpp/.hpp      ← ✅ 纯函数化：无 extern globals
+│   （loadSdxlClipMnnIfNeeded/releaseSdxlClipMnn 接受 AppContext&）
+├── QnnHelper.cpp/.hpp      ← ✅ 纯函数化：无 extern globals
+│   （loadSdxlQnn*/releaseSdxlQnn* 接受 AppContext&）
+├── main.cpp                ← 进行中：宏别名过渡，待进一步拆分
+├── server_cli.cpp/.hpp     ← 🔜 下一步：processCommandLine (接受 AppContext&)
+├── server_main.cpp         ← 🔜 下一步：main() + HTTP 路由
+└── generate.cpp/.hpp       ← 🔜 下一步：generateImage() (接受 const RequestContext&)
 ```
 
 **拆分进度**：
 
-| 模块 | 状态 | 提取函数 | main.cpp 减少 |
-|------|------|----------|---------------|
-| VaeTilingHelper | ✅ | blendVae* ×2, calculateTilePos ×2 | ~270 行 |
-| PromptCacheUtils | ✅ | prompt_cache, utf8*, promptHas*, load/save* ×4 | ~130 行 |
-| TokenizeHandler | ✅ | prefixBytesWithinBudget, handleTokenize | ~105 行 |
-| server_cli / server_main | 🔜 延期 | — | 30+ globals 依赖 |
+| 模块 | 状态 | 提取内容 | 纯函数 |
+|------|------|----------|--------|
+| AppContext | ✅ | 60+ globals → 1 struct | N/A |
+| VaeTilingHelper | ✅ | blendVae* ×2, calculateTilePos ×2 | ✅ |
+| PromptCacheUtils | ✅ | prompt_cache, utf8*, load/save* ×5 | ✅ |
+| TokenizeHandler | ✅ | prefixBytesWithinBudget, handleTokenize | ✅ |
+| MnnHelper (lowram) | ✅ | load/release CLIP | ✅ (AppContext&) |
+| QnnHelper (lowram) | ✅ | load/release UNET/VAE ×6 | ✅ (AppContext&) |
+| server_cli | 🔜 | processCommandLine → 接受 AppContext& | 🔜 |
+| server_main | 🔜 | main() + HTTP routes | 🔜 |
+| generate | 🔜 | generateImage → const RequestContext& | 🔜 |
 
-**总计已减少**：~505 行从 main.cpp 迁出。
-
-**CMakeLists.txt 变更**：✅ 已完成 — 已将 `file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")` 改为 glob 所有 `src/*.cpp`，新增 `.cpp` 文件自动纳入编译。
-
-**🔧 Bugfix**：移除 main.cpp 中残留的 `namespace qnn::tools::sample_app` 关闭括号（QnnHelper.hpp 已在内部分别开启/关闭这些命名空间，残留会导致编译错误）。
+**CMakeLists.txt 变更**：✅ 已完成 — glob `src/*.cpp` 自动纳入新增文件。
 
 ---
 
@@ -281,3 +306,8 @@ app/src/main/cpp/src/
 | 2026-06-17 | 🔧 **P2 拆分：TokenizeHandler** — 新建 `TokenizeHandler.cpp/.hpp`，提取 `prefixBytesWithinBudget()` 和 `handleTokenize()`；main.cpp 中 `/tokenize` lambda 缩减为 1 行委托调用（`handleTokenize(req, res, sdxl_mode, text_embedding_size_2, promptProcessor, tokenizer.get())`）；`handleTokenize` 通过参数接收所有依赖 |
 | 2026-06-17 | 🐛 **Bugfix: 移除 main.cpp 残留命名空间关闭括号** — `}  // namespace sample_app / tools / qnn` 三个关闭括号为 MNN/QNN 拆分遗留，QnnHelper.hpp 已在内部分别开启/关闭这些命名空间；残留会导致编译错误（此前 CI 未触发 native 编译因此未暴露） |
 | 2026-06-17 | 📋 **更新拆分计划** — 标记 PromptCacheUtils、TokenizeHandler 为 ✅ 已完成；server_cli/server_main 标注为 🔜 延期（30+ 全局变量依赖，待 context.hpp 推进后重访）；累计 ~505 行从 main.cpp 迁出 |
+| 2026-06-17 | 🏗️ **P3: 集中状态管理 AppContext** — 创建 `AppContext.hpp`，将 60+ 个裸全局变量统一归入 `AppContext::Config`（不可变配置）、`AppContext::Models`（可变模型对象）、`AppContext::serverState`（并发控制）三个子结构；main.cpp 使用宏别名（`#define sdxl_mode (gconf.sdxl_mode)` 等）向后兼容，避免大面积 diff；`main()` 声明 `AppContext appCtx;` 统一持有所有权 |
+| 2026-06-17 | 🏗️ **P3: MnnHelper/QnnHelper 纯函数化** — 移除 MnnHelper.hpp/QnnHelper.hpp 中所有 `extern` 全局变量声明；`loadSdxlClipMnnIfNeeded`/`releaseSdxlClipMnn`/`loadSdxlQnn*`/`releaseSdxlQnn*` 全部改为接受 `AppContext&` 参数；MnnHelper.cpp/QnnHelper.cpp 通过 `ctx.models.xxx`/`ctx.conf.xxx` 访问模型和配置 |
+| 2026-06-17 | 🏗️ **P3: PromptCacheUtils 纯函数化** — 移除 `extern PromptProcessor promptProcessor;`；`promptHasEmbedding()` 改为接受 `PromptProcessor&` 参数；调用处更新为 `promptHasEmbedding(promptProcessor, text)` |
+| 2026-06-17 | 🏗️ **P3: TokenizeHandler 已纯函数化** — 确认 `handleTokenize()` 和 `prefixBytesWithinBudget()` 通过参数接收所有依赖（sdxl_mode, text_embedding_size_2, promptProcessor, tokenizer），不依赖任何 extern 全局变量 |
+| 2026-06-17 | 📋 **P3 架构总结** — AppContext 提供统一状态管理：`main()` 持有所有权 → `processCommandLine()` 填充配置 → HTTP handlers 通过宏/引用访问 → 提取的模块函数通过 `AppContext&` 参数接收模型/配置 → `RequestContext`（待集成）隔离每次请求的不可变参数 |
