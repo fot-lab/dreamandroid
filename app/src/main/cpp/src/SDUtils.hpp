@@ -1,6 +1,9 @@
 #ifndef SDUTILS_HPP
 #define SDUTILS_HPP
 
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -12,6 +15,50 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+// ── BKND-PROC-0008: TokenEmbTable moved from main.cpp ──
+// FP16 token-embedding lookup table. Either owns a converted vector (when the
+// on-disk data was FP32 and had to be narrowed) or maps the on-disk FP16 file
+// read-only. Lookups are sparse (only the prompt's token rows), so the mmap
+// path keeps the large table out of resident anonymous memory: untouched rows
+// never fault in, and the pages that do are clean and reclaimable.
+class TokenEmbTable {
+ public:
+  TokenEmbTable() = default;
+  ~TokenEmbTable() { reset(); }
+  TokenEmbTable(const TokenEmbTable &) = delete;
+  TokenEmbTable &operator=(const TokenEmbTable &) = delete;
+
+  bool empty() const { return data_ == nullptr; }
+  uint16_t operator[](size_t i) const { return data_[i]; }
+
+  void setOwned(std::vector<uint16_t> &&v) {
+    reset();
+    owned_ = std::move(v);
+    data_ = owned_.data();
+  }
+  void setMapped(void *base, size_t bytes) {
+    reset();
+    map_ = base;
+    mapBytes_ = bytes;
+    data_ = static_cast<const uint16_t *>(base);
+  }
+
+ private:
+  void reset() {
+    if (map_ != nullptr) {
+      munmap(map_, mapBytes_);
+      map_ = nullptr;
+      mapBytes_ = 0;
+    }
+    owned_ = std::vector<uint16_t>();
+    data_ = nullptr;
+  }
+  const uint16_t *data_ = nullptr;
+  std::vector<uint16_t> owned_;
+  void *map_ = nullptr;
+  size_t mapBytes_ = 0;
+};
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION

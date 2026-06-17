@@ -122,25 +122,21 @@ static void releaseSdxlClipMnn() {
 
 当前缓解：`ScopeExit` (line 1054-1059) 在 `generateImage()` 返回时释放所有 lowram 模型。但如果 `generateImage()` 本身因为竞态导致 use-after-free crash，`ScopeExit` 也无济于事。
 
-### 1.4 P2: 文件单体膨胀 (3889 行)
+### 1.4 P2: 文件单体膨胀（已解决 ✅）
 
-当前文件包含的逻辑模块：
+~~原始 main.cpp 为 3889 行单体文件。~~ 经过 P2-P4 拆分后：
 
-| 逻辑模块 | 大致行数范围 | 代码行数 |
-|----------|-------------|----------|
-| Globals & Constants | 154-260 | ~100 |
-| CLI Parsing | 630-1045 (+ namespace) | ~400 |
-| Model Loading (main init) | 3161-3290 | ~130 |
-| Lowram Helpers | 1062-1153 | ~90 |
-| `generateImage()` | 1890-3158 | ~1250 |
-| HTTP Server Setup | 3291-3890 | ~600 |
-| `/health` handler | 3301-3303 | 3 |
-| `/generate` handler | 3304-3643 | ~340 |
-| `/upscale` handler | 3646-3800+ | ~150 |
-| `/tokenize` handler | 3800-3867 | ~70 |
-| Utilities (UTF-8, base64, SHA, etc.) | 270-620 | ~350 |
+| 逻辑模块 | 当前文件 | 行数 |
+|----------|---------|------|
+| Globals & Config | AppContext.hpp + Config.hpp + RequestContext.hpp | ~170 |
+| CLI Parsing | ServerCli.cpp/.hpp | ~450 |
+| Model Loading | ModelLoader.cpp/.hpp | ~165 |
+| Lowram Helpers | MnnHelper.cpp/.hpp + QnnHelper.cpp/.hpp | ~500 |
+| `generateImage()` | GenerateHandler.cpp/.hpp | ~1265 |
+| HTTP Server + Handlers | main.cpp | ~600 |
+| Utilities | SDUtils.hpp + VaeTilingHelper + PromptCacheUtils + TextEncoder + TokenizeHandler | ~1100 |
 
-1250 行的 `generateImage()` 是最大单体函数，包含了 CLIP 编码、UNET 去噪、VAE 解码、安全检测等多阶段管线。
+**main.cpp: 3889 → 914 行（-76.5%）**，拆分为 17 个模块文件。
 
 ---
 
@@ -240,10 +236,22 @@ app/src/main/cpp/src/
 │   （loadSdxlClipMnnIfNeeded/releaseSdxlClipMnn 接受 AppContext&）
 ├── QnnHelper.cpp/.hpp      ← ✅ 纯函数化：无 extern globals
 │   （loadSdxlQnn*/releaseSdxlQnn* 接受 AppContext&）
-├── main.cpp                ← 进行中：宏别名过渡，待进一步拆分
-├── server_cli.cpp/.hpp     ← 🔜 下一步：processCommandLine (接受 AppContext&)
-├── server_main.cpp         ← 🔜 下一步：main() + HTTP 路由
-└── generate.cpp/.hpp       ← 🔜 下一步：generateImage() (接受 const RequestContext&)
+├── ServerCli.cpp/.hpp      ← ✅ CLI parsing (processCommandLine 接受 AppContext&)
+├── TextEncoder.cpp/.hpp    ← ✅ 纯函数：prompt→CLIP embeddings (接受 AppContext&)
+│   （processWeightedPrompt / processPromptPair）
+├── SDUtils.hpp             ← ✅ TokenEmbTable 从 main.cpp 迁入
+├── GenerateHandler.cpp/.hpp ← ✅ 纯函数：generateImage() (接受 const RequestContext& + AppContext&)
+│   （1260 行最大单体函数，零宏依赖，所有状态通过参数传递）
+├── ModelLoader.cpp/.hpp    ← ✅ 纯函数：initializeModels() (接受 AppContext&)
+│   （Tokenizer + embeddings + MNN sessions + QNN init）
+├── main.cpp                ← ✅ 914 行：main() + HTTP 路由 + 6 端点
+│   ├── GET  /health      — 健康检查 (3 行)
+│   ├── GET  /progress    — watchdog 进度查询
+│   ├── POST /generate    — SSE chunked 图像生成
+│   ├── POST /upscale     — 超分辨率
+│   ├── POST /tokenize    — tokenize + BPE
+│   └── POST /shutdown    — graceful shutdown
+└── Config.hpp              ← output_width/height/sample_width/height 仅保留默认值（被宏覆盖）
 ```
 
 **拆分进度**：
@@ -256,9 +264,13 @@ app/src/main/cpp/src/
 | TokenizeHandler | ✅ | prefixBytesWithinBudget, handleTokenize | ✅ |
 | MnnHelper (lowram) | ✅ | load/release CLIP | ✅ (AppContext&) |
 | QnnHelper (lowram) | ✅ | load/release UNET/VAE ×6 | ✅ (AppContext&) |
-| server_cli | 🔜 | processCommandLine → 接受 AppContext& | 🔜 |
-| server_main | 🔜 | main() + HTTP routes | 🔜 |
-| generate | 🔜 | generateImage → const RequestContext& | 🔜 |
+| ServerCli | ✅ | showHelp, processCommandLine | ✅ (AppContext&) |
+| TextEncoder | ✅ | processWeightedPrompt, processPromptPair | ✅ (AppContext&) |
+| TokenEmbTable→SDUtils | ✅ | Mmap-based FP16 lookup table class | N/A |
+| RequestContext wiring | ✅ | 20 per-request globals→1 struct+macros | N/A |
+| GenerateHandler | ✅ | generateImage() 1260行→独立模块 | ✅ (RequestContext&+AppContext&) |
+| ModelLoader | ✅ | Tokenizer + embeddings + MNN sessions + QNN init | ✅ (AppContext&) |
+| main.cpp | ✅ | 914行: main() + 6 端点 (health/progress/generate/upscale/tokenize/shutdown) | N/A |
 
 **CMakeLists.txt 变更**：✅ 已完成 — glob `src/*.cpp` 自动纳入新增文件。
 
@@ -313,3 +325,13 @@ app/src/main/cpp/src/
 | 2026-06-17 | 📋 **P3 架构总结** — AppContext 提供统一状态管理：`main()` 持有所有权 → `processCommandLine()` 填充配置 → HTTP handlers 通过宏/引用访问 → 提取的模块函数通过 `AppContext&` 参数接收模型/配置 → `RequestContext`（待集成）隔离每次请求的不可变参数 |
 | 2026-06-17 | 🔧 **P3 拆分：ServerCli** — 新建 `ServerCli.cpp/.hpp`，提取 `showHelp()`、`showHelpAndExit()`、`processCommandLine()`；`processCommandLine()` 改为接受 `AppContext&` 参数，直接写入 `ctx.conf.*`/`ctx.models.*`；main.cpp 减少 **413 行**（CLI 段完全移除）；main() 调用改为 `processCommandLine(argc, argv, appCtx)` |
 | 2026-06-17 | 📊 **拆分统计** — main.cpp: 2947→2526 行（-421 行，-14%）；新增文件 10 个（AppContext, RequestContext, ServerCli, VaeTilingHelper, PromptCacheUtils, TokenizeHandler, MnnHelper, QnnHelper, ServerState, + .hpp 对应）；剩余 main.cpp 2526 行主要包含 generateImage() (~1250行) + HTTP server (~400行) + 模型初始化 (~130行) + 工具类（TokenEmbTable）+ per-request globals |
+| 2026-06-17 | 🔧 **P3 拆分：TokenEmbTable → SDUtils.hpp** — 将 38 行 TokenEmbTable 类（mmap-based FP16 lookup table）从 main.cpp 迁入 SDUtils.hpp；移除 main.cpp 中 POSIX includes（fcntl.h, sys/mman.h, sys/stat.h, unistd.h — 不再需要） |
+| 2026-06-17 | 🔧 **P3 拆分：TextEncoder** — 新建 `TextEncoder.cpp/.hpp`，提取 `processWeightedPrompt()`（145 行）和 `processPromptPair()`（20 行）；两个函数接受 `const AppContext&`，通过 `ctx.conf.sdxl_mode`、`ctx.models.tokenizer`、`ctx.models.token_emb` 等访问模型和配置；返回 struct ProcessedPrompt / ProcessedPromptPair；main.cpp 调用改为 `processPromptPair(gctx, prompt, negative_prompt, 77)` |
+| 2026-06-17 | 🏗️ **P3: RequestContext 集成** — 将 20 个 per-request 全局变量（prompt, negative_prompt, steps, cfg, seed, scheduler_type, img_data, mask_data, mask_data_full, denoise_strength, request_img2img, request_has_mask, use_opencl, aspect_pad_inpaint, target_crop_width/height, aspect_pad_synthetic_base, user_supplied_mask, show_diffusion_process/stride）替换为 `RequestContext g_req` + 宏别名（`#define prompt (g_req.prompt)` 等）；`generateImage()` 签名新增 `const RequestContext &req` 参数；`/generate` handler 不再操作裸全局变量，统一通过 `g_req` 填充；output_width/height/sample_width/height 保留在 Config.hpp（VAE tiling 需要可变性，后续处理） |
+| 2026-06-17 | 📊 **拆分统计** — main.cpp: 2526→2305 行（-221 行，-8.7%）；累计迁出 ~1139 行；新增文件 13 个（+TextEncoder×2, +SDUtils 内嵌 TokenEmbTable）；per-request globals 从 20 个裸变量缩减为 1 个 RequestContext |
+| 2026-06-17 | 🏗️ **P4: GenerateHandler 提取** — 新建 `GenerateHandler.cpp/.hpp`，将 1260 行 `generateImage()` 从 main.cpp 完全迁出；函数签名 `generateImage(const RequestContext&, AppContext&, callback)`；所有宏别名（prompt, steps, cfg, sdxl_mode, clipInterpreter 等）替换为显式 `req.xxx` / `conf.xxx` / `models.xxx` 访问；output_width/height/sample_width/height 改为本地可变拷贝 `cur_out_w/h` / `cur_samp_w/h`；函数内部零宏依赖，所有状态通过参数传递 |
+| 2026-06-17 | 🏗️ **P4: ModelLoader 提取** — 新建 `ModelLoader.cpp/.hpp`，提取 main() 中 Tokenizer 加载、Embeddings 加载、MNN 会话创建、QNN 模型初始化共 ~130 行 → `initializeModels(AppContext&)`；返回 0=成功，非零=失败 |
+| 2026-06-17 | 🏗️ **P4: output dim macros 迁移** — 新增 `#define output_width (g_req.output_width)` 等 4 个宏，将 Config.hpp 的 `inline int output_width` 等变量覆盖为 g_req 字段；/generate handler 的 `output_width = req_width` 等赋值现在直接写入 `g_req` |
+| 2026-06-17 | 📊 **拆分统计** — main.cpp: 2305→914 行（-1391 行，-60.4%）；累计迁出 ~2530 行；新增文件 16 个（+GenerateHandler×2, +ModelLoader×2）；main.cpp 现在仅含 main()（25 行）+ HTTP Server（~400 行）+ /generate /upscale /tokenize handler（~500 行） |
+| 2026-06-17 | 📊 **P4 成果** — 39.8:1 初始文件拆分为 17 个模块（1 个 AppContext + 2 个 struct + 14 个功能模块），main.cpp 从 3889 行缩减为 914 行（-76.5%），所有功能模块均为纯函数（接受 AppContext& 参数，零 extern 依赖） |
+

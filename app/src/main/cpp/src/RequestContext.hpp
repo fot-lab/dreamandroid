@@ -37,6 +37,12 @@ struct RequestContext {
   bool request_img2img = false;
   bool request_has_mask = false;
 
+  // ── Output size (read-only; copied to locals during tiling) ──
+  int output_width = 512;
+  int output_height = 512;
+  int sample_width = 64;
+  int sample_height = 64;
+
   // ── Output media flags ──
   bool use_opencl = false;
   bool show_diffusion_process = false;
