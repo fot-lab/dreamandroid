@@ -28,21 +28,41 @@ jobs:
 
     steps:
       # ── Download pre-built debug APKs from build.yml ──
-      # When called via workflow_call, artifact is in the same run — no run-id needed.
-      # When called via workflow_dispatch, use the provided run-id.
+      # Must specify run-id: workflow_call child jobs need explicit run-id to access
+      # parent workflow's artifacts, even within the same run.
       - name: Download debug APKs
         uses: actions/download-artifact@v4
         with:
           name: debug-apks
           path: apks/
+          run-id: ${{ inputs.build-run-id || github.run_id }}
 
       # ── Verify APKs exist ──
+      # download-artifact@v4 normally extracts ZIP artifacts automatically.
+      # If extraction failed, we detect ZIP files here and unzip them.
       - name: Verify APKs
         run: |
-          echo "APK files:"
-          find apks/ -name "*.apk" -exec ls -lh {} \;
-          if [ $(find apks/ -name "*.apk" | wc -l) -lt 2 ]; then
-            echo "❌ Expected 2 APK files (app + test), found fewer"
+          echo "=== Directory listing ==="
+          ls -lR apks/ || echo "NOTE: apks/ not found or empty"
+          echo ""
+
+          # Detect ZIP files (artifact may not have been extracted)
+          ZIP_COUNT=$(find apks/ -name "*.zip" 2>/dev/null | wc -l)
+          if [ "$ZIP_COUNT" -gt 0 ]; then
+            echo "⚠️  Found $ZIP_COUNT ZIP file(s) — artifact was NOT extracted"
+            find apks/ -name "*.zip" -exec ls -lh {} \;
+            echo "Unzipping..."
+            find apks/ -name "*.zip" -exec sh -c 'cd "$(dirname "$1")" && unzip -o "$(basename "$1")"' _ {} \;
+            echo "=== After unzip ==="
+            ls -lR apks/
+            echo ""
+          fi
+
+          APK_COUNT=$(find apks/ -name "*.apk" 2>/dev/null | wc -l)
+          echo "APK count: $APK_COUNT"
+          find apks/ -name "*.apk" 2>/dev/null -exec ls -lh {} \;
+          if [ "$APK_COUNT" -lt 2 ]; then
+            echo "❌ Expected 2 APK files (app + test), found $APK_COUNT"
             exit 1
           fi
           echo "✅ APKs ready"
@@ -90,8 +110,12 @@ jobs:
           script: |
             set -eu
 
-            MAIN_APK=$(find apks/ -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
-            TEST_APK=$(find apks/ -name "*androidTest*.apk" -o -name "*test*.apk" | head -1)
+            APKS="${GITHUB_WORKSPACE:-.}/apks"
+            echo "Searching APKs in $APKS ..."
+            ls -la "$APKS"/
+
+            MAIN_APK=$(find "$APKS" -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
+            TEST_APK=$(find "$APKS" -name "*androidTest*.apk" -o -name "*test*.apk" | head -1)
 
             echo "Installing: $MAIN_APK"
             adb install -r -g "$MAIN_APK"
