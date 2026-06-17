@@ -17,15 +17,17 @@ push/PR to master
        ├─ assembleBasicRelease (release APK)
        ├─ assembleBasicDebug + assembleBasicDebugAndroidTest (debug APKs for test)
        └─ upload debug-apks artifact
-            └─ (workflow_run 自动触发)
-                 └─ test.yml: instrumentation-test job
+            │
+            └─ build.yml: test job (needs: [apk], if: success)
+                 └─ uses: test.yml (workflow_call)
                       ├─ download debug-apks artifact
                       ├─ KVM + emulator (AVD snapshot cache)
                       └─ adb install → am instrument
 ```
 
 - **test.yml 不会重复编译** — 直接从 build.yml 下载预构建的 debug APK
-- **test.yml 仅在 build.yml 成功时触发** (`workflow_run` + 结论=success)
+- **test.yml 仅在 build.yml apk job 成功时触发** — 通过 `needs: [apk]` + `if: needs.apk.result == 'success'`
+- **不再使用 `workflow_run`** — 避免 build 失败时产生无意义的 skip 记录
 
 ### `build.yml` — 编译 & 发布 (`.github/workflows/build.yml`)
 
@@ -72,12 +74,28 @@ push/PR to master
 
 ### `test.yml` — 模拟器启动测试 (`.github/workflows/test.yml`)
 
+`test.yml` 是**可重用工作流 (reusable workflow)**，通过 `workflow_call` 被 `build.yml` 的 `test` job 调用，也支持手动 `workflow_dispatch`。
+
 #### 触发规则
 
 | 触发事件 | 行为 |
 |----------|------|
-| `workflow_run` (build.yml 成功) | 自动下载 `debug-apks` → 模拟器测试 |
+| `workflow_call` (build.yml `test` job → `needs: [apk]`, `if: success`) | 仅在 apk job 成功时调用 → 下载 `debug-apks` → 模拟器测试 |
 | `workflow_dispatch` | 手动触发，需提供 `build-run-id` |
+
+#### build.yml 中的 test job
+
+```yaml
+test:
+  needs: [apk]
+  if: needs.apk.result == 'success'
+  uses: ./.github/workflows/test.yml
+  with:
+    build-run-id: ${{ github.run_id }}
+```
+
+- `needs: [apk]` + `if: success` 确保 apk 失败时完全不触发 test，不会产生 skip 记录
+- 传入 `github.run_id` 供 test.yml 下载同一次 build 产出的 `debug-apks` artifact
 
 #### 工作流特点
 

@@ -410,3 +410,13 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           generate_release_notes: true
+
+  # ============================================================
+  # Stage 4 — Emulator Instrumentation Test (only if APK job succeeds)
+  # ============================================================
+  test:
+    needs: [apk]
+    if: needs.apk.result == 'success'
+    uses: ./.github/workflows/test.yml
+    with:
+      build-run-id: ${{ github.run_id }}
