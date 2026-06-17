@@ -100,22 +100,23 @@ jobs:
             adb install -r -g "$TEST_APK"
 
             echo "Running tests..."
+            TEST_EXIT=0
             adb shell am instrument -w -r \
               -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
-              io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner
+              io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner || TEST_EXIT=$?
+
+            # Capture logcat while emulator is still alive
+            {
+              echo "=== logcat (errors) ==="
+              adb logcat -d -s AndroidRuntime:E System.err:W '*:F' || true
+              echo ""
+              echo "=== logcat (package) ==="
+              adb logcat -d | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
+            } > logcat.txt
+
+            exit $TEST_EXIT
 
       # ── Upload logcat (always) ──
-      - name: Capture logcat
-        if: always()
-        run: |
-          {
-            echo "=== logcat (errors) ==="
-            adb logcat -d -s AndroidRuntime:E System.err:W '*:F' || true
-            echo ""
-            echo "=== logcat (package) ==="
-            adb logcat -d | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
-          } > logcat.txt
-
       - name: Upload logcat
         if: always()
         uses: actions/upload-artifact@v4
