@@ -132,6 +132,11 @@ jobs:
           }
           trap capture_logcat EXIT
 
+          # Uninstall old versions first (snapshot may contain stale app with mismatched signature)
+          echo "Cleaning old packages..."
+          adb uninstall io.github.dreamandroid.local || true
+          adb uninstall io.github.dreamandroid.local.test || true
+
           echo "Installing: $MAIN_APK"
           adb install -r -g "$MAIN_APK"
 
