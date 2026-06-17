@@ -181,8 +181,7 @@ set(SRC_DIR_WRAPPER_UTILS ${SRC_DIR}/WrapperUtils)
 
 # collect source files
 file(GLOB SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
-    # "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
     "${SRC_DIR}/QnnSampleApp.cpp"
     "${SRC_DIR_LOG}/*.cpp"
     "${SRC_DIR_PAL_LINUX}/*.cpp"

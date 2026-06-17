@@ -25,7 +25,9 @@
 #include "FloatConversion.hpp"
 #include "LCMScheduler.hpp"
 #include "LaplacianBlend.hpp"
+#include "MnnHelper.hpp"
 #include "PromptProcessor.hpp"
+#include "QnnHelper.hpp"
 #include "QnnModel.hpp"
 #include "SDUtils.hpp"
 #include "SafeTensor2MNN.hpp"
@@ -63,8 +65,6 @@
 #include <xtensor/xoperation.hpp>
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xview.hpp>
-
-#include "zstd.h"
 
 // FP16 token-embedding lookup table. Either owns a converted vector (when the
 // on-disk data was FP32 and had to be narrowed) or maps the on-disk FP16 file
@@ -109,39 +109,8 @@ class TokenEmbTable {
   size_t mapBytes_ = 0;
 };
 
-// RAII read-only whole-file memory map. For large, transient inputs (e.g. the
-// original model used as a zstd patch dictionary) this keeps the bytes as
-// reclaimable, file-backed pages instead of a large anonymous heap buffer, and
-// unmaps on every scope exit including exceptions.
-struct MmapFile {
-  const uint8_t *data = nullptr;
-  size_t size = 0;
-
-  explicit MmapFile(const std::string &path) {
-    int fd = open(path.c_str(), O_RDONLY);
-    if (fd < 0) return;
-    struct stat st{};
-    if (0 == fstat(fd, &st) && st.st_size > 0) {
-      void *m = mmap(nullptr, static_cast<size_t>(st.st_size), PROT_READ,
-                     MAP_PRIVATE, fd, 0);
-      if (m != MAP_FAILED) {
-        base_ = m;
-        size = static_cast<size_t>(st.st_size);
-        data = static_cast<const uint8_t *>(m);
-      }
-    }
-    close(fd);
-  }
-  ~MmapFile() {
-    if (base_ != nullptr) munmap(base_, size);
-  }
-  MmapFile(const MmapFile &) = delete;
-  MmapFile &operator=(const MmapFile &) = delete;
-  bool valid() const { return data != nullptr; }
-
- private:
-  void *base_ = nullptr;
-};
+// MmapFile moved to QnnHelper.hpp — its only consumer (applyZstdPatchToBuffer)
+// now lives in QnnHelper.cpp.
 
 // The server runs exactly one of three fixed model formats, selected by
 // --type. Each format implies the full file layout under --model_dir, the
@@ -243,20 +212,7 @@ bool cvt_model = false;
 bool show_diffusion_process = false;
 int show_diffusion_stride = 1;
 
-struct PatchedModelBuffer {
-  std::shared_ptr<uint8_t> buffer;
-  uint64_t size;
-
-  PatchedModelBuffer() : buffer(nullptr), size(0) {}
-
-  PatchedModelBuffer(uint8_t *buf, uint64_t sz)
-      : buffer(buf, std::default_delete<uint8_t[]>()), size(sz) {}
-
-  void reset() {
-    buffer.reset();
-    size = 0;
-  }
-};
+// PatchedModelBuffer struct moved to QnnHelper.hpp (used by QNN patching code).
 
 std::unique_ptr<PatchedModelBuffer> g_unetPatchedBuffer;
 bool clip_skip_2 = false;
@@ -343,17 +299,11 @@ static size_t prefixBytesWithinBudget(const std::string &text, int budget,
   return bounds[best];
 }
 
-// Returns "{model_dir}/cache", creating it if needed. Returns "" when
-// model_dir is empty or directory creation fails; callers must treat that
-// as "caching disabled for this run".
-static std::string ensureCacheDir(const std::string &model_dir) {
-  if (model_dir.empty()) return "";
-  std::filesystem::path p = std::filesystem::path(model_dir) / "cache";
-  std::error_code ec;
-  std::filesystem::create_directories(p, ec);
-  if (ec) return "";
-  return p.string();
-}
+// ensureCacheDir         → MnnHelper.cpp  (BKND-PROC-0008 P2 split)
+// createQnnModel          → QnnHelper.cpp  (BKND-PROC-0008 P2 split)
+// createMnnInterpreterMmap → MnnHelper.cpp (BKND-PROC-0008 P2 split)
+// readFileForPatch / applyZstdPatchToBuffer → QnnHelper.cpp
+// initializeQnnApp        → QnnHelper.hpp  (BKND-PROC-0008 P2 split)
 
 // True if any token of `prompt_text` resolves to a textual-inversion
 // embedding loaded by promptProcessor. Used to opt that side out of the
@@ -434,217 +384,9 @@ static void savePromptCache(const std::string &cache_dir,
   }
 }
 
-// Global function to create QNN models dynamically
-std::unique_ptr<QnnModel> createQnnModel(const std::string &modelPath,
-                                         const std::string &modelName) {
-  using namespace qnn::tools;
-  QnnFunctionPointers funcs = g_qnnSystemFuncs;
-  void *backendHandle = nullptr;
-  void *modelHandle = nullptr;
-  dynamicloadutil::StatusCode drvStatus =
-      dynamicloadutil::getQnnFunctionPointers(g_backendPathCmd, modelPath,
-                                              &funcs, &backendHandle, false,
-                                              &modelHandle);
-  if (drvStatus != dynamicloadutil::StatusCode::SUCCESS) {
-    QNN_ERROR("Failed get QNN func ptrs for %s.", modelName.c_str());
-    if (modelHandle) dlclose(modelHandle);
-    return nullptr;
-  }
-  std::string inputListPaths, opPackagePaths, outputPath, saveBinaryName;
-  bool debug = false;
-  bool dumpOutputs = false;
-  iotensor::OutputDataType outputDataType =
-      iotensor::OutputDataType::FLOAT_ONLY;
-  iotensor::InputDataType inputDataType = iotensor::InputDataType::FLOAT;
-  sample_app::ProfilingLevel profilingLevel = ProfilingLevel::OFF;
-  auto app = std::make_unique<QnnModel>(
-      funcs, inputListPaths, opPackagePaths, backendHandle, outputPath, debug,
-      outputDataType, inputDataType, profilingLevel, dumpOutputs, modelPath,
-      saveBinaryName);
-  // Hand off the model library handle so the QnnModel destructor can dlclose
-  // it. Otherwise lowram mode leaks one .so handle per load cycle.
-  if (app) app->m_modelHandle = modelHandle;
-  return app;
-}
-
-// Load an MNN model via mmap + createFromBuffer instead of createFromFile.
-// createFromFile reads the whole .mnn in 4 KB chunks and then merges them into
-// one contiguous buffer, transiently holding ~2x the model size in anonymous
-// (non-reclaimable) memory. Mapping the file read-only keeps that source as
-// clean, file-backed pages the kernel can reclaim under pressure, so the peak
-// anonymous footprint during load drops to the single owned buffer MNN copies
-// into. createFromBuffer copies the bytes, so the mapping can be released right
-// away. Falls back to createFromFile on any mmap-path failure.
-static MNN::Interpreter *createMnnInterpreterMmap(const char *path) {
-  int fd = open(path, O_RDONLY);
-  if (fd < 0) {
-    return MNN::Interpreter::createFromFile(path);
-  }
-  struct stat st{};
-  if (0 != fstat(fd, &st) || st.st_size <= 0) {
-    close(fd);
-    return MNN::Interpreter::createFromFile(path);
-  }
-  size_t size = static_cast<size_t>(st.st_size);
-  void *mapped = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
-  // The mapping holds its own file reference, so the fd can be closed now.
-  close(fd);
-  if (MAP_FAILED == mapped) {
-    return MNN::Interpreter::createFromFile(path);
-  }
-  // MNN copies the whole buffer once, sequentially; hint readahead to match.
-  madvise(mapped, size, MADV_SEQUENTIAL);
-  MNN::Interpreter *interpreter =
-      MNN::Interpreter::createFromBuffer(mapped, size);
-  munmap(mapped, size);
-  if (interpreter) {
-    // createFromFile sets a default external weight path; createFromBuffer does
-    // not. Mirror it so models that store weights in a companion ".weight" file
-    // still resolve them at session creation. Harmless when no such file
-    // exists.
-    interpreter->setExternalFile((std::string(path) + ".weight").c_str());
-  }
-  return interpreter;
-}
-
-namespace qnn {
-namespace tools {
-namespace sample_app {
-
-std::vector<char> readFileForPatch(const std::string &filePath) {
-  std::ifstream file(filePath, std::ios::binary | std::ios::ate);
-  if (!file.is_open()) {
-    throw std::runtime_error("Failed to open file: " + filePath);
-  }
-  std::streamsize size = file.tellg();
-  file.seekg(0, std::ios::beg);
-  std::vector<char> buffer(size);
-  if (size > 0) {
-    if (!file.read(buffer.data(), size)) {
-      throw std::runtime_error("Failed to read file: " + filePath);
-    }
-  }
-  return buffer;
-}
-
-std::unique_ptr<PatchedModelBuffer> applyZstdPatchToBuffer(
-    const std::string &oldFilePath, const std::string &patchFilePath) {
-  try {
-    // The old model is only read (as the zstd dictionary), so map it read-only
-    // instead of pulling the whole multi-GB file into an anonymous buffer.
-    MmapFile oldFile(oldFilePath);
-    if (!oldFile.valid()) {
-      throw std::runtime_error("Failed to map old file: " + oldFilePath);
-    }
-    QNN_INFO("Mapped old file (%s): %zu bytes.", oldFilePath.c_str(),
-             oldFile.size);
-
-    std::vector<char> patchFileBuffer = readFileForPatch(patchFilePath);
-    QNN_INFO("Read patch file (%s): %zu bytes.", patchFilePath.c_str(),
-             patchFileBuffer.size());
-
-    if (patchFileBuffer.empty()) {
-      throw std::runtime_error("Patch file (" + patchFilePath +
-                               ") is empty or could not be read.");
-    }
-
-    unsigned long long const decompressedSize = ZSTD_getFrameContentSize(
-        patchFileBuffer.data(), patchFileBuffer.size());
-
-    if (decompressedSize == ZSTD_CONTENTSIZE_ERROR) {
-      throw std::runtime_error("Patch file (" + patchFilePath +
-                               ") is not a valid zstd frame.");
-    }
-    if (decompressedSize == ZSTD_CONTENTSIZE_UNKNOWN) {
-      throw std::runtime_error(
-          "Decompressed size is unknown. Cannot proceed with this simple "
-          "implementation.");
-    }
-
-    if (decompressedSize == 0) {
-      QNN_ERROR("Patch resulted in empty buffer.");
-      return nullptr;
-    }
-
-    uint8_t *newBuffer = new uint8_t[decompressedSize];
-
-    ZSTD_DCtx *const dctx = ZSTD_createDCtx();
-    if (dctx == nullptr) {
-      delete[] newBuffer;
-      throw std::runtime_error("ZSTD_createDCtx() failed!");
-    }
-
-    size_t const actualDecompressedSize = ZSTD_decompress_usingDict(
-        dctx, newBuffer, decompressedSize, patchFileBuffer.data(),
-        patchFileBuffer.size(), oldFile.data, oldFile.size);
-
-    ZSTD_freeDCtx(dctx);
-
-    if (ZSTD_isError(actualDecompressedSize)) {
-      delete[] newBuffer;
-      throw std::runtime_error(
-          "ZSTD_decompress_usingDict() failed: " +
-          std::string(ZSTD_getErrorName(actualDecompressedSize)));
-    }
-
-    QNN_INFO("Successfully applied patch to buffer. Decompressed %zu bytes.",
-             actualDecompressedSize);
-
-    return std::make_unique<PatchedModelBuffer>(newBuffer,
-                                                actualDecompressedSize);
-
-  } catch (const std::exception &e) {
-    QNN_ERROR("Error applying patch to buffer: %s", e.what());
-    return nullptr;
-  }
-}
-
-// QnnModel Initialization
-template <typename AppType>
-int initializeQnnApp(const std::string &modelName,
-                     std::unique_ptr<AppType> &app,
-                     const uint8_t *buffer = nullptr, uint64_t bufferSize = 0) {
-  if (!app) return EXIT_FAILURE;
-
-  if (buffer && bufferSize > 0) {
-    QNN_INFO("Initializing QNN App from Buffer: %s (size: %llu bytes)",
-             modelName.c_str(), bufferSize);
-  } else {
-    QNN_INFO("Initializing QNN App from Cache: %s", modelName.c_str());
-  }
-
-  if (StatusCode::SUCCESS != app->initialize())
-    return app->reportError(modelName + " Init failure");
-  if (StatusCode::SUCCESS != app->initializeBackend())
-    return app->reportError(modelName + " Backend Init failure");
-  auto devPropStat = app->isDevicePropertySupported();
-  if (StatusCode::FAILURE != devPropStat) {
-    if (StatusCode::SUCCESS != app->createDevice())
-      return app->reportError(modelName + " Device Creation failure");
-  }
-  if (StatusCode::SUCCESS != app->initializeProfiling())
-    return app->reportError(modelName + " Profiling Init failure");
-  if (StatusCode::SUCCESS != app->registerOpPackages())
-    return app->reportError(modelName + " Register Op Packages failure");
-
-  if (buffer && bufferSize > 0) {
-    if (StatusCode::SUCCESS != app->createFromBuffer(buffer, bufferSize))
-      return app->reportError(modelName + " Create From Buffer failure");
-  } else {
-    if (StatusCode::SUCCESS != app->createFromBinary())
-      return app->reportError(modelName + " Create From Binary failure");
-  }
-
-  if (StatusCode::SUCCESS != app->enablePerformaceMode())
-    return app->reportError(modelName + " Enable Performance Mode failure");
-
-  if (buffer && bufferSize > 0) {
-    QNN_INFO("QNN App Initialized from Buffer: %s", modelName.c_str());
-  } else {
-    QNN_INFO("QNN App Initialized from Cache: %s", modelName.c_str());
-  }
-  return EXIT_SUCCESS;
-}
+// createQnnModel → QnnHelper.cpp, createMnnInterpreterMmap → MnnHelper.cpp
+// qnn::tools::sample_app::readFileForPatch / applyZstdPatchToBuffer → QnnHelper.cpp
+// initializeQnnApp template → QnnHelper.hpp  (BKND-PROC-0008 P2 split)
 
 void showHelp() {
   std::cout
@@ -1077,132 +819,12 @@ struct ScopeExit {
 // BKND-PROC-0008 P1: All load/release functions are serialised via
 // lowramMutex() to prevent use-after-free / double-delete races when
 // concurrent requests toggle lowram models.
-
-static void loadSdxlClipMnnIfNeeded() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!clipInterpreter) {
-    clipInterpreter = createMnnInterpreterMmap(clipPath.c_str());
-    if (!clipInterpreter)
-      throw std::runtime_error("[lowram] Failed load SDXL CLIP1 MNN");
-  }
-  if (!clip2Interpreter) {
-    clip2Interpreter = createMnnInterpreterMmap(clip2Path.c_str());
-    if (!clip2Interpreter)
-      throw std::runtime_error("[lowram] Failed load SDXL CLIP2 MNN");
-  }
-  MNN::ScheduleConfig cfg;
-  cfg.type = MNN_FORWARD_CPU;
-  cfg.numThread = 4;
-  MNN::BackendConfig bk;
-  bk.memory = MNN::BackendConfig::Memory_Low;
-  bk.power = MNN::BackendConfig::Power_High;
-  cfg.backendConfig = &bk;
-  if (!clipSession) {
-    clipSession = clipInterpreter->createSession(cfg);
-    if (!clipSession)
-      throw std::runtime_error("[lowram] Failed create SDXL CLIP1 session");
-    auto in1 = clipInterpreter->getSessionInput(clipSession, "input_embedding");
-    clipInterpreter->resizeTensor(in1, {1, 77, text_embedding_size});
-    clipInterpreter->resizeSession(clipSession);
-    clipInterpreter->releaseModel();
-  }
-  if (!clip2Session) {
-    clip2Session = clip2Interpreter->createSession(cfg);
-    if (!clip2Session)
-      throw std::runtime_error("[lowram] Failed create SDXL CLIP2 session");
-    auto in2 =
-        clip2Interpreter->getSessionInput(clip2Session, "input_embedding");
-    clip2Interpreter->resizeTensor(in2, {1, 77, text_embedding_size_2});
-    clip2Interpreter->resizeSession(clip2Session);
-    clip2Interpreter->releaseModel();
-  }
-  QNN_INFO("[lowram] SDXL CLIP MNN loaded");
-}
-
-static void releaseSdxlClipMnn() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (clipSession && clipInterpreter) {
-    clipInterpreter->releaseSession(clipSession);
-  }
-  clipSession = nullptr;
-  if (clip2Session && clip2Interpreter) {
-    clip2Interpreter->releaseSession(clip2Session);
-  }
-  clip2Session = nullptr;
-  if (clipInterpreter) {
-    delete clipInterpreter;
-    clipInterpreter = nullptr;
-  }
-  if (clip2Interpreter) {
-    delete clip2Interpreter;
-    clip2Interpreter = nullptr;
-  }
-  QNN_INFO("[lowram] SDXL CLIP MNN released");
-}
-
-static void loadSdxlQnnUnetIfNeeded() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (unetApp) return;
-  unetApp = createQnnModel(unetPath, "unet");
-  if (!unetApp) throw std::runtime_error("[lowram] Failed create SDXL UNET");
-  if (qnn::tools::sample_app::initializeQnnApp("UNET", unetApp) !=
-      EXIT_SUCCESS) {
-    unetApp.reset();
-    throw std::runtime_error("[lowram] Failed init SDXL UNET");
-  }
-  QNN_INFO("[lowram] SDXL UNET loaded");
-}
-
-static void releaseSdxlQnnUnet() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!unetApp) return;
-  unetApp.reset();
-  QNN_INFO("[lowram] SDXL UNET released");
-}
-
-static void loadSdxlQnnVaeDecoderIfNeeded() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (vaeDecoderApp) return;
-  vaeDecoderApp = createQnnModel(vaeDecoderPath, "vae_decoder");
-  if (!vaeDecoderApp)
-    throw std::runtime_error("[lowram] Failed create SDXL VAE Decoder");
-  if (qnn::tools::sample_app::initializeQnnApp("VAEDecoder", vaeDecoderApp) !=
-      EXIT_SUCCESS) {
-    vaeDecoderApp.reset();
-    throw std::runtime_error("[lowram] Failed init SDXL VAE Decoder");
-  }
-  QNN_INFO("[lowram] SDXL VAE Decoder loaded");
-}
-
-static void releaseSdxlQnnVaeDecoder() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!vaeDecoderApp) return;
-  vaeDecoderApp.reset();
-  QNN_INFO("[lowram] SDXL VAE Decoder released");
-}
-
-static void loadSdxlQnnVaeEncoderIfNeeded() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (vaeEncoderApp) return;
-  if (vaeEncoderPath.empty())
-    throw std::runtime_error("[lowram] SDXL VAE Encoder path missing");
-  vaeEncoderApp = createQnnModel(vaeEncoderPath, "vae_encoder");
-  if (!vaeEncoderApp)
-    throw std::runtime_error("[lowram] Failed create SDXL VAE Encoder");
-  if (qnn::tools::sample_app::initializeQnnApp("VAEEncoder", vaeEncoderApp) !=
-      EXIT_SUCCESS) {
-    vaeEncoderApp.reset();
-    throw std::runtime_error("[lowram] Failed init SDXL VAE Encoder");
-  }
-  QNN_INFO("[lowram] SDXL VAE Encoder loaded");
-}
-
-static void releaseSdxlQnnVaeEncoder() {
-  std::lock_guard<std::mutex> lock(lowramMutex());
-  if (!vaeEncoderApp) return;
-  vaeEncoderApp.reset();
-  QNN_INFO("[lowram] SDXL VAE Encoder released");
-}
+//
+// SDXL lowram load/release helpers moved:
+//   - MNN CLIP:  loadSdxlClipMnnIfNeeded / releaseSdxlClipMnn → MnnHelper.cpp
+//   - QNN UNET:  loadSdxlQnnUnetIfNeeded / releaseSdxlQnnUnet → QnnHelper.cpp
+//   - QNN VAE:   loadSdxlQnnVaeDecoderIfNeeded etc.              → QnnHelper.cpp
+//   (BKND-PROC-0008 P2 split)
 
 // --- Text Processing ---
 struct ProcessedPrompt {
@@ -1590,113 +1212,7 @@ std::vector<int> calculate_tile_positions(int dimension, int tile_size,
   return positions;
 }
 
-xt::xarray<uint8_t> upscaleImageWithModel(
-    const std::vector<uint8_t> &input_image, int width, int height,
-    std::unique_ptr<QnnModel> &upscaler) {
-  if (!upscaler) {
-    throw std::runtime_error("Upscaler model not provided");
-  }
-
-  const int tile_size = 192;
-  const int output_tile_size = 768;
-  const int min_overlap = 12;
-  const float scale_factor = 4.0f;
-
-  auto x_coords = calculate_tile_positions(width, tile_size, min_overlap);
-  auto y_coords = calculate_tile_positions(height, tile_size, min_overlap);
-  int num_tiles_w = x_coords.size();
-  int num_tiles_h = y_coords.size();
-
-  int output_width = width * scale_factor;
-  int output_height = height * scale_factor;
-
-  QNN_INFO("Upscaling %dx%d to %dx%d using %dx%d tiles (variable overlap)",
-           width, height, output_width, output_height, num_tiles_w,
-           num_tiles_h);
-
-  std::vector<int> input_shape = {1, height, width, 3};
-  xt::xarray<uint8_t> input_hwc_u8 = xt::adapt(input_image, input_shape);
-  xt::xarray<float> input_hwc_f32 = xt::cast<float>(input_hwc_u8) / 255.0f;
-  xt::xarray<float> input_chw =
-      xt::transpose(input_hwc_f32, {0, 3, 1, 2});  // (1, 3, H, W)
-
-  std::vector<int> output_shape = {1, 3, output_height, output_width};
-  xt::xarray<float> accumulated_output = xt::zeros<float>(output_shape);
-  xt::xarray<float> weight_map =
-      xt::zeros<float>({output_height, output_width});
-
-  int output_overlap = min_overlap * scale_factor;
-  int fade_size = output_overlap / 2;
-  xt::xarray<float> tile_weight =
-      xt::ones<float>({output_tile_size, output_tile_size});
-
-  if (fade_size > 0) {
-    for (int i = 0; i < fade_size; ++i) {
-      float alpha = static_cast<float>(i + 1) / fade_size;
-      xt::view(tile_weight, i, xt::all()) *= alpha;
-      xt::view(tile_weight, output_tile_size - 1 - i, xt::all()) *= alpha;
-      xt::view(tile_weight, xt::all(), i) *= alpha;
-      xt::view(tile_weight, xt::all(), output_tile_size - 1 - i) *= alpha;
-    }
-  }
-
-  int tile_count = 0;
-  for (int y : y_coords) {
-    for (int x : x_coords) {
-      xt::xarray<float> input_tile =
-          xt::view(input_chw, 0, xt::all(), xt::range(y, y + tile_size),
-                   xt::range(x, x + tile_size));
-
-      std::vector<float> tile_input_vec(input_tile.begin(), input_tile.end());
-      std::vector<float> tile_output_vec(1 * 3 * output_tile_size *
-                                         output_tile_size);
-
-      if (StatusCode::SUCCESS !=
-          upscaler->executeUpscalerGraphs(tile_input_vec.data(),
-                                          tile_output_vec.data())) {
-        throw std::runtime_error("Upscaler execution failed for tile");
-      }
-
-      std::vector<int> tile_output_shape = {1, 3, output_tile_size,
-                                            output_tile_size};
-      xt::xarray<float> output_tile =
-          xt::adapt(tile_output_vec, tile_output_shape);
-
-      int out_x = x * scale_factor;
-      int out_y = y * scale_factor;
-
-      for (int c = 0; c < 3; ++c) {
-        auto acc_slice = xt::view(accumulated_output, 0, c,
-                                  xt::range(out_y, out_y + output_tile_size),
-                                  xt::range(out_x, out_x + output_tile_size));
-        auto tile_slice = xt::view(output_tile, 0, c, xt::all(), xt::all());
-        acc_slice += tile_slice * tile_weight;
-      }
-
-      auto weight_slice =
-          xt::view(weight_map, xt::range(out_y, out_y + output_tile_size),
-                   xt::range(out_x, out_x + output_tile_size));
-      weight_slice += tile_weight;
-
-      tile_count++;
-      std::cout << "Processed tile " << tile_count << "/"
-                << (num_tiles_w * num_tiles_h) << std::endl;
-    }
-  }
-
-  weight_map = xt::maximum(weight_map, 1e-8f);
-  xt::xarray<float> weight_expanded =
-      xt::reshape_view(weight_map, {1, 1, output_height, output_width});
-
-  xt::xarray<float> normalized_output = accumulated_output / weight_expanded;
-
-  auto output_hwc = xt::transpose(normalized_output, {0, 2, 3, 1});
-  auto output_clamped = xt::clip(output_hwc, 0.0f, 1.0f);
-  auto output_normalized = output_clamped * 255.0f;
-  xt::xarray<uint8_t> output_uint8 = xt::cast<uint8_t>(output_normalized);
-
-  return output_uint8;
-}
+// upscaleImageWithModel → QnnHelper.cpp (BKND-PROC-0008 P2 split)
 
 // --- VAE Tiling Helper ---
 // Calculate tile positions and overlaps for VAE encoder/decoder
@@ -1764,164 +1280,7 @@ calculate_vae_tile_positions(int pixel_width, int pixel_height) {
           pixel_overlap_y, latent_overlap_x, latent_overlap_y};
 }
 
-// Upscale image using MNN model
-xt::xarray<uint8_t> upscaleImageWithMNN(const std::vector<uint8_t> &input_image,
-                                        int width, int height,
-                                        const std::string &model_path,
-                                        bool use_opencl) {
-  const int tile_size = 192;
-  const int output_tile_size = 768;
-  const int min_overlap = 12;
-  const float scale_factor = 4.0f;
-
-  auto interpreter = std::shared_ptr<MNN::Interpreter>(
-      createMnnInterpreterMmap(model_path.c_str()));
-  if (!interpreter) {
-    throw std::runtime_error("Failed to create MNN interpreter from: " +
-                             model_path);
-  }
-
-  MNN::ScheduleConfig config;
-  MNN::BackendConfig backendConfig;
-  if (use_opencl) {
-    auto cache_dir = ensureCacheDir(
-        std::filesystem::path(model_path).parent_path().string());
-    auto cache_file =
-        (cache_dir.empty()
-             ? model_path
-             : cache_dir + "/" +
-                   std::filesystem::path(model_path).filename().string()) +
-        ".mnnc";
-    interpreter->setCacheFile(cache_file.c_str());
-    config.type = MNN_FORWARD_OPENCL;
-    config.mode = MNN_GPU_MEMORY_BUFFER | MNN_GPU_TUNING_FAST;
-    backendConfig.precision = MNN::BackendConfig::Precision_Low;
-  } else {
-    config.type = MNN_FORWARD_CPU;
-    config.numThread = 4;
-    backendConfig.memory = MNN::BackendConfig::Memory_Low;
-  }
-  backendConfig.power = MNN::BackendConfig::Power_High;
-  config.backendConfig = &backendConfig;
-
-  auto session = interpreter->createSession(config);
-  if (!session) {
-    throw std::runtime_error("Failed to create MNN session");
-  }
-
-  auto x_coords = calculate_tile_positions(width, tile_size, min_overlap);
-  auto y_coords = calculate_tile_positions(height, tile_size, min_overlap);
-  int num_tiles_w = x_coords.size();
-  int num_tiles_h = y_coords.size();
-
-  int output_width = width * scale_factor;
-  int output_height = height * scale_factor;
-
-  QNN_INFO("Upscaling %dx%d to %dx%d using MNN (%s), %dx%d tiles", width,
-           height, output_width, output_height, use_opencl ? "OpenCL" : "CPU",
-           num_tiles_w, num_tiles_h);
-
-  std::vector<int> input_shape = {1, height, width, 3};
-  xt::xarray<uint8_t> input_hwc_u8 = xt::adapt(input_image, input_shape);
-  xt::xarray<float> input_hwc_f32 = xt::cast<float>(input_hwc_u8) / 255.0f;
-  xt::xarray<float> input_chw =
-      xt::transpose(input_hwc_f32, {0, 3, 1, 2});  // (1, 3, H, W)
-
-  std::vector<int> output_shape = {1, 3, output_height, output_width};
-  xt::xarray<float> accumulated_output = xt::zeros<float>(output_shape);
-  xt::xarray<float> weight_map =
-      xt::zeros<float>({output_height, output_width});
-
-  int output_overlap = min_overlap * scale_factor;
-  int fade_size = output_overlap / 2;
-  xt::xarray<float> tile_weight =
-      xt::ones<float>({output_tile_size, output_tile_size});
-
-  if (fade_size > 0) {
-    for (int i = 0; i < fade_size; ++i) {
-      float alpha = static_cast<float>(i + 1) / fade_size;
-      xt::view(tile_weight, i, xt::all()) *= alpha;
-      xt::view(tile_weight, output_tile_size - 1 - i, xt::all()) *= alpha;
-      xt::view(tile_weight, xt::all(), i) *= alpha;
-      xt::view(tile_weight, xt::all(), output_tile_size - 1 - i) *= alpha;
-    }
-  }
-
-  // Get input and output tensors
-  auto input_tensor = interpreter->getSessionInput(session, nullptr);
-  auto output_tensor = interpreter->getSessionOutput(session, nullptr);
-
-  int tile_count = 0;
-  for (int y : y_coords) {
-    for (int x : x_coords) {
-      xt::xarray<float> input_tile =
-          xt::view(input_chw, 0, xt::all(), xt::range(y, y + tile_size),
-                   xt::range(x, x + tile_size));
-
-      // Prepare input tensor
-      std::vector<int> dims = {1, 3, tile_size, tile_size};
-      interpreter->resizeTensor(input_tensor, dims);
-      interpreter->resizeSession(session);
-
-      auto host_tensor = MNN::Tensor::create<float>(
-          dims, const_cast<float *>(input_tile.data()), MNN::Tensor::CAFFE);
-      input_tensor->copyFromHostTensor(host_tensor);
-      delete host_tensor;
-
-      // Run inference
-      if (interpreter->runSession(session) != 0) {
-        throw std::runtime_error("MNN inference failed for tile");
-      }
-
-      // Get output
-      auto output_host =
-          MNN::Tensor::create<float>({1, 3, output_tile_size, output_tile_size},
-                                     nullptr, MNN::Tensor::CAFFE);
-      output_tensor->copyToHostTensor(output_host);
-
-      std::vector<int> tile_output_shape = {1, 3, output_tile_size,
-                                            output_tile_size};
-      xt::xarray<float> output_tile = xt::adapt(
-          output_host->host<float>(), output_tile_size * output_tile_size * 3,
-          xt::no_ownership(), tile_output_shape);
-
-      int out_x = x * scale_factor;
-      int out_y = y * scale_factor;
-
-      for (int c = 0; c < 3; ++c) {
-        auto acc_slice = xt::view(accumulated_output, 0, c,
-                                  xt::range(out_y, out_y + output_tile_size),
-                                  xt::range(out_x, out_x + output_tile_size));
-        auto tile_slice = xt::view(output_tile, 0, c, xt::all(), xt::all());
-        acc_slice += tile_slice * tile_weight;
-      }
-
-      auto weight_slice =
-          xt::view(weight_map, xt::range(out_y, out_y + output_tile_size),
-                   xt::range(out_x, out_x + output_tile_size));
-      weight_slice += tile_weight;
-
-      delete output_host;
-
-      tile_count++;
-      std::cout << "Processed tile " << tile_count << "/"
-                << (num_tiles_w * num_tiles_h) << std::endl;
-    }
-  }
-
-  weight_map = xt::maximum(weight_map, 1e-8f);
-  xt::xarray<float> weight_expanded =
-      xt::reshape_view(weight_map, {1, 1, output_height, output_width});
-
-  xt::xarray<float> normalized_output = accumulated_output / weight_expanded;
-
-  auto output_hwc = xt::transpose(normalized_output, {0, 2, 3, 1});
-  auto output_clamped = xt::clip(output_hwc, 0.0f, 1.0f);
-  auto output_normalized = output_clamped * 255.0f;
-  xt::xarray<uint8_t> output_uint8 = xt::cast<uint8_t>(output_normalized);
-
-  return output_uint8;
-}
+// upscaleImageWithMNN → MnnHelper.cpp (BKND-PROC-0008 P2 split)
 
 // --- Image Generation ---
 GenerationResult generateImage(
