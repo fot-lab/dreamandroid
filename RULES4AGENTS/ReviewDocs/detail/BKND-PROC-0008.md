@@ -203,28 +203,39 @@ static void releaseSdxlClipMnn() {
 ```
 app/src/main/cpp/src/
 ├── server_main.cpp         ← 🔜 main() + HTTP 路由注册 (~400行)
-│   【新建】从 main.cpp 提取 HTTP 服务器设置 + handler lambdas
+│   【延期】依赖 30+ 全局变量，需待 context.hpp 就绪后推进
 ├── ServerState.hpp         ← ✅ 已创建：状态机 + 超时检测
 ├── VaeTilingHelper.cpp/.hpp ← ✅ 已创建：VAE encoder/decoder tiling blender + tile pos (~270行)
-│   【新建】blendVaeEncoderTiles / blendVaeOutputTiles / calculateVaeTilePositions
+│   【已提取】blendVaeEncoderTiles / blendVaeOutputTiles / calculateVaeTilePositions / calculateTilePositions
+├── PromptCacheUtils.cpp/.hpp ← ✅ 已创建：prompt_cache 命名空间 + 缓存 I/O + UTF-8 转换 (~170行)
+│   【已提取】prompt_cache::Header/kMagic/kVersion/kModeSd15/kModeSdxl/kSeqLen,
+│             utf8ByteOffsetToUtf16, promptHasEmbedding, promptCachePath, loadPromptCache, savePromptCache
+├── TokenizeHandler.cpp/.hpp ← ✅ 已创建：tokenize HTTP handler + BPE budget search (~145行)
+│   【已提取】prefixBytesWithinBudget, handleTokenize；main.cpp lambda ↓ 为 1 行委托
 ├── context.hpp             ← 🔜 【新建】RequestContext 结构体 (~50行)
 ├── generate.cpp/.hpp       ← 🔜 【新建】generateImage() (~1250行)
 │   【核心】从 main.cpp 提取，改为接受 const RequestContext& 参数
 ├── lowram.cpp/.hpp         ← ✅ 已完成：load/release helpers 已迁入 QnnHelper.cpp / MnnHelper.cpp
 ├── upscale.cpp/.hpp        ← ✅ 已完成：upscaleImageWithModel / upscaleImageWithMNN 已迁入 QnnHelper.cpp / MnnHelper.cpp
-├── server_cli.cpp/.hpp     ← 🔜 【新建】processCommandLine() (~400行)
-├── tokenize.cpp/.hpp       ← 🔜 【新建】tokenize handler + prefixBytesWithinBudget (~100行)
-└── utils.cpp/.hpp          ← 🔜 【新建】UTF-8, base64, SHA256, prompt_cache (~350行)
+├── server_cli.cpp/.hpp     ← 🔜 【延期】processCommandLine() (~400行) 依赖 30+ 全局变量
+│   showHelp / showHelpAndExit 已可独立提取；processCommandLine 需 context.hpp 后重访
+└── utils.cpp/.hpp          ← ✅ 已完成 → PromptCacheUtils + TokenizeHandler (见上)
 ```
 
-**拆分优先级**：
-1. `context.hpp` + `generate.cpp`（解决 P0 的核心变更，约需修改 200 处全局变量引用）
-2. `utils.cpp`（350 行工具函数，零依赖，独立性强）
-3. ~~`lowram.cpp` + `upscale.cpp` + `tokenize.cpp`（各 ~100-200 行，依赖明确）~~ lowram + upscale 已完成；tokenize 待拆分
-4. `server_cli.cpp`（CLI 解析，与 HTTP 服务器解耦）
-5. `server_main.cpp`（最终极简 main，仅含服务器路由注册）
+**拆分进度**：
+
+| 模块 | 状态 | 提取函数 | main.cpp 减少 |
+|------|------|----------|---------------|
+| VaeTilingHelper | ✅ | blendVae* ×2, calculateTilePos ×2 | ~270 行 |
+| PromptCacheUtils | ✅ | prompt_cache, utf8*, promptHas*, load/save* ×4 | ~130 行 |
+| TokenizeHandler | ✅ | prefixBytesWithinBudget, handleTokenize | ~105 行 |
+| server_cli / server_main | 🔜 延期 | — | 30+ globals 依赖 |
+
+**总计已减少**：~505 行从 main.cpp 迁出。
 
 **CMakeLists.txt 变更**：✅ 已完成 — 已将 `file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")` 改为 glob 所有 `src/*.cpp`，新增 `.cpp` 文件自动纳入编译。
+
+**🔧 Bugfix**：移除 main.cpp 中残留的 `namespace qnn::tools::sample_app` 关闭括号（QnnHelper.hpp 已在内部分别开启/关闭这些命名空间，残留会导致编译错误）。
 
 ---
 
@@ -266,3 +277,7 @@ app/src/main/cpp/src/
 | 2026-06-17 | Kotlin 侧：BackendManager 改为检测 HTTP 503 + 解析 `Retry-After` 头 |
 | 2026-06-17 | 📋 **文件拆分计划** — 记录于 §2.8：context.hpp → generate.cpp → utils.cpp → lowram.cpp → upscale.cpp → tokenize.cpp → server_cli.cpp → server_main.cpp |
 | 2026-06-17 | 🔧 **P2 拆分：VAE Tiling Helper** — 新建 `VaeTilingHelper.cpp/.hpp`，提取 `blendVaeEncoderTiles()`、`blendVaeOutputTiles()`、`calculateVaeTilePositions()`、`calculateTilePositions()` 四个函数；main.cpp 更新 include 并重命名 call sites 为 camelCase；CMakeLists.txt 无需变更（已 glob `src/*.cpp`）；Kotlin 侧无需变更（HTTP API 不受内部重构影响） |
+| 2026-06-17 | 🔧 **P2 拆分：PromptCacheUtils** — 新建 `PromptCacheUtils.cpp/.hpp`，提取 `prompt_cache` 命名空间（kMagic/kVersion/kModeSd15/kModeSdxl/kSeqLen/Header）、`utf8ByteOffsetToUtf16()`、`promptHasEmbedding()`、`promptCachePath()`、`loadPromptCache()`、`savePromptCache()` 共 6 函数+命名空间；main.cpp 更新 include；extern 声明 `promptProcessor` 全局变量 |
+| 2026-06-17 | 🔧 **P2 拆分：TokenizeHandler** — 新建 `TokenizeHandler.cpp/.hpp`，提取 `prefixBytesWithinBudget()` 和 `handleTokenize()`；main.cpp 中 `/tokenize` lambda 缩减为 1 行委托调用（`handleTokenize(req, res, sdxl_mode, text_embedding_size_2, promptProcessor, tokenizer.get())`）；`handleTokenize` 通过参数接收所有依赖 |
+| 2026-06-17 | 🐛 **Bugfix: 移除 main.cpp 残留命名空间关闭括号** — `}  // namespace sample_app / tools / qnn` 三个关闭括号为 MNN/QNN 拆分遗留，QnnHelper.hpp 已在内部分别开启/关闭这些命名空间；残留会导致编译错误（此前 CI 未触发 native 编译因此未暴露） |
+| 2026-06-17 | 📋 **更新拆分计划** — 标记 PromptCacheUtils、TokenizeHandler 为 ✅ 已完成；server_cli/server_main 标注为 🔜 延期（30+ 全局变量依赖，待 context.hpp 推进后重访）；累计 ~505 行从 main.cpp 迁出 |
