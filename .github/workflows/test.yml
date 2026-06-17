@@ -97,6 +97,57 @@ jobs:
           disable-animations: false
           script: echo "AVD snapshot generated for caching."
 
+      # ── Write test script to file ──
+      # android-emulator-runner@v2 executes each line as a separate sh -c,
+      # so variables/functions cannot span lines. We write the script to a
+      # file and run it as a single shell invocation.
+      - name: Write test script
+        run: |
+          cat > test-script.sh << 'SCRIPT_EOF'
+          #!/bin/sh
+          set -eu
+
+          APKS="apks"
+          echo "Searching APKs in $PWD/$APKS ..."
+          ls -la "$APKS"/
+
+          MAIN_APK="$(find "$APKS" -name '*.apk' ! -name '*androidTest*' ! -name '*test*' | head -1)"
+          TEST_APK="$(find "$APKS" -name '*androidTest*.apk' -o -name '*test*.apk' | head -1)"
+
+          # Trap: capture logcat on any exit (install failure, crash, normal)
+          capture_logcat() {
+            {
+              echo "=== logcat (errors) ==="
+              adb logcat -d -s AndroidRuntime:E System.err:W '*:F' DEBUG:I ActivityManager:I 2>/dev/null || true
+              echo ""
+              echo "=== logcat (package) ==="
+              adb logcat -d 2>/dev/null | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
+              echo ""
+              echo "=== tombstone (native crash) ==="
+              adb shell ls -t /data/tombstones/ 2>/dev/null | head -3 | while read f; do
+                echo "--- $f ---"
+                adb shell cat "/data/tombstones/$f" 2>/dev/null || true
+              done
+            } > logcat.txt
+          }
+          trap capture_logcat EXIT
+
+          echo "Installing: $MAIN_APK"
+          adb install -r -g "$MAIN_APK"
+
+          echo "Installing: $TEST_APK"
+          adb install -r -g "$TEST_APK"
+
+          echo "Running tests..."
+          TEST_EXIT=0
+          adb shell am instrument -w -r \
+            -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
+            io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner || TEST_EXIT=$?
+
+          exit $TEST_EXIT
+          SCRIPT_EOF
+          chmod +x test-script.sh
+
       # ── Run tests (use cached snapshot, do not save new snapshot) ──
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
@@ -107,47 +158,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            set -eu
-
-            APKS="apks"
-            echo "Searching APKs in $PWD/$APKS ..."
-            ls -la "$APKS"/
-
-            MAIN_APK=$(find "$APKS" -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
-            TEST_APK=$(find "$APKS" -name "*androidTest*.apk" -o -name "*test*.apk" | head -1)
-
-            # Trap: capture logcat on any exit (install failure, crash, normal)
-            capture_logcat() {
-              {
-                echo "=== logcat (errors) ==="
-                adb logcat -d -s AndroidRuntime:E System.err:W '*:F' DEBUG:I ActivityManager:I 2>/dev/null || true
-                echo ""
-                echo "=== logcat (package) ==="
-                adb logcat -d 2>/dev/null | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
-                echo ""
-                echo "=== tombstone (native crash) ==="
-                adb shell ls -t /data/tombstones/ 2>/dev/null | head -3 | while read f; do
-                  echo "--- $f ---"
-                  adb shell cat "/data/tombstones/$f" 2>/dev/null || true
-                done
-              } > logcat.txt
-            }
-            trap capture_logcat EXIT
-
-            echo "Installing: $MAIN_APK"
-            adb install -r -g "$MAIN_APK"
-
-            echo "Installing: $TEST_APK"
-            adb install -r -g "$TEST_APK"
-
-            echo "Running tests..."
-            TEST_EXIT=0
-            adb shell am instrument -w -r \
-              -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
-              io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner || TEST_EXIT=$?
-
-            exit $TEST_EXIT
+          script: sh ./test-script.sh
 
       # ── Upload logcat (always) ──
       - name: Upload logcat
