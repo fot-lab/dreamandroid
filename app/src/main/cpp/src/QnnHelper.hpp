@@ -57,7 +57,8 @@ struct AppContext;
 /// Create a QnnModel from a .bin file, loading the QNN backend and
 /// function pointers dynamically.
 std::unique_ptr<QnnModel> createQnnModel(const std::string &modelPath,
-                                         const std::string &modelName);
+                                         const std::string &modelName,
+                                         const AppContext &ctx);
 
 /// SDXL lowram: lazy-load QNN UNET.
 void loadSdxlQnnUnetIfNeeded(AppContext &ctx);

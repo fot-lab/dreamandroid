@@ -18,6 +18,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include "tokenizers_cpp.h"
+
 #include "DPMSolverMultistepScheduler.hpp"
 #include "EulerAncestralDiscreteScheduler.hpp"
 #include "EulerDiscreteScheduler.hpp"
@@ -515,12 +517,12 @@ GenerationResult generateImage(
             if (conf.sdxl_mode) {
               if (StatusCode::SUCCESS !=
                   models.vaeEncoderApp->executeVaeEncoderGraphsSDXL(
-                      req.img_data.data(), vae_enc_mean.data(), vae_enc_std.data()))
+                      const_cast<float*>(req.img_data.data()), vae_enc_mean.data(), vae_enc_std.data()))
                 throw std::runtime_error("QNN VAE enc SDXL exec failed");
             } else {
               if (StatusCode::SUCCESS !=
                   models.vaeEncoderApp->executeVaeEncoderGraphs(
-                      req.img_data.data(), vae_enc_mean.data(), vae_enc_std.data()))
+                      const_cast<float*>(req.img_data.data()), vae_enc_mean.data(), vae_enc_std.data()))
                 throw std::runtime_error("QNN VAE enc exec failed");
             }
             if (sdxl_lowram) releaseSdxlQnnVaeEncoder(ctx);

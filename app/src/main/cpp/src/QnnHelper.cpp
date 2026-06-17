@@ -51,13 +51,16 @@ MmapFile::~MmapFile() {
 
 // ── createQnnModel ─────────────────────────────────────────────────
 std::unique_ptr<QnnModel> createQnnModel(const std::string &modelPath,
-                                         const std::string &modelName) {
+                                         const std::string &modelName,
+                                         const AppContext &ctx) {
   using namespace qnn::tools;
-  QnnFunctionPointers funcs = g_qnnSystemFuncs;
+  const auto &gconf = ctx.conf;
+  const auto &gmod = ctx.models;
+  QnnFunctionPointers funcs = gmod.qnnSystemFuncs;
   void *backendHandle = nullptr;
   void *modelHandle = nullptr;
   dynamicloadutil::StatusCode drvStatus =
-      dynamicloadutil::getQnnFunctionPointers(g_backendPathCmd, modelPath,
+      dynamicloadutil::getQnnFunctionPointers(gconf.backendPathCmd, modelPath,
                                               &funcs, &backendHandle, false,
                                               &modelHandle);
   if (drvStatus != dynamicloadutil::StatusCode::SUCCESS) {
@@ -185,7 +188,7 @@ void loadSdxlQnnUnetIfNeeded(AppContext &ctx) {
   auto &m = ctx.models;
   auto &c = ctx.conf;
   if (m.unetApp) return;
-  m.unetApp = createQnnModel(c.unetPath, "unet");
+  m.unetApp = createQnnModel(c.unetPath, "unet", ctx);
   if (!m.unetApp) throw std::runtime_error("[lowram] Failed create SDXL UNET");
   if (qnn::tools::sample_app::initializeQnnApp("UNET", m.unetApp) !=
       EXIT_SUCCESS) {
@@ -207,7 +210,7 @@ void loadSdxlQnnVaeDecoderIfNeeded(AppContext &ctx) {
   auto &m = ctx.models;
   auto &c = ctx.conf;
   if (m.vaeDecoderApp) return;
-  m.vaeDecoderApp = createQnnModel(c.vaeDecoderPath, "vae_decoder");
+  m.vaeDecoderApp = createQnnModel(c.vaeDecoderPath, "vae_decoder", ctx);
   if (!m.vaeDecoderApp)
     throw std::runtime_error("[lowram] Failed create SDXL VAE Decoder");
   if (qnn::tools::sample_app::initializeQnnApp("VAEDecoder", m.vaeDecoderApp) !=
@@ -232,7 +235,7 @@ void loadSdxlQnnVaeEncoderIfNeeded(AppContext &ctx) {
   if (m.vaeEncoderApp) return;
   if (c.vaeEncoderPath.empty())
     throw std::runtime_error("[lowram] SDXL VAE Encoder path missing");
-  m.vaeEncoderApp = createQnnModel(c.vaeEncoderPath, "vae_encoder");
+  m.vaeEncoderApp = createQnnModel(c.vaeEncoderPath, "vae_encoder", ctx);
   if (!m.vaeEncoderApp)
     throw std::runtime_error("[lowram] Failed create SDXL VAE Encoder");
   if (qnn::tools::sample_app::initializeQnnApp("VAEEncoder", m.vaeEncoderApp) !=

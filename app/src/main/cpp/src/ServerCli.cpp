@@ -168,7 +168,7 @@ void processCommandLine(int argc, char **argv, AppContext &ctx) {
       case OPT_LOG_LEVEL:
         logLevel = sample_app::parseLogLevel(pal::g_optArg);
         if (logLevel != QNN_LOG_LEVEL_MAX) {
-          if (!log::setLogLevel(logLevel))
+          if (!qnn::log::setLogLevel(logLevel))
             showHelpAndExit("Unable to set log level.");
         }
         break;
@@ -428,15 +428,15 @@ void processCommandLine(int argc, char **argv, AppContext &ctx) {
   bool sdxl_lowram = c.sdxl_mode && c.lowram_mode;
 
   if (!sdxl_lowram) {
-    m.unetApp = createQnnModel(c.unetPath, "unet");
+    m.unetApp = createQnnModel(c.unetPath, "unet", ctx);
     if (!m.unetApp) showHelpAndExit("Failed create QNN UNET model.");
 
-    m.vaeDecoderApp = createQnnModel(c.vaeDecoderPath, "vae_decoder");
+    m.vaeDecoderApp = createQnnModel(c.vaeDecoderPath, "vae_decoder", ctx);
     if (!m.vaeDecoderApp)
       showHelpAndExit("Failed create QNN VAE Decoder model.");
 
     if (!c.vaeEncoderPath.empty()) {
-      m.vaeEncoderApp = createQnnModel(c.vaeEncoderPath, "vae_encoder");
+      m.vaeEncoderApp = createQnnModel(c.vaeEncoderPath, "vae_encoder", ctx);
       if (!m.vaeEncoderApp) QNN_WARN("Failed create QNN VAE Enc model.");
     } else
       QNN_INFO("img2img disabled: VAE encoder not loaded");

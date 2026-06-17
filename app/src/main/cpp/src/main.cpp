@@ -768,7 +768,7 @@ int main(int argc, char **argv) {
                                 upscaler_path, use_opencl);
       } else {
         // Use QNN model
-        tempUpscalerApp = createQnnModel(upscaler_path, "upscaler");
+        tempUpscalerApp = createQnnModel(upscaler_path, "upscaler", appCtx);
         if (!tempUpscalerApp) {
           throw std::runtime_error("Failed to create upscaler model from: " +
                                    upscaler_path);

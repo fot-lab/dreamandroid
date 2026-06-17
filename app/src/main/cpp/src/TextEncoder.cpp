@@ -8,11 +8,11 @@
 
 #include <iostream>
 
-ProcessedPrompt processWeightedPrompt(const AppContext &ctx,
+ProcessedPrompt processWeightedPrompt(AppContext &ctx,
                                       const std::string &prompt_text,
                                       int max_len) {
   const auto &gconf = ctx.conf;
-  const auto &gmod = ctx.models;
+  auto &gmod = ctx.models;
 
   ProcessedPrompt result;
 
@@ -159,7 +159,7 @@ ProcessedPrompt processWeightedPrompt(const AppContext &ctx,
   return result;
 }
 
-ProcessedPromptPair processPromptPair(const AppContext &ctx,
+ProcessedPromptPair processPromptPair(AppContext &ctx,
                                       const std::string &positive,
                                       const std::string &negative,
                                       int max_len) {

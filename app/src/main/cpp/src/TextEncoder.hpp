@@ -32,13 +32,13 @@ struct ProcessedPromptPair {
 
 // Process a single prompt into token IDs and position-aware embeddings.
 // Uses the CLIP tables from ctx.models (token_emb, pos_emb).
-ProcessedPrompt processWeightedPrompt(const AppContext &ctx,
+ProcessedPrompt processWeightedPrompt(AppContext &ctx,
                                       const std::string &prompt_text,
                                       int max_len = 77);
 
 // Process a positive + negative prompt pair, returning combined token IDs
 // (neg first, pos second) and separate embedding vectors for each side.
-ProcessedPromptPair processPromptPair(const AppContext &ctx,
+ProcessedPromptPair processPromptPair(AppContext &ctx,
                                       const std::string &positive,
                                       const std::string &negative,
                                       int max_len = 77);
