@@ -1,7 +1,7 @@
 # ACTION.md — Build & CI/CD 行为规范
 
-> 版本: 1.2
-> 更新日期: 2026-06-16
+> 版本: 1.3
+> 更新日期: 2026-06-17
 
 ## 核心原则
 
@@ -167,6 +167,50 @@ Debug APK 需包含 `x86_64` ABI（`app/build.gradle.kts` debug block 已配置�
    - `workflow_runs[0].name` — workflow 名称
 3. 规则说明中不得提及任何 GitHub 用户名或个人账号信息
 
+### 通过 `gh` CLI 读取 CI Run 日志
+
+> 前提：`gh` CLI 已安装。若 `gh` 不在 PATH 中，先搜寻安装路径（常见位置 `C:\Program Files\GitHub CLI\gh.exe`），PowerShell 用 `&` 调用完整路径；若未安装则提示用户安装。
+
+#### Step 1 — 获取最新 Run 列表（带 `databaseId`）
+
+```
+gh run list --limit 3 --json databaseId,headBranch,status,conclusion,displayTitle,createdAt
+```
+
+`databaseId` 是数字 Run ID（如 `27663340915`），后续所有操作都依赖它。
+
+#### Step 2 — 获取 Run 内 Jobs 及其 `databaseId`
+
+```
+gh run view <run-databaseId> --json jobs --jq '.jobs[] | {name, status, conclusion, databaseId}'
+```
+
+每个 Job 有自己的 `databaseId`（如 `81812591585`），查日志需要用到它。
+
+#### Step 3 — 查看失败 Job 的失败步骤日志
+
+```
+gh run view <run-databaseId> --log-failed --job <job-databaseId>
+```
+
+#### Step 4 — 搜索日志中的特定内容
+
+在 PowerShell 中无 `grep`/`head`，可用 `Select-String`：
+
+```
+gh run view <run-databaseId> --log --job <job-databaseId> | Select-String -Pattern "Error|APK count"
+```
+
+#### 常见陷阱
+
+| 错误操作 | 正确做法 |
+|----------|----------|
+| 用 commit SHA 当 run ID | 必须用 `databaseId`（数字） |
+| `--run-id` flag | 该 flag 不存在，run ID 是 positional 参数 |
+| 用 run databaseId 当 `--job` 参数 | 必须用 Job 自己的 `databaseId` |
+| `\| head` / `\| grep` | PowerShell 中用 `Select-String -Pattern` |
+| `gh` 不在 PATH | 用完整路径 `& "C:\Program Files\GitHub CLI\gh.exe"` |
+
 ### Release 发布流程
 
 1. 更新 `VERSION_NAME` 和 `VERSION_CODE`
@@ -178,5 +222,6 @@ Debug APK 需包含 `x86_64` ABI（`app/build.gradle.kts` debug block 已配置�
 
 | 日期 | 描述 |
 |------|------|
+| 2026-06-17 | 添加 `gh` CLI 读取 CI Run 日志指南（含常见陷阱）；补充 gh 不在 PATH 时的搜寻说明 |
 | 2026-06-16 | 添加 CI Workflow 状态查询规则（GitHub REST API） |
 | 2026-06-16 | 初始创建。声明无本地构建工具链，所有构建在云端 CI/CD 完成 |
