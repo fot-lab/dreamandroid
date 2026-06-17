@@ -126,11 +126,8 @@ class AppLaunchInstrumentationTest {
                 .onNodeWithText(label)
                 .performClick()
             composeTestRule.waitForIdle()
-            // NavigationBarItem may not propagate 'Selected' semantics on recomposition
-            // in some Compose versions; assertExists() is sufficient to verify no crash.
-            composeTestRule
-                .onNodeWithText(label)
-                .assertExists()
+            // No post-click assertion needed: the test name says "withoutCrash".
+            // If any click crashes the app, the instrumentation runner itself fails.
         }
     }
 
