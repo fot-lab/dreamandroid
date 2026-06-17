@@ -19,7 +19,7 @@ on:
       build_native:
         description: 'Build native C++ code (requires private SDK)'
         type: boolean
-        default: false
+        default: true
       release:
         description: 'Publish APK as GitHub Release'
         type: boolean
