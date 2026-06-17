@@ -233,6 +233,15 @@ class GenerationWorker(
                 // Reset task to PENDING so it can be retried when the queue resumes
                 queueRepository.resetTaskToPending(task.id)
                 throw e
+            } catch (e: AppError.BackendBusy) {
+                // BKND-PROC-0008: Backend returned 409 — another request is in flight.
+                // Wait for the retry interval, then loop back to try again.
+                // Do NOT reset the task status (it should remain PROCESSING so UI
+                // shows it as active).
+                Log.d(TAG, "Backend busy — waiting ${e.retryAfterMs}ms before retry")
+                delay(e.retryAfterMs)
+                // Reset to PENDING so the loop re-picks it naturally
+                queueRepository.resetTaskToPending(task.id)
             } catch (e: Exception) {
                 // Backend may have crashed mid-generation — reset to PENDING for retry.
                 // The queue does NOT mark this as a permanent error because the

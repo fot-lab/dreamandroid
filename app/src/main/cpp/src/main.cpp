@@ -3,16 +3,19 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "Config.hpp"
@@ -27,6 +30,7 @@
 #include "SDUtils.hpp"
 #include "SafeTensor2MNN.hpp"
 #include "Scheduler.hpp"
+#include "ServerState.hpp"
 #include "Sha256.hpp"
 
 // QNN Headers
@@ -260,6 +264,17 @@ bool clip_skip_2 = false;
 // QNN function pointers and backend path for dynamic model loading
 QnnFunctionPointers g_qnnSystemFuncs;
 std::string g_backendPathCmd;
+
+// ── BKND-PROC-0008: Concurrency & Progress Guards ──
+//
+// Replaced scattered atomic/mutex globals with a centralised ServerState
+// object (see ServerState.hpp).  This provides:
+//   - Idle/Busy/ShuttingDown state machine
+//   - Atomic progress tracking for GET /progress
+//   - Generation watchdog with configurable timeout (prevents deadlock)
+//   - Clean acquire/release semantics
+
+ServerState g_serverState;
 
 // Count the UTF-16 code units in the first byteOffset bytes of a UTF-8 string.
 // The prompt is a Kotlin String on the client, indexed in UTF-16 units, so a
@@ -1059,7 +1074,12 @@ struct ScopeExit {
 };
 
 // --- SDXL low-RAM lazy load/release helpers ---
+// BKND-PROC-0008 P1: All load/release functions are serialised via
+// lowramMutex() to prevent use-after-free / double-delete races when
+// concurrent requests toggle lowram models.
+
 static void loadSdxlClipMnnIfNeeded() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (!clipInterpreter) {
     clipInterpreter = createMnnInterpreterMmap(clipPath.c_str());
     if (!clipInterpreter)
@@ -1100,6 +1120,7 @@ static void loadSdxlClipMnnIfNeeded() {
 }
 
 static void releaseSdxlClipMnn() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (clipSession && clipInterpreter) {
     clipInterpreter->releaseSession(clipSession);
   }
@@ -1120,6 +1141,7 @@ static void releaseSdxlClipMnn() {
 }
 
 static void loadSdxlQnnUnetIfNeeded() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (unetApp) return;
   unetApp = createQnnModel(unetPath, "unet");
   if (!unetApp) throw std::runtime_error("[lowram] Failed create SDXL UNET");
@@ -1132,12 +1154,14 @@ static void loadSdxlQnnUnetIfNeeded() {
 }
 
 static void releaseSdxlQnnUnet() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (!unetApp) return;
   unetApp.reset();
   QNN_INFO("[lowram] SDXL UNET released");
 }
 
 static void loadSdxlQnnVaeDecoderIfNeeded() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (vaeDecoderApp) return;
   vaeDecoderApp = createQnnModel(vaeDecoderPath, "vae_decoder");
   if (!vaeDecoderApp)
@@ -1151,12 +1175,14 @@ static void loadSdxlQnnVaeDecoderIfNeeded() {
 }
 
 static void releaseSdxlQnnVaeDecoder() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (!vaeDecoderApp) return;
   vaeDecoderApp.reset();
   QNN_INFO("[lowram] SDXL VAE Decoder released");
 }
 
 static void loadSdxlQnnVaeEncoderIfNeeded() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (vaeEncoderApp) return;
   if (vaeEncoderPath.empty())
     throw std::runtime_error("[lowram] SDXL VAE Encoder path missing");
@@ -1172,6 +1198,7 @@ static void loadSdxlQnnVaeEncoderIfNeeded() {
 }
 
 static void releaseSdxlQnnVaeEncoder() {
+  std::lock_guard<std::mutex> lock(lowramMutex());
   if (!vaeEncoderApp) return;
   vaeEncoderApp.reset();
   QNN_INFO("[lowram] SDXL VAE Encoder released");
@@ -3301,8 +3328,47 @@ int main(int argc, char **argv) {
   svr.Get("/health", [](const httplib::Request &, httplib::Response &res) {
     res.status = 200;
   });
+
+  // ── BKND-PROC-0008: Progress query endpoint ──
+  // Allows the Android client to poll generation progress without holding
+  // an SSE connection.  Returns JSON with current step, total steps, and
+  // whether a generation is currently in progress.
+  svr.Get("/progress", [&](const httplib::Request &, httplib::Response &res) {
+    nlohmann::json r;
+    r["busy"] = g_serverState.isBusy();
+    r["current_step"] = g_serverState.currentStep();
+    r["total_steps"] = g_serverState.totalSteps();
+    res.status = 200;
+    res.set_content(r.dump(), "application/json");
+  });
   svr.Post("/generate", [&](const httplib::Request &req,
                             httplib::Response &res) {
+    // ── BKND-PROC-0008: Reject concurrent requests ──
+    // Returns 503 Service Unavailable (aligned with Stability AI/Ollama
+    // conventions) with a standard Retry-After header.  The error body
+    // follows Stability AI's format: { "id", "name", "errors" }.
+    std::chrono::steady_clock::time_point acquireTime;
+    if (!g_serverState.acquireBusy(acquireTime)) {
+      nlohmann::json busy = {
+          {"id",
+           "busy-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "busy"},
+          {"errors",
+           {"Server is currently processing another request"}},
+      };
+      res.status = 503;
+      res.set_header("Retry-After", "3");
+      res.set_content(busy.dump(), "application/json");
+      return;
+    }
+
+    // RAII: release the busy flag on every exit path so the server
+    // can accept new requests again.
+    auto clearBusy = [&]() { g_serverState.release(); };
     try {
       auto json = nlohmann::json::parse(req.body);
       if (!json.contains("prompt"))
@@ -3338,9 +3404,13 @@ int main(int argc, char **argv) {
       user_supplied_mask = false;
       target_crop_width = 0;
       target_crop_height = 0;
+      // BKND-PROC-0008 P1: Release vector capacity between requests
       img_data.clear();
+      img_data.shrink_to_fit();
       mask_data.clear();
+      mask_data.shrink_to_fit();
       mask_data_full.clear();
+      mask_data_full.shrink_to_fit();
       output_width = req_width;
       output_height = req_height;
       sample_width = req_width / 8;
@@ -3567,8 +3637,32 @@ int main(int argc, char **argv) {
       res.set_chunked_content_provider(
           "text/event-stream", [&](intptr_t, httplib::DataSink &sink) -> bool {
             try {
+              // BKND-PROC-0008: Watchdog — check for hung generation before
+              // starting.  A previously stuck pipeline may have left the flag
+              // set; force-release if the timeout is exceeded.
+              if (g_serverState.checkAndReleaseTimeout(acquireTime)) {
+                nlohmann::json err = {
+                    {"id",
+                     "timeout-" +
+                         std::to_string(
+                             std::chrono::system_clock::now()
+                                 .time_since_epoch()
+                                 .count())},
+                    {"name", "timeout"},
+                    {"errors",
+                     {"Generation timed out after " +
+                      std::to_string(g_serverState.generation_timeout_secs) +
+                      "s"}},
+                };
+                std::string ev = "event: error\ndata: " + err.dump() + "\n\n";
+                sink.write(ev.c_str(), ev.size());
+                sink.done();
+                return false;
+              }
               auto result =
                   generateImage([&sink](int s, int t, const std::string &img) {
+                    // BKND-PROC-0008: Track progress via ServerState
+                    g_serverState.setProgress(s, t);
                     nlohmann::json p = {
                         {"type", "progress"}, {"step", s}, {"total_steps", t}};
                     if (!img.empty()) {
@@ -3609,9 +3703,20 @@ int main(int argc, char **argv) {
                          .count()
                   << "ms, size: " << ev.size() << " bytes\n";
               sink.done();
+              clearBusy();
               return true;
             } catch (const std::exception &e) {
-              nlohmann::json err = {{"type", "error"}, {"message", e.what()}};
+              clearBusy();
+              nlohmann::json err = {
+                  {"id",
+                   "gen-err-" +
+                       std::to_string(
+                           std::chrono::system_clock::now()
+                               .time_since_epoch()
+                               .count())},
+                  {"name", "generation_error"},
+                  {"errors", {std::string(e.what())}},
+              };
               std::string ev = "event: error\ndata: " + err.dump() + "\n\n";
               sink.write(ev.c_str(), ev.size());
               sink.done();
@@ -3619,24 +3724,45 @@ int main(int argc, char **argv) {
             }
           });
     } catch (const nlohmann::json::parse_error &e) {
+      clearBusy();
       nlohmann::json err = {
-          {"error",
-           {{"message", "Invalid JSON: " + std::string(e.what())},
-            {"type", "request_error"}}}};
+          {"id",
+           "parse-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "invalid_json"},
+          {"errors", {std::string(e.what())}},
+      };
       res.status = 400;
       res.set_content(err.dump(), "application/json");
     } catch (const std::invalid_argument &e) {
+      clearBusy();
       nlohmann::json err = {
-          {"error",
-           {{"message", "Invalid Arg: " + std::string(e.what())},
-            {"type", "request_error"}}}};
+          {"id",
+           "arg-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "invalid_argument"},
+          {"errors", {std::string(e.what())}},
+      };
       res.status = 400;
       res.set_content(err.dump(), "application/json");
     } catch (const std::exception &e) {
+      clearBusy();
       nlohmann::json err = {
-          {"error",
-           {{"message", "Server Err: " + std::string(e.what())},
-            {"type", "server_error"}}}};
+          {"id",
+           "srv-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "server_error"},
+          {"errors", {std::string(e.what())}},
+      };
       res.status = 500;
       res.set_content(err.dump(), "application/json");
     }
@@ -3646,6 +3772,28 @@ int main(int argc, char **argv) {
   svr.Post("/upscale", [&](const httplib::Request &req,
                            httplib::Response &res) {
     std::unique_ptr<QnnModel> tempUpscalerApp = nullptr;
+
+    // BKND-PROC-0008: Upscaler uses the GPU/QNN — serialize with generation
+    // to prevent resource contention.  Returns 503 if busy.
+    std::chrono::steady_clock::time_point upscaleAcquireTime;
+    if (!g_serverState.acquireBusy(upscaleAcquireTime)) {
+      nlohmann::json busy = {
+          {"id",
+           "busy-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "busy"},
+          {"errors",
+           {"Server is currently processing another request"}},
+      };
+      res.status = 503;
+      res.set_header("Retry-After", "3");
+      res.set_content(busy.dump(), "application/json");
+      return;
+    }
+    auto clearUpscaleBusy = [&]() { g_serverState.release(); };
 
     try {
       // Read parameters from headers
@@ -3783,21 +3931,36 @@ int main(int argc, char **argv) {
         tempUpscalerApp.reset();
         QNN_INFO("Upscaler model released");
       }
+      clearUpscaleBusy();
 
     } catch (const std::invalid_argument &e) {
       tempUpscalerApp.reset();
+      clearUpscaleBusy();
       nlohmann::json err = {
-          {"error",
-           {{"message", "Invalid Arg: " + std::string(e.what())},
-            {"type", "request_error"}}}};
+          {"id",
+           "upscale-arg-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "invalid_argument"},
+          {"errors", {std::string(e.what())}},
+      };
       res.status = 400;
       res.set_content(err.dump(), "application/json");
     } catch (const std::exception &e) {
       tempUpscalerApp.reset();
+      clearUpscaleBusy();
       nlohmann::json err = {
-          {"error",
-           {{"message", "Server Err: " + std::string(e.what())},
-            {"type", "server_error"}}}};
+          {"id",
+           "upscale-srv-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "server_error"},
+          {"errors", {std::string(e.what())}},
+      };
       res.status = 500;
       res.set_content(err.dump(), "application/json");
     }
@@ -3859,11 +4022,36 @@ int main(int argc, char **argv) {
       res.set_content(resp.dump(), "application/json");
     } catch (const std::exception &e) {
       nlohmann::json err = {
-          {"error",
-           {{"message", std::string(e.what())}, {"type", "tokenize_error"}}}};
+          {"id",
+           "tok-" +
+               std::to_string(
+                   std::chrono::system_clock::now()
+                       .time_since_epoch()
+                       .count())},
+          {"name", "tokenize_error"},
+          {"errors", {std::string(e.what())}},
+      };
       res.status = 400;
       res.set_content(err.dump(), "application/json");
     }
+  });
+
+  // ── Graceful Shutdown ─────────────────────────────────────────────────
+  // POST /shutdown  sets the server state to ShuttingDown so queued health
+  // checks (Orphan Detection in BackendManager) see the backend as gone.
+  // After responding 200, the server exits svr.listen() via svr.stop().
+  svr.Post("/shutdown", [&](const httplib::Request &,
+                             httplib::Response &res) {
+    g_serverState.initiateShutdown();
+    nlohmann::json resp = {{"status", "shutting_down"}};
+    res.status = 200;
+    res.set_content(resp.dump(), "application/json");
+    std::cout << "[Server] Shutdown requested via /shutdown" << std::endl;
+    // Schedule async stop so the 200 response is sent first.
+    std::thread([&svr]() {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      svr.stop();
+    }).detach();
   });
 
   std::cout << "Server listening on " << listen_address << ":" << port

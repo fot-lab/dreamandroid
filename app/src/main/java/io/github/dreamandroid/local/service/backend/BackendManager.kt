@@ -56,6 +56,13 @@ class BackendManager(context: Context) {
         private const val NOTIFICATION_CHANNEL_ID = "backend_process_channel"
         private const val NOTIFICATION_ID = 6
         private const val MEMORY_MONITOR_INTERVAL_MS = 5_000L
+
+        /**
+         * Interval for verifying that a Running backend is still alive.
+         * Longer than Worker's poll (3s) so it doesn't race; this is a
+         * safety net — the Worker's health check is the primary detector.
+         */
+        private const val HEALTH_CHECK_MONITOR_INTERVAL_MS = 10_000L
     }
 
     enum class Mode { Diffusion, Upscaler }
@@ -85,6 +92,8 @@ class BackendManager(context: Context) {
     private var backendPid: Int = -1
 
     private var memoryMonitorJob: Job? = null
+
+    private var healthCheckJob: Job? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -162,6 +171,7 @@ class BackendManager(context: Context) {
             startMemoryMonitor()
 
             _state.value = State.Running(Mode.Diffusion, modelId)
+            startHealthCheckMonitor()
             showBackendNotification("Diffusion: $modelId")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -214,6 +224,7 @@ class BackendManager(context: Context) {
             startMemoryMonitor()
 
             _state.value = State.Running(Mode.Upscaler, upscalerId)
+            startHealthCheckMonitor()
             showBackendNotification("Upscaler: $upscalerId")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -286,6 +297,17 @@ class BackendManager(context: Context) {
             httpClient.newCall(request).execute()
         }
 
+        // BKND-PROC-0008: Handle backend busy (503 Service Unavailable) —
+        // the C++ server rejects concurrent /generate requests following
+        // Stability AI / Ollama conventions with a standard Retry-After header.
+        if (response.code == 503) {
+            val retryAfterSec = response.header("Retry-After")?.toIntOrNull() ?: 3
+            throw AppError.BackendBusy(
+                "Server is currently processing another request",
+                retryAfterSec * 1000L,
+            )
+        }
+
         if (!response.isSuccessful) {
             throw AppError.Backend("Generate request failed: ${response.code}")
         }
@@ -293,6 +315,29 @@ class BackendManager(context: Context) {
         val body = response.body ?: throw AppError.Backend("Empty response body")
         val parser = SseStreamParser(body.byteStream())
         parser.events().collect { emit(it) }
+    }
+
+    /**
+     * Query the C++ backend for the current generation progress.
+     * Returns null if the backend is not reachable, otherwise a pair of
+     * (currentStep, totalSteps).  Safe to call concurrently from any thread.
+     */
+    suspend fun queryProgress(): Pair<Int, Int>? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("${DreamHubConstants.BASE_URL}/progress")
+                .get()
+                .build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+            val body = response.body?.string() ?: return@withContext null
+            val json = JSONObject(body)
+            val current = json.optInt("current_step", 0)
+            val total = json.optInt("total_steps", 0)
+            Pair(current, total)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     data class TokenizeResult(
@@ -400,6 +445,7 @@ class BackendManager(context: Context) {
     private fun stopProcess() {
         monitorThread?.interrupt()
         stopMemoryMonitor()
+        stopHealthCheckMonitor()
         process?.let { proc ->
             try {
                 proc.destroy()
@@ -430,6 +476,7 @@ class BackendManager(context: Context) {
     fun stopProcessImmediate() {
         monitorThread?.interrupt()
         stopMemoryMonitor()
+        stopHealthCheckMonitor()
         process?.let { proc ->
             try {
                 proc.destroyForcibly()
@@ -566,6 +613,56 @@ class BackendManager(context: Context) {
     private fun stopMemoryMonitor() {
         memoryMonitorJob?.cancel()
         memoryMonitorJob = null
+    }
+
+    // ── Health Check Monitor ──
+
+    /**
+     * Periodically verifies that a Running backend is still reachable via HTTP.
+     *
+     * The process monitor thread detects native crashes via [Process.waitFor()],
+     * but that can lag behind the actual crash (blocked on pipe I/O).  This monitor
+     * provides a second, independent detection path using HTTP health checks, so
+     * the UI state is corrected promptly even if the process monitor hasn't noticed
+     * the crash yet.
+     *
+     * When a health check fails while [_state] is Running, the state is degraded
+     * to Error and all backend resources (process reference, PID, monitors) are
+     * cleaned up — matching what [stopProcess] does.
+     */
+    private fun startHealthCheckMonitor() {
+        stopHealthCheckMonitor()
+        healthCheckJob = scope.launch {
+            while (isActive) {
+                delay(HEALTH_CHECK_MONITOR_INTERVAL_MS)
+                if (_state.value !is State.Running) continue
+                try {
+                    if (!healthCheck()) {
+                        Log.w(TAG, "Health check failed — backend unresponsive, marking as Error")
+                        _state.value = State.Error("Backend process unresponsive")
+                        process = null
+                        backendPid = -1
+                        stopMemoryMonitor()
+                        cancelBackendNotification()
+                    }
+                } catch (_: Exception) {
+                    // healthCheck() itself may throw on network error
+                    Log.w(TAG, "Health check threw — backend unreachable, marking as Error")
+                    if (_state.value is State.Running) {
+                        _state.value = State.Error("Backend process unreachable")
+                        process = null
+                        backendPid = -1
+                        stopMemoryMonitor()
+                        cancelBackendNotification()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun stopHealthCheckMonitor() {
+        healthCheckJob?.cancel()
+        healthCheckJob = null
     }
 
     // ── Notification ──

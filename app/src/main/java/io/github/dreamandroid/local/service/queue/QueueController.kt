@@ -25,6 +25,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * - [start]: enqueue worker if not already running
  * - [stop]: cancel worker + cancel all pending tasks
  * - [observeState]: Flow of WorkInfo for UI binding
+ * - [hasActiveWorker]: Check if a generation-queue worker is currently active
+ *
+ * This object holds no mutable state — it is purely a namespace for
+ * WorkManager operations.
  */
 object QueueController {
 
@@ -97,6 +101,26 @@ object QueueController {
         queueRepository.cancelAllPending()
         queueRepository.setProcessingActive(false)
         Log.d(TAG, "Queue processing stopped")
+    }
+
+    /**
+     * Check whether a generation-queue worker is currently enqueued or running.
+     * Used by the UI to avoid showing "start queue" when already active.
+     */
+    suspend fun hasActiveWorker(context: Context): Boolean {
+        val workManager = WorkManager.getInstance(context)
+        return try {
+            val infos = withTimeoutOrNull(2000L) {
+                workManager.getWorkInfosForUniqueWorkLiveData(GenerationWorker.WORK_TAG)
+                    .asFlow()
+                    .first()
+            }
+            infos?.any {
+                it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING
+            } ?: false
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**

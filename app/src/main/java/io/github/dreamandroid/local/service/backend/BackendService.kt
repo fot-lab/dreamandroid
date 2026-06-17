@@ -64,4 +64,12 @@ class BackendService(private val backendManager: BackendManager) {
         height: Int,
         upscalerPath: String,
     ): ByteArray = backendManager.upscale(rgbBytes, width, height, upscalerPath)
+
+    // ── Progress Query ──
+
+    /**
+     * Query the C++ backend for current generation progress.
+     * Returns null if the backend is unreachable, otherwise (currentStep, totalSteps).
+     */
+    suspend fun queryProgress(): Pair<Int, Int>? = backendManager.queryProgress()
 }

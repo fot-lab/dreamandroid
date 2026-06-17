@@ -18,6 +18,15 @@ sealed class AppError(
         override val message: String
     ) : AppError(message)
 
+    /**
+     * BKND-PROC-0008: Backend rejected the request because it is already
+     * processing another generation.  Callers should retry after [retryAfterMs].
+     */
+    data class BackendBusy(
+        override val message: String,
+        val retryAfterMs: Long = 3000L,
+    ) : AppError(message)
+
     data class Parse(
         override val message: String,
         override val cause: Throwable? = null

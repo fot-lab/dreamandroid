@@ -1,8 +1,9 @@
 # Architecture Review — Issue Index
 
-> 版本: 17.0
-> 更新日期: 2026-06-16
-> Phase A~F+startup 审计 (64 总数, 56 Fixed/Won'tFix, 8 剩余)
+> 版本: 20.0
+> 更新日期: 2026-06-17
+> Phase A~F+startup+CPP 审计 (65 总数, 58 Fixed/Won'tFix, 7 剩余)
+> BKND-PROC-0008: Stability AI API 对齐 + 服务端健壮性 (503/Retry-After/Watchdog/Shutdown)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -18,7 +19,8 @@
 | BKND-PROC-0004 | P1 | prepareRuntimeDir 代码重复 | Fully Fixed | [detail/BKND-PROC-0004.md](detail/BKND-PROC-0004.md) |
 | BKND-PROC-0005 | P1 | Upscale 无前台通知保护 | Fully Fixed | [detail/BKND-PROC-0005.md](detail/BKND-PROC-0005.md) |
 | BKND-PROC-0006 | P0 | 僵尸进程风险 | Fully Fixed | [detail/BKND-PROC-0006.md](detail/BKND-PROC-0006.md) |
-| BKND-PROC-0007 | P0 | ViewModel 构造函数触发 BackendManager 重量级初始化链 | Newly Discovered | [detail/BKND-PROC-0007.md](detail/BKND-PROC-0007.md) |
+| BKND-PROC-0007 | P0 | ViewModel 构造函数触发 BackendManager 重量级初始化链 | Fully Fixed | [detail/BKND-PROC-0007.md](detail/BKND-PROC-0007.md) |
+| BKND-PROC-0008 | P0 | main.cpp 并发安全 & 内存安全审计 + 重构建议 (3 P0, 2 P1, 1 P2) | Fully Fixed | [detail/BKND-PROC-0008.md](detail/BKND-PROC-0008.md) |
 | BKLC-BPAS-0001 | P0 | ModelRunScreen startForegroundService 绕过 | Fully Fixed | [detail/BKLC-BPAS-0001.md](detail/BKLC-BPAS-0001.md) |
 | BKLC-BPAS-0002 | P0 | ModelRunScreen ACTION_RESTART 绕过 | Fully Fixed | [detail/BKLC-BPAS-0002.md](detail/BKLC-BPAS-0002.md) |
 | BKLC-BPAS-0003 | P1 | ModelRunScreen cleanup() stopService 绕过 | Fully Fixed | [detail/BKLC-BPAS-0003.md](detail/BKLC-BPAS-0003.md) |
