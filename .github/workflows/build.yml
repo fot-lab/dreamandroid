@@ -19,7 +19,7 @@ on:
       build_native:
         description: 'Build native C++ code (requires private SDK)'
         type: boolean
-        default: false
+        default: true
       release:
         description: 'Publish APK as GitHub Release'
         type: boolean
@@ -41,12 +41,12 @@ env:
 jobs:
   # ============================================================
   # Stage 1 — Code Checkout & C++ Compilation
-  # (only on version-tag push or manual dispatch with build_native=true)
+  # (on all pushes; manual dispatch when build_native=true)
   # ============================================================
   native:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_native == 'true') }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_native == 'true') }}
 
     steps:
       # -------- checkout dreamandroid --------
@@ -137,6 +137,7 @@ jobs:
       # -------- cmake configure & build --------
       - name: CMake configure & build
         id: cmake-build
+        timeout-minutes: 30
         working-directory: app/src/main/cpp
         run: |
           set -euo pipefail
@@ -273,6 +274,7 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
 
       - name: Get or create release keystore from qairt
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           # Default Android debug credentials (public, known values)
@@ -324,6 +326,7 @@ jobs:
 
       - name: Gradle assemble
         id: gradle-build
+        timeout-minutes: 20
         run: |
           set -euo pipefail
           GRADLE_ARGS="assembleBasicRelease -x ktlintCheck -x detekt"
@@ -377,6 +380,7 @@ jobs:
   # ============================================================
   github-release:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [native, apk]
     if: |
       always() &&
@@ -410,3 +414,14 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           generate_release_notes: true
+
+  # ============================================================
+  # Stage 4 — Emulator Instrumentation Test (only if APK job succeeds)
+  # ============================================================
+  test:
+    needs: [apk]
+    if: ${{ always() && needs.apk.result == 'success' }}
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    with:
+      build-run-id: ${{ github.run_id }}
