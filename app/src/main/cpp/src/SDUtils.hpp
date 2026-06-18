@@ -215,9 +215,10 @@ std::vector<T> loadVectorFromFile(const std::string &filename) {
   return vec;
 }
 
-bool safety_check(const std::vector<uint8_t> &image_data, int width, int height,
-                  float &nsfw_score, MNN::Interpreter *interpreter,
-                  MNN::Session *session) {
+inline bool safety_check(const std::vector<uint8_t> &image_data, int width,
+                         int height, float &nsfw_score,
+                         MNN::Interpreter *interpreter,
+                         MNN::Session *session) {
   try {
     std::vector<uint8_t> resized_256(256 * 256 * 3);
     if (!stbir_resize_uint8_linear(image_data.data(), width, height, 0,
@@ -276,9 +277,9 @@ bool safety_check(const std::vector<uint8_t> &image_data, int width, int height,
   }
 }
 
-void decode_image(const std::vector<uint8_t> &image_binary,
-                  std::vector<uint8_t> &output_pixels, int output_width,
-                  int output_height) {
+inline void decode_image(const std::vector<uint8_t> &image_binary,
+                         std::vector<uint8_t> &output_pixels, int output_width,
+                         int output_height) {
   int width, height, channels;
   uint8_t *decoded_data =
       stbi_load_from_memory(image_binary.data(), image_binary.size(), &width,
@@ -334,8 +335,8 @@ void decode_image(const std::vector<uint8_t> &image_binary,
   }
 }
 
-void gaussianBlur(std::vector<uint8_t> &imageData, int width, int height,
-                  int radius) {
+inline void gaussianBlur(std::vector<uint8_t> &imageData, int width, int height,
+                         int radius) {
   if (width <= 0 || height <= 0 || radius <= 0 || imageData.empty()) {
     return;
   }
