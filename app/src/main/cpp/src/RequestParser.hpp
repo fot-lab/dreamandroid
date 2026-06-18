@@ -12,6 +12,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 #include <algorithm>
+#include <cctype>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -136,7 +137,29 @@ inline void parseGenerateRequest(
     g_req.samples              = json.value("samples", 1);
     g_req.cfg_scale            = json.value("cfg_scale", 7.5f);
     g_req.sampler_type         = json.value("sampler", "dpm");
-    g_req.denoise_curve        = json.value("denoise_curve", "scaled_linear");
+
+    // -- Scheduler (denoise curve) with validation --
+    if (json.contains("scheduler")) {
+        std::string sched_val = json["scheduler"].get<std::string>();
+        // Normalize to lowercase for case-insensitive matching
+        std::transform(sched_val.begin(), sched_val.end(), sched_val.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        static const std::vector<std::string> kSupportedSchedulers = {
+            "scaled_linear", "linear", "karras"
+        };
+        if (std::find(kSupportedSchedulers.begin(), kSupportedSchedulers.end(),
+                      sched_val) == kSupportedSchedulers.end()) {
+            throw std::invalid_argument(
+                "Unsupported scheduler '" + sched_val +
+                "'. Supported: scaled_linear, linear, karras");
+        }
+        g_req.denoise_curve = sched_val;
+    } else {
+        // HuggingFace diffusers default: scaled_linear
+        g_req.denoise_curve = "scaled_linear";
+    }
+
     g_req.use_opencl           = json.value("use_opencl", false);
     g_req.show_diffusion_process = json.value("show_diffusion_process", false);
     g_req.show_diffusion_stride  = json.value("show_diffusion_stride", 1);

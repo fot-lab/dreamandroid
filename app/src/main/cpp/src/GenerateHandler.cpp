@@ -350,20 +350,31 @@ GenerationResult generateImage(
     // --- Scheduler & Latents ---
     std::unique_ptr<Scheduler> scheduler;
     const char *timestep_spacing = conf.sdxl_mode ? "trailing" : "leading";
-    bool use_karras = (req.denoise_curve == "karras");
+
+    // Map denoise_curve (API "scheduler") to beta_schedule and use_karras
+    std::string beta_schedule = "scaled_linear";  // HuggingFace diffusers default
+    bool use_karras = false;
+    if (req.denoise_curve == "karras") {
+      use_karras = true;
+    } else if (req.denoise_curve == "linear") {
+      beta_schedule = "linear";
+    }
+    // else: "scaled_linear" → both defaults
+
     if (req.sampler_type == "euler_a" || req.sampler_type == "eulera") {
       scheduler = std::make_unique<EulerAncestralDiscreteScheduler>(
-          1000, 0.00085f, 0.012f, "scaled_linear", "epsilon", timestep_spacing,
+          1000, 0.00085f, 0.012f, beta_schedule, "epsilon", timestep_spacing,
           0, false, use_karras);
     } else if (req.sampler_type == "euler") {
       scheduler = std::make_unique<EulerDiscreteScheduler>(
-          1000, 0.00085f, 0.012f, "scaled_linear", "epsilon", timestep_spacing,
+          1000, 0.00085f, 0.012f, beta_schedule, "epsilon", timestep_spacing,
           0, false, use_karras);
     } else if (req.sampler_type == "lcm") {
       scheduler = std::make_unique<LCMScheduler>(1000, 0.00085f, 0.012f,
-                                                 "scaled_linear", "epsilon", 50,
+                                                 beta_schedule, "epsilon", 50,
                                                  10.0f, true, false);
     } else if (req.sampler_type == "dpm_sde") {
+      // DPMSolver only supports "scaled_linear" beta_schedule
       scheduler = std::make_unique<DPMSolverMultistepScheduler>(
           1000, 0.00085f, 0.012f, "scaled_linear", 2, "epsilon",
           timestep_spacing, use_karras, "sde-dpmsolver++");

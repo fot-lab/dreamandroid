@@ -71,7 +71,7 @@ POST /v1/generate
   "denoising_strength": 1.0,
   "use_opencl": false,
   "sampler": "euler",
-  "denoise_curve": "",
+  "scheduler": "karras",
   "show_diffusion_process": false,
   "show_diffusion_stride": 0,
   "aspect_ratio": "1:1",
@@ -93,8 +93,8 @@ POST /v1/generate
 | `height` | int | `512` | 输出高度 |
 | `denoising_strength` | float | `0.6` | 降噪强度 (A1111 命名，img2img 生效) |
 | `use_opencl` | bool | `false` | 是否启用 OpenCL 加速 |
-| `sampler` | string | `"dpm"` | 采样器名称 |
-| `denoise_curve` | string | `"scaled_linear"` | 降噪曲线类型 |
+| `sampler` | string | `"dpm"` | 采样器算法：`dpm`、`euler`、`euler_a`、`lcm`、`dpm_sde` |
+| `scheduler` | string | `"scaled_linear"` | 噪声调度曲线：`scaled_linear` (默认)、`linear`、`karras`。大小写不敏感 |
 | `show_diffusion_process` | bool | `false` | 是否展示扩散中间过程 |
 | `show_diffusion_stride` | int | `1` | 扩散过程展示步长 |
 | `aspect_ratio` | string | `"1:1"` | 宽高比 (SDXL 模式生效) |
@@ -256,6 +256,7 @@ Idle  ←→  Busy
 
 | 日期 | 描述 |
 |------|------|
+| 2026-06-18 | v2.3: `denoise_curve` → `scheduler`，新增参数校验；支持 `scaled_linear`(默认)、`linear`、`karras`；大小写不敏感；不支持的值返回 400 错误 |
 | 2026-06-18 | v2.2: `/v1/health` 新增 JSON body `{"status":"idle"/"busy"}`；`/v1/progress` 新增 `status` 字符串字段 |
 | 2026-06-18 | v2.1: 文档校验 — `use_cfg` 标注为客户端侧参数(服务端不解析)；Progress SSE `image` 字段添加条件说明；验证全部端点/参数/SSE格式与代码一致 |
 | 2026-06-18 | v2: 新增 `/v1/` 版本前缀；`cfg` → `cfg_scale`；`denoise_strength` → `denoising_strength`；新增 `samples` 参数(仅支持1)；seed=0 表示随机；progress 事件增加 `progress` 百分比；complete 事件增加 `finish_reason`；SSE error 增加 `message` 字段；CORS 保留 |

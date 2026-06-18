@@ -173,7 +173,7 @@ curl -X POST http://127.0.0.1:8081/v1/generate \
     "denoising_strength": 1.0,
     "use_opencl": false,
     "sampler": "dpm",
-    "denoise_curve": "scaled_linear",
+    "scheduler": "karras",
     "show_diffusion_process": false,
     "show_diffusion_stride": 1,
     "aspect_ratio": "1:1",
@@ -194,8 +194,8 @@ curl -X POST http://127.0.0.1:8081/v1/generate \
 | `height` | int | ❌ | `512` | 输出高度 |
 | `denoising_strength` | float | ❌ | `0.6` | 降噪强度 (img2img) |
 | `use_opencl` | bool | ❌ | `false` | OpenCL 加速 |
-| `sampler` | string | ❌ | `"dpm"` | 采样器 |
-| `denoise_curve` | string | ❌ | `"scaled_linear"` | 降噪曲线 |
+| `sampler` | string | ❌ | `"dpm"` | 采样器：`dpm`、`euler`、`euler_a`、`lcm`、`dpm_sde` |
+| `scheduler` | string | ❌ | `"scaled_linear"` | 噪声调度曲线：`scaled_linear`、`linear`、`karras` (大小写不敏感) |
 | `show_diffusion_process` | bool | ❌ | `false` | 是否推送中间扩散图像 |
 | `show_diffusion_stride` | int | ❌ | `1` | 扩散图像推送步长 |
 | `aspect_ratio` | string | ❌ | `"1:1"` | 宽高比 (SDXL) |
@@ -610,6 +610,27 @@ Content-Type: application/json
 }
 ```
 
+### 400 — scheduler 不支持的值
+
+```bash
+curl -X POST http://127.0.0.1:8081/v1/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"a cat","scheduler":"exponential"}'
+```
+
+```
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+  "id": "invalid_argument-123456789",
+  "name": "invalid_argument",
+  "errors": ["Unsupported scheduler 'exponential'. Supported: scaled_linear, linear, karras"]
+}
+```
+
+> `scheduler` 参数大小写不敏感；`KARRAS`、`Karras`、`karras` 均有效。不传入时默认使用 `scaled_linear`。
+
 ### 400 — mask 缺少 image
 
 ```bash
@@ -806,4 +827,5 @@ Access-Control-Expose-Headers: X-Output-Width,X-Output-Height,X-Duration-Ms
 
 | 日期 | 描述 |
 |------|------|
+| 2026-06-18 | v1.2: `denoise_curve` → `scheduler`；更新所有请求示例参数 |
 | 2026-06-18 | v1.1: `/v1/health` 更新为返回 `{"status":"idle"/"busy"}` JSON；`/v1/progress` 新增 `status` 字段 |
