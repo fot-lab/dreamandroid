@@ -8,7 +8,8 @@
 |----|----------|----------|------|
 | A111-APIS-0001 | A1111 WebUI | 完整 40+ 端点：生成/超分/进度/中断/查询/训练/模型管理/服务器管理/配置 等 | [A111-APIS-0001](detail/A111-APIS-0001.md) |
 | STBL-APIS-0001 | Stability AI | v1 (gRPC/生成/超分/引擎/账户) + v2beta (Ultra/Core/SD3/Edit/Control/Video/3D) 完整 REST API | [STBL-APIS-0001](detail/STBL-APIS-0001.md) |
-| DREM-APIS-0001 | DreamAndroid | v1 API: /v1/{health,progress,generate(SSE),upscale,tokenize} — A1111参数命名 + Stability错误 + CORS | [DREM-APIS-0001](detail/DREM-APIS-0001.md) |
+| DREM-APIS-0001 | DreamAndroid | v1 API 参考: /v1/{health,progress,generate(SSE),upscale,tokenize} — A1111参数命名 + Stability错误 + CORS | [DREM-APIS-0001](detail/DREM-APIS-0001.md) |
+| DREM-APIS-0002 | DreamAndroid | v1 API 示例: 6端点完整请求/响应范例 — curl + JSON + SSE事件流 + Kotlin + 所有错误场景 | [DREM-APIS-0002](detail/DREM-APIS-0002.md) |
 | CMPR-APIS-0001 | 对比分析 | 三方 API 路径/参数/错误格式/并发策略对比 | [CMPR-APIS-0001](detail/CMPR-APIS-0001.md) |
 
 ## §2. 编码领域速查
@@ -17,5 +18,5 @@
 |------|------|------------|
 | `A111-APIS` | A1111 WebUI API 参考 | 1 |
 | `STBL-APIS` | Stability AI API 参考 | 1 |
-| `DREM-APIS` | DreamAndroid API 参考 | 1 |
+| `DREM-APIS` | DreamAndroid API 参考 | 2 |
 | `CMPR-APIS` | API 对比分析 | 1 |
