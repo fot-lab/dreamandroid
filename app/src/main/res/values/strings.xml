@@ -34,7 +34,7 @@
     <string name="sdxl_lowram">SDXL low RAM mode</string>
     <string name="sdxl_lowram_hint">For SDXL only: load each model on demand and free it after use. Required on devices with less than 16GB RAM. Disables in-progress preview.</string>
     <string name="generation_timeout">Generation Timeout</string>
-    <string name="generation_timeout_hint">Maximum time to wait for a single image generation. Increase for slower models or higher resolution. Current: %d seconds</string>
+    <string name="generation_timeout_hint">Maximum idle time between SSE progress updates before a timeout warning is shown. The generation continues regardless. The warning auto-dismisses when new progress arrives. Current: %d seconds</string>
     <string name="bitmap_consumed_timeout">Bitmap Consumption Timeout</string>
     <string name="bitmap_consumed_timeout_hint">Maximum time to wait for the UI to consume the generated bitmap after completion. Current: %d seconds</string>
     <string name="health_check_retry_interval">Health Check Retry Interval</string>
@@ -244,10 +244,10 @@
     <string name="unknown_error">unknown error</string>
     <string name="backend_not_healthy">Backend server is not responding. Please check if the model is loaded.</string>
     <string name="generation_timeout_retry">Generation timed out (attempt %d). Retrying…</string>
-    <string name="generation_timed_out_title">Generation Timed Out</string>
-    <string name="generation_timed_out_message">Generation has exceeded the timeout limit (%d s). The backend process is still running. You can wait for it to finish or kill the process to free resources.</string>
-    <string name="generation_timed_out_kill">Kill Process</string>
-    <string name="generation_timed_out_waiting">Waiting…</string>
+    <string name="generation_timed_out_title">SSE Step Timeout</string>
+    <string name="generation_timed_out_message">No response from backend for %d s. The backend may be stuck. You can kill and restart the backend, or ignore and keep waiting. The warning will auto-dismiss when new progress arrives.</string>
+    <string name="generation_timed_out_kill">Kill and Restart</string>
+    <string name="generation_timed_out_ignore">Ignore</string>
     <string name="prompt_token_overflow">Prompt exceeds the 77-token CLIP limit</string>
 
     <!-- Info Messages -->

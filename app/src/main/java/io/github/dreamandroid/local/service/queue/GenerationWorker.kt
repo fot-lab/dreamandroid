@@ -132,26 +132,38 @@ class GenerationWorker(
 
             // ── 3. Execute generation via BackendManager (SSE Flow) ──
             try {
-                // Read user-configured timeout
+                // Read user-configured per-step SSE timeout
                 val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 val timeoutSeconds = prefs.getInt("generation_timeout_s", 60).coerceAtLeast(10)
                 val timeoutMs = timeoutSeconds * 1000L
 
-                // Launch timeout monitor — does NOT cancel the SSE stream
-                val timeoutMonitor = CoroutineScope(coroutineContext + Job()).launch {
-                    delay(timeoutMs)
-                    if (isActive) {
-                        Log.w(TAG, "Generation timed out after ${timeoutSeconds}s for task ${task.id}")
-                        queueRepository.setGenerationTimedOut(true)
+                // Per-step timeout: restarts on each SSE message.
+                // Fires only when a single step exceeds the timeout window.
+                var stepTimeoutJob: Job? = null
+
+                fun resetStepTimeout() {
+                    stepTimeoutJob?.cancel()
+                    // Auto-dismiss any lingering timeout warning when a new message arrives
+                    if (queueRepository.generationTimedOut.value) {
+                        queueRepository.setGenerationTimedOut(false)
+                    }
+                    stepTimeoutJob = CoroutineScope(coroutineContext + Job()).launch {
+                        delay(timeoutMs)
+                        if (isActive) {
+                            Log.w(TAG, "SSE step timed out after ${timeoutSeconds}s for task ${task.id}")
+                            queueRepository.setGenerationTimedOut(true)
+                        }
                     }
                 }
 
                 try {
+                    resetStepTimeout() // start initial timer
                     backendManager.generate(params).collect { event ->
                         if (isStopped) throw CancellationException("Worker cancelled")
 
                         when (event) {
                             is SseStreamParser.SseEvent.Progress -> {
+                                resetStepTimeout()
                                 val progress = event.step.toFloat() / event.totalSteps
                                 queueRepository.updateTaskProgress(task.id, progress)
                                 setProgress(workDataOf(
@@ -166,6 +178,7 @@ class GenerationWorker(
                             }
 
                             is SseStreamParser.SseEvent.Complete -> {
+                                stepTimeoutJob?.cancel()
                                 // Clear timeout state on successful completion
                                 queueRepository.setGenerationTimedOut(false)
                                 val bitmap = base64ToBitmap(
@@ -243,6 +256,7 @@ class GenerationWorker(
                             }
 
                             is SseStreamParser.SseEvent.Error -> {
+                                stepTimeoutJob?.cancel()
                                 // Clear timeout state on backend error
                                 queueRepository.setGenerationTimedOut(false)
                                 queueRepository.markTaskError(
@@ -253,7 +267,7 @@ class GenerationWorker(
                         }
                     }
                 } finally {
-                    timeoutMonitor.cancel()
+                    stepTimeoutJob?.cancel()
                 }
             } catch (e: CancellationException) {
                 Log.d(TAG, "Worker cancelled during generation")

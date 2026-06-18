@@ -32,7 +32,7 @@
     <string name="sdxl_lowram">SDXL 低内存模式</string>
     <string name="sdxl_lowram_hint">仅 SDXL 生效：按需加载每个模型，用完即释放。小于 16GB 内存的设备建议开启。开启后将禁用生成过程预览。</string>
     <string name="generation_timeout">生成超时</string>
-    <string name="generation_timeout_hint">单张图片生成的最大等待时间。较慢的模型或高分辨率需延长。当前：%d 秒</string>
+    <string name="generation_timeout_hint">SSE 进度更新之间的最大空闲时间，超时后将显示警告提示。生成过程不会中断，收到新进度后警告自动消失。当前：%d 秒</string>
     <string name="bitmap_consumed_timeout">位图读取超时</string>
     <string name="bitmap_consumed_timeout_hint">生成完成后，UI 读取位图的最大等待时间。当前：%d 秒</string>
     <string name="health_check_retry_interval">健康检查重试间隔</string>
@@ -235,10 +235,10 @@
     <string name="unknown_error">未知错误</string>
     <string name="backend_not_healthy">后端服务无响应，请确认模型已加载。</string>
     <string name="generation_timeout_retry">生成超时（第%d次尝试）。正在重试…</string>
-    <string name="generation_timed_out_title">生成超时</string>
-    <string name="generation_timed_out_message">生成已超过超时限制（%d 秒）。后端进程仍在运行，您可以等待其完成，或终止进程以释放资源。</string>
-    <string name="generation_timed_out_kill">终止进程</string>
-    <string name="generation_timed_out_waiting">等待中…</string>
+    <string name="generation_timed_out_title">SSE 单步超时</string>
+    <string name="generation_timed_out_message">后端 %d 秒内无响应，可能已卡住。您可以终止并重启后端，或忽略此提示继续等待。收到新的生成进度后，此提示将自动消失。</string>
+    <string name="generation_timed_out_kill">终止并重启</string>
+    <string name="generation_timed_out_ignore">忽略</string>
     <string name="prompt_token_overflow">提示词超出 77 token CLIP 限制</string>
 
     <!-- Info Messages -->

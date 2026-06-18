@@ -123,7 +123,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     val msgDeletedCountWithFailed = stringResource(R.string.deleted_count_with_failed)
     val msgTimedOutTitle = stringResource(R.string.generation_timed_out_title)
     val msgTimedOutKill = stringResource(R.string.generation_timed_out_kill)
-    val msgTimedOutWaiting = stringResource(R.string.generation_timed_out_waiting)
+    val msgTimedOutIgnore = stringResource(R.string.generation_timed_out_ignore)
 
     val model = remember { modelRepository.models.find { it.id == modelId } }
     val historyManager = remember { HistoryManager(context) }
@@ -560,12 +560,19 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                 msgTimedOutTitle = msgTimedOutTitle,
                                 msgTimedOutMessage = stringResource(R.string.generation_timed_out_message, preferences.getInt("generation_timeout_s", 60)),
                                 msgTimedOutKill = msgTimedOutKill,
-                                msgTimedOutWaiting = msgTimedOutWaiting,
+                                msgTimedOutIgnore = msgTimedOutIgnore,
                                 onKillBackend = {
                                     scope.launch {
                                         backendService.stop()
                                         queueRepository.setGenerationTimedOut(false)
+                                        delay(1000)
+                                        model?.id?.let { mid ->
+                                            backendService.startDiffusion(mid, state.currentWidth, state.currentHeight, state.useOpenCL)
+                                        }
                                     }
+                                },
+                                onIgnoreTimeout = {
+                                    queueRepository.setGenerationTimedOut(false)
                                 },
                                 onSaveImage = { ctx, bmp, onOk, onErr -> handleSaveImage(state, ctx, coroutineScope, bmp, onOk, onErr) },
                                 onSendToImg2img = { sendBitmapToImg2img(state, context, model, scope, it, pagerState) },

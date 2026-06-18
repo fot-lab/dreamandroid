@@ -73,8 +73,9 @@ fun ModelRunResultPage(
     msgTimedOutTitle: String = "Generation Timed Out",
     msgTimedOutMessage: String = "",
     msgTimedOutKill: String = "Kill Process",
-    msgTimedOutWaiting: String = "Waiting…",
+    msgTimedOutIgnore: String = "Ignore",
     onKillBackend: (() -> Unit)? = null,
+    onIgnoreTimeout: (() -> Unit)? = null,
     onSaveImage: (Context, Bitmap, () -> Unit, (String) -> Unit) -> Unit,
     onSendToImg2img: (Bitmap) -> Unit,
     onPreview: () -> Unit,
@@ -120,14 +121,15 @@ fun ModelRunResultPage(
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            msgTimedOutWaiting,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
-                        )
+                        TextButton(
+                            onClick = { onIgnoreTimeout?.invoke() },
+                        ) {
+                            Text(msgTimedOutIgnore)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = { onKillBackend?.invoke() },
                             colors = ButtonDefaults.buttonColors(
