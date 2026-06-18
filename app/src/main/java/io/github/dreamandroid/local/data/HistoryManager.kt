@@ -108,17 +108,17 @@ class HistoryManager(private val context: Context) {
                 prompt = params.prompt,
                 negativePrompt = params.negativePrompt,
                 steps = params.steps,
-                cfg = params.cfg,
+                cfg = params.cfgScale,
                 seed = params.seed,
                 width = params.width,
                 height = params.height,
                 denoiseStrength = if (mode == GenerationMode.IMG2IMG || mode == GenerationMode.INPAINT) {
-                    params.denoiseStrength
+                    params.denoisingStrength
                 } else {
                     null
                 },
                 useOpenCL = params.useOpenCL,
-                scheduler = params.sampler,
+                sampler = params.sampler,
                 timestamp = timestamp,
                 imagePath = relativePath,
                 mode = mode.name,
