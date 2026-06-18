@@ -108,8 +108,12 @@ int main(int argc, char **argv) {
     });
 
     // ─── GET /v1/health ───────────────────────────────────────────────
-    svr.Get("/v1/health", [](const httplib::Request &, httplib::Response &res) {
+    svr.Get("/v1/health", [&](const httplib::Request &, httplib::Response &res) {
+        bool busy = appCtx.serverState.isBusy();
+        nlohmann::json r;
+        r["status"] = busy ? "busy" : "idle";
         res.status = 200;
+        res.set_content(r.dump(), "application/json");
     });
 
     // ─── GET /v1/progress ─────────────────────────────────────────────
@@ -117,8 +121,10 @@ int main(int argc, char **argv) {
         int cur = appCtx.serverState.currentStep();
         int tot = appCtx.serverState.totalSteps();
         float pct = (tot > 0) ? static_cast<float>(cur) / static_cast<float>(tot) : 0.0f;
+        bool busy = appCtx.serverState.isBusy();
         nlohmann::json r;
-        r["busy"]         = appCtx.serverState.isBusy();
+        r["status"]       = busy ? "busy" : "idle";
+        r["busy"]         = busy;
         r["current_step"] = cur;
         r["total_steps"]  = tot;
         r["progress"]     = pct;

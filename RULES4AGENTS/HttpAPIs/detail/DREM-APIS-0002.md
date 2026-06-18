@@ -38,6 +38,7 @@ Access-Control-Max-Age: 86400
 
 ### GET /v1/health — 服务存活检测
 
+**后端空闲时**:
 ```bash
 curl -X GET http://127.0.0.1:8081/v1/health -i
 ```
@@ -45,10 +46,25 @@ curl -X GET http://127.0.0.1:8081/v1/health -i
 ```
 HTTP/1.1 200 OK
 Access-Control-Allow-Origin: *
-Content-Length: 0
+Content-Type: application/json
+Content-Length: 18
+
+{"status":"idle"}
 ```
 
-**响应体**: 空 (仅状态码 200 表示存活)。
+**后端正在生成时**:
+```bash
+curl -X GET http://127.0.0.1:8081/v1/health -i
+```
+
+```
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: *
+Content-Type: application/json
+Content-Length: 18
+
+{"status":"busy"}
+```
 
 **Kotlin 客户端调用**:
 ```kotlin
@@ -72,6 +88,7 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 
 ```json
 {
+  "status": "idle",
   "busy": false,
   "current_step": 0,
   "total_steps": 0,
@@ -86,6 +103,7 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 
 ```json
 {
+  "status": "busy",
   "busy": true,
   "current_step": 5,
   "total_steps": 20,
@@ -100,6 +118,7 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 
 ```json
 {
+  "status": "busy",
   "busy": true,
   "current_step": 20,
   "total_steps": 20,
@@ -110,6 +129,7 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 **字段说明**:
 | 字段 | 类型 | 说明 |
 |------|------|------|
+| `status` | string | `"idle"` 或 `"busy"` — 字符串形式的忙碌状态 |
 | `busy` | bool | 后端是否正在处理请求 |
 | `current_step` | int | 当前推理步数 |
 | `total_steps` | int | 总推理步数 (空闲时为 0) |
@@ -764,7 +784,7 @@ Content-Type: application/json
 | 方法 | 路径 | 请求 Content-Type | 响应 Content-Type | 流式? |
 |------|------|-------------------|-------------------|-------|
 | `OPTIONS` | `*` | — | — | ❌ |
-| `GET` | `/v1/health` | — | (空) | ❌ |
+| `GET` | `/v1/health` | — | `application/json` | ❌ |
 | `GET` | `/v1/progress` | — | `application/json` | ❌ |
 | `POST` | `/v1/generate` | `application/json` | `text/event-stream` | ✅ SSE |
 | `POST` | `/v1/upscale` | `application/octet-stream` | `image/jpeg` | ❌ |
@@ -790,4 +810,4 @@ Access-Control-Expose-Headers: X-Output-Width,X-Output-Height,X-Duration-Ms
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-18 | v1: 初始创建 — 6 端点 (OPTIONS/health/progress/generate/upscale/tokenize) 完整请求/响应示例，含 curl、JSON、SSE 事件流、Kotlin 客户端调用范例、所有错误场景 |
+| 2026-06-18 | v1.1: `/v1/health` 更新为返回 `{"status":"idle"/"busy"}` JSON；`/v1/progress` 新增 `status` 字段 |

@@ -24,7 +24,14 @@ DreamAndroid 使用内嵌 C++ httplib HTTP 服务器，监听本地端口 (默�
 GET /v1/health
 ```
 
-**响应**: `200 OK` (空 body)
+**响应** (JSON):
+```json
+{ "status": "idle" }
+```
+或
+```json
+{ "status": "busy" }
+```
 
 ### 进度查询
 
@@ -35,6 +42,7 @@ GET /v1/progress
 **响应** (JSON):
 ```json
 {
+  "status": "busy",
   "busy": true,
   "current_step": 5,
   "total_steps": 20,
@@ -249,6 +257,7 @@ Idle  ←→  Busy
 
 | 日期 | 描述 |
 |------|------|
+| 2026-06-18 | v2.2: `/v1/health` 新增 JSON body `{"status":"idle"/"busy"}`；`/v1/progress` 新增 `status` 字符串字段 |
 | 2026-06-18 | v2.1: 文档校验 — `use_cfg` 标注为客户端侧参数(服务端不解析)；Progress SSE `image` 字段添加条件说明；验证全部端点/参数/SSE格式与代码一致 |
 | 2026-06-18 | v2: 新增 `/v1/` 版本前缀；`cfg` → `cfg_scale`；`denoise_strength` → `denoising_strength`；新增 `samples` 参数(仅支持1)；seed=0 表示随机；progress 事件增加 `progress` 百分比；complete 事件增加 `finish_reason`；SSE error 增加 `message` 字段；CORS 保留 |
 | 2026-06-18 | 初始创建 (v1) |
