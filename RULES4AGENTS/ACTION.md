@@ -1,7 +1,7 @@
 # ACTION.md — Build & CI/CD 行为规范
 
-> 版本: 1.3
-> 更新日期: 2026-06-17
+> 版本: 1.2
+> 更新日期: 2026-06-16
 
 ## 核心原则
 
@@ -17,17 +17,15 @@ push/PR to master
        ├─ assembleBasicRelease (release APK)
        ├─ assembleBasicDebug + assembleBasicDebugAndroidTest (debug APKs for test)
        └─ upload debug-apks artifact
-            │
-            └─ build.yml: test job (needs: [apk], if: success)
-                 └─ uses: test.yml (workflow_call)
+            └─ (workflow_run 自动触发)
+                 └─ test.yml: instrumentation-test job
                       ├─ download debug-apks artifact
                       ├─ KVM + emulator (AVD snapshot cache)
                       └─ adb install → am instrument
 ```
 
 - **test.yml 不会重复编译** — 直接从 build.yml 下载预构建的 debug APK
-- **test.yml 仅在 build.yml apk job 成功时触发** — 通过 `needs: [apk]` + `if: needs.apk.result == 'success'`
-- **不再使用 `workflow_run`** — 避免 build 失败时产生无意义的 skip 记录
+- **test.yml 仅在 build.yml 成功时触发** (`workflow_run` + 结论=success)
 
 ### `build.yml` — 编译 & 发布 (`.github/workflows/build.yml`)
 
@@ -74,28 +72,12 @@ push/PR to master
 
 ### `test.yml` — 模拟器启动测试 (`.github/workflows/test.yml`)
 
-`test.yml` 是**可重用工作流 (reusable workflow)**，通过 `workflow_call` 被 `build.yml` 的 `test` job 调用，也支持手动 `workflow_dispatch`。
-
 #### 触发规则
 
 | 触发事件 | 行为 |
 |----------|------|
-| `workflow_call` (build.yml `test` job → `needs: [apk]`, `if: success`) | 仅在 apk job 成功时调用 → 下载 `debug-apks` → 模拟器测试 |
+| `workflow_run` (build.yml 成功) | 自动下载 `debug-apks` → 模拟器测试 |
 | `workflow_dispatch` | 手动触发，需提供 `build-run-id` |
-
-#### build.yml 中的 test job
-
-```yaml
-test:
-  needs: [apk]
-  if: needs.apk.result == 'success'
-  uses: ./.github/workflows/test.yml
-  with:
-    build-run-id: ${{ github.run_id }}
-```
-
-- `needs: [apk]` + `if: success` 确保 apk 失败时完全不触发 test，不会产生 skip 记录
-- 传入 `github.run_id` 供 test.yml 下载同一次 build 产出的 `debug-apks` artifact
 
 #### 工作流特点
 
@@ -167,50 +149,6 @@ Debug APK 需包含 `x86_64` ABI（`app/build.gradle.kts` debug block 已配置�
    - `workflow_runs[0].name` — workflow 名称
 3. 规则说明中不得提及任何 GitHub 用户名或个人账号信息
 
-### 通过 `gh` CLI 读取 CI Run 日志
-
-> 前提：`gh` CLI 已安装。若 `gh` 不在 PATH 中，先搜寻安装路径（常见位置 `C:\Program Files\GitHub CLI\gh.exe`），PowerShell 用 `&` 调用完整路径；若未安装则提示用户安装。
-
-#### Step 1 — 获取最新 Run 列表（带 `databaseId`）
-
-```
-gh run list --limit 3 --json databaseId,headBranch,status,conclusion,displayTitle,createdAt
-```
-
-`databaseId` 是数字 Run ID（如 `27663340915`），后续所有操作都依赖它。
-
-#### Step 2 — 获取 Run 内 Jobs 及其 `databaseId`
-
-```
-gh run view <run-databaseId> --json jobs --jq '.jobs[] | {name, status, conclusion, databaseId}'
-```
-
-每个 Job 有自己的 `databaseId`（如 `81812591585`），查日志需要用到它。
-
-#### Step 3 — 查看失败 Job 的失败步骤日志
-
-```
-gh run view <run-databaseId> --log-failed --job <job-databaseId>
-```
-
-#### Step 4 — 搜索日志中的特定内容
-
-在 PowerShell 中无 `grep`/`head`，可用 `Select-String`：
-
-```
-gh run view <run-databaseId> --log --job <job-databaseId> | Select-String -Pattern "Error|APK count"
-```
-
-#### 常见陷阱
-
-| 错误操作 | 正确做法 |
-|----------|----------|
-| 用 commit SHA 当 run ID | 必须用 `databaseId`（数字） |
-| `--run-id` flag | 该 flag 不存在，run ID 是 positional 参数 |
-| 用 run databaseId 当 `--job` 参数 | 必须用 Job 自己的 `databaseId` |
-| `\| head` / `\| grep` | PowerShell 中用 `Select-String -Pattern` |
-| `gh` 不在 PATH | 用完整路径 `& "C:\Program Files\GitHub CLI\gh.exe"` |
-
 ### Release 发布流程
 
 1. 更新 `VERSION_NAME` 和 `VERSION_CODE`
@@ -222,6 +160,5 @@ gh run view <run-databaseId> --log --job <job-databaseId> | Select-String -Patte
 
 | 日期 | 描述 |
 |------|------|
-| 2026-06-17 | 添加 `gh` CLI 读取 CI Run 日志指南（含常见陷阱）；补充 gh 不在 PATH 时的搜寻说明 |
 | 2026-06-16 | 添加 CI Workflow 状态查询规则（GitHub REST API） |
 | 2026-06-16 | 初始创建。声明无本地构建工具链，所有构建在云端 CI/CD 完成 |

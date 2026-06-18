@@ -67,8 +67,10 @@ fun GenerateScreen(
     onSeedChange: (String) -> Unit,
     batchCounts: Int,
     onBatchCountsChange: (Int) -> Unit,
-    scheduler: String,
-    onSchedulerChange: (String) -> Unit,
+    sampler: String,
+    onSamplerChange: (String) -> Unit,
+    denoiseCurve: String,
+    onDenoiseCurveChange: (String) -> Unit,
     denoiseStrength: Float,
     onDenoiseStrengthChange: (Float) -> Unit,
     useOpenCL: Boolean,
@@ -157,14 +159,14 @@ fun GenerateScreen(
                     prompt = prompt,
                     negativePrompt = negativePrompt,
                     steps = steps,
-                    cfg = cfg,
+                    cfgScale = cfg,
                     seed = seed,
                     width = width,
                     height = height,
-                    denoiseStrength = denoiseStrength,
+                    denoisingStrength = denoiseStrength,
                     useOpenCL = useOpenCL,
                     batchCounts = batchCounts,
-                    scheduler = scheduler,
+                    sampler = sampler,
                     aspectRatio = inferAspectRatioString(width, height),
                 )
             }
@@ -499,11 +501,8 @@ fun GenerateScreen(
                 )
             }
 
-            // Scheduler
-            val baseId = scheduler.removeSuffix("_karras")
-            val karras = scheduler.endsWith("_karras")
-            val karrasSupported = baseId != "lcm"
-            val baseOptions = listOf(
+            // Sampler (采样器)
+            val samplerOptions = listOf(
                 "dpm" to "DPM++ 2M",
                 "dpm_sde" to "DPM++ 2M SDE",
                 "euler_a" to "Euler A",
@@ -511,12 +510,41 @@ fun GenerateScreen(
                 "lcm" to "LCM",
             )
             Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "采样器",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    samplerOptions.forEach { (id, label) ->
+                        FilterChip(
+                            selected = sampler == id,
+                            onClick = {
+                                if (sampler != id) {
+                                    onSamplerChange(id)
+                                    saveAllFields()
+                                }
+                            },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
+
+            // Denoise Curve (降噪曲线)
+            val karrasSupported = sampler != "lcm"
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        stringResource(R.string.scheduler),
+                        "降噪曲线",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
@@ -529,34 +557,13 @@ fun GenerateScreen(
                         LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
                     ) {
                         Switch(
-                            checked = karras && karrasSupported,
+                            checked = denoiseCurve == "karras" && karrasSupported,
                             enabled = karrasSupported,
                             onCheckedChange = { enable ->
-                                onSchedulerChange(if (enable) "${baseId}_karras" else baseId)
+                                onDenoiseCurveChange(if (enable) "karras" else "scaled_linear")
                                 saveAllFields()
                             },
                             modifier = Modifier.scale(0.8f),
-                        )
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    baseOptions.forEach { (id, label) ->
-                        FilterChip(
-                            selected = baseId == id,
-                            onClick = {
-                                if (baseId != id) {
-                                    onSchedulerChange(
-                                        if (karras && id != "lcm") "${id}_karras" else id,
-                                    )
-                                    saveAllFields()
-                                }
-                            },
-                            label = { Text(label) },
                         )
                     }
                 }
@@ -671,7 +678,8 @@ fun GenerateScreen(
                     onCfgChange(7f)
                     onSeedChange("")
                     onBatchCountsChange(1)
-                    onSchedulerChange("dpm")
+                    onSamplerChange("dpm")
+                    onDenoiseCurveChange("scaled_linear")
                     onPromptChange(model?.defaultPrompt ?: "")
                     onNegativePromptChange(model?.defaultNegativePrompt ?: "")
                     onDenoiseStrengthChange(0.6f)
@@ -737,7 +745,7 @@ fun GenerateScreen(
                         onSeedChange(record.seed?.toString() ?: "")
                         onWidthChange(record.width)
                         onHeightChange(record.height)
-                        onSchedulerChange(record.scheduler)
+                        onSamplerChange(record.sampler)
                         selectedGenerateTab = 0
                     },
                 )

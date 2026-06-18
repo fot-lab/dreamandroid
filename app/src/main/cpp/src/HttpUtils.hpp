@@ -69,10 +69,15 @@ inline bool sseWrite(httplib::DataSink &sink,
 /**
  * Write an SSE error event, mark the sink done, and return false
  * (the canonical "generation failed" exit from a chunked provider).
+ *
+ * Produces a Stability-AI-compatible error envelope (id/name/errors) plus
+ * a top-level "message" field for simpler client parsing.
  */
 inline bool sseErrorDone(httplib::DataSink &sink,
                          const std::string &message) {
-    sseWrite(sink, "error", errorJson("generation_error", message));
+    nlohmann::json err = errorJson("generation_error", message);
+    err["message"] = message;  // dual-compat: Stability envelope + simple accessor
+    sseWrite(sink, "error", err);
     sink.done();
     return false;
 }
@@ -124,10 +129,14 @@ inline void onGenerateProgress(httplib::DataSink &sink,
                                int step, int totalSteps,
                                const std::string &imgBase64) {
     serverState.setProgress(step, totalSteps);
+    float progress = (totalSteps > 0)
+        ? static_cast<float>(step) / static_cast<float>(totalSteps)
+        : 0.0f;
     nlohmann::json p = {
         {"type", "progress"},
         {"step", step},
-        {"total_steps", totalSteps}
+        {"total_steps", totalSteps},
+        {"progress", progress}
     };
     if (!imgBase64.empty()) p["image"] = imgBase64;
     sseWrite(sink, "progress", p);

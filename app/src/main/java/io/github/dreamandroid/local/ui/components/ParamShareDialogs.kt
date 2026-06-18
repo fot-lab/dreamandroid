@@ -34,17 +34,17 @@ import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.utils.ImportedParams
 import io.github.dreamandroid.local.utils.ParamShareField
-import io.github.dreamandroid.local.utils.schedulerDisplayName
+import io.github.dreamandroid.local.utils.samplerDisplayName
 
 @Composable
 private fun fieldLabel(field: ParamShareField): String = when (field) {
     ParamShareField.PROMPT -> stringResource(R.string.image_prompt)
     ParamShareField.NEGATIVE_PROMPT -> stringResource(R.string.negative_prompt)
     ParamShareField.STEPS -> stringResource(R.string.share_field_steps)
-    ParamShareField.CFG -> stringResource(R.string.share_field_cfg)
+    ParamShareField.CFG_SCALE -> stringResource(R.string.share_field_cfg)
     ParamShareField.SEED -> stringResource(R.string.share_field_seed)
-    ParamShareField.SCHEDULER -> stringResource(R.string.scheduler)
-    ParamShareField.DENOISE_STRENGTH -> stringResource(R.string.share_field_denoise)
+    ParamShareField.SAMPLER -> "采样器"
+    ParamShareField.DENOISING_STRENGTH -> stringResource(R.string.share_field_denoise)
     ParamShareField.MODE -> stringResource(R.string.share_field_mode)
 }
 
@@ -199,11 +199,11 @@ fun ReproduceParametersDialog(
             add(ParamShareField.PROMPT)
             add(ParamShareField.NEGATIVE_PROMPT)
             add(ParamShareField.STEPS)
-            add(ParamShareField.CFG)
+            add(ParamShareField.CFG_SCALE)
             if (params.seed != null) add(ParamShareField.SEED)
-            add(ParamShareField.SCHEDULER)
+            add(ParamShareField.SAMPLER)
             if (params.mode != GenerationMode.TXT2IMG) {
-                add(ParamShareField.DENOISE_STRENGTH)
+                add(ParamShareField.DENOISING_STRENGTH)
             }
         }
     }
@@ -232,14 +232,14 @@ fun ReproduceParametersDialog(
 
                         ParamShareField.STEPS -> params.steps.toString()
 
-                        ParamShareField.CFG -> "%.1f".format(params.cfg)
+                        ParamShareField.CFG_SCALE -> "%.1f".format(params.cfgScale)
 
                         ParamShareField.SEED -> params.seed?.toString()
 
-                        ParamShareField.SCHEDULER -> schedulerDisplayName(params.scheduler)
+                        ParamShareField.SAMPLER -> samplerDisplayName(params.sampler)
 
-                        ParamShareField.DENOISE_STRENGTH ->
-                            "%.2f".format(params.denoiseStrength)
+                        ParamShareField.DENOISING_STRENGTH ->
+                            "%.2f".format(params.denoisingStrength)
 
                         ParamShareField.MODE -> null
                     }
@@ -330,14 +330,14 @@ fun ImportParametersDialog(
 
                         ParamShareField.STEPS -> imported.steps?.toString()
 
-                        ParamShareField.CFG -> imported.cfg?.let { "%.1f".format(it) }
+                        ParamShareField.CFG_SCALE -> imported.cfgScale?.let { "%.1f".format(it) }
 
                         ParamShareField.SEED -> imported.seed?.toString()
 
-                        ParamShareField.SCHEDULER -> schedulerDisplayName(imported.scheduler)
+                        ParamShareField.SAMPLER -> samplerDisplayName(imported.sampler)
 
-                        ParamShareField.DENOISE_STRENGTH ->
-                            imported.denoiseStrength?.let { "%.2f".format(it) }
+                        ParamShareField.DENOISING_STRENGTH ->
+                            imported.denoisingStrength?.let { "%.2f".format(it) }
 
                         ParamShareField.MODE -> imported.mode?.name?.lowercase()
                     }

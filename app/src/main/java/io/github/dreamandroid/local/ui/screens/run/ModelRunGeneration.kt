@@ -22,6 +22,8 @@ import io.github.dreamandroid.local.ui.screens.PathData
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
+import io.github.dreamandroid.local.service.backend.BackendService
+
 import io.github.dreamandroid.local.utils.saveImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -57,14 +59,15 @@ fun saveAllFields(
             prompt = state.prompt,
             negativePrompt = state.negativePrompt,
             steps = state.steps,
-            cfg = state.cfg,
+            cfgScale = state.cfg,
             seed = state.seed,
             width = state.currentWidth,
             height = state.currentHeight,
-            denoiseStrength = state.denoiseStrength,
+            denoisingStrength = state.denoiseStrength,
             useOpenCL = state.useOpenCL,
             batchCounts = state.batchCounts,
-            scheduler = state.scheduler,
+            sampler = state.sampler,
+            denoiseCurve = state.denoiseCurve,
             aspectRatio = state.aspectRatio,
         )
     }
@@ -361,12 +364,13 @@ fun cleanupModelRun(
     context: Context,
     coroutineScope: CoroutineScope,
     pagerState: androidx.compose.foundation.pager.PagerState,
+    backendService: BackendService,
 ) {
     try {
         state.currentBitmap = null; state.generationParams = null
-        // Do NOT auto-stop backend — lifecycle is manually managed.
-        // Auto-stop would kill queue processing; the backend is shared
-        // across all queue tasks and managed by BackendManager.
+        coroutineScope.launch {
+            try { backendService.stop() } catch (e: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", e) }
+        }
         state.isRunning = false; state.progress = 0f; state.errorMessage = null
         state.generationStartTime = null
         coroutineScope.launch { pagerState.scrollToPage(0) }

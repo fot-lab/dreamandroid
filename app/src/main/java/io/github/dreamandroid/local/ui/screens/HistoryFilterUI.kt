@@ -60,7 +60,8 @@ import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.DeviceFilter
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.HistoryFilter
-import io.github.dreamandroid.local.utils.schedulerDisplayName
+import io.github.dreamandroid.local.utils.samplerDisplayName
+import io.github.dreamandroid.local.utils.denoiseCurveDisplayName
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -139,7 +140,7 @@ private fun HistoryFilter.hasAdvancedFilters(): Boolean = modes != null ||
     from != null ||
     to != null ||
     sizes != null ||
-    schedulers != null ||
+    samplers != null ||
     devices != null ||
     !promptSubstring.isNullOrBlank() ||
     !descending
@@ -149,7 +150,7 @@ private fun HistoryFilter.hasAdvancedFilters(): Boolean = modes != null ||
 fun HistoryFilterSheet(
     initialFilter: HistoryFilter,
     knownModelIds: List<String>,
-    knownSchedulers: List<String>,
+    knownSamplers: List<String>,
     knownSizes: List<String>,
     onApply: (HistoryFilter) -> Unit,
     onDismiss: () -> Unit,
@@ -161,7 +162,7 @@ fun HistoryFilterSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var showModelPicker by remember { mutableStateOf(false) }
     var showSizePicker by remember { mutableStateOf(false) }
-    var showSchedulerPicker by remember { mutableStateOf(false) }
+    var showSamplerPicker by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -196,7 +197,7 @@ fun HistoryFilterSheet(
                 }
             }
 
-            if (knownModelIds.isNotEmpty() || knownSizes.isNotEmpty() || knownSchedulers.isNotEmpty()) {
+            if (knownModelIds.isNotEmpty() || knownSizes.isNotEmpty() || knownSamplers.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
@@ -229,16 +230,16 @@ fun HistoryFilterSheet(
                             )
                         }
                     }
-                    if (knownSchedulers.isNotEmpty()) {
+                    if (knownSamplers.isNotEmpty()) {
                         Section(
                             title = stringResource(R.string.history_filter_scheduler),
                             modifier = Modifier,
                         ) {
                             ToneAssistChip(
-                                onClick = { showSchedulerPicker = true },
-                                active = draft.schedulers != null,
+                                onClick = { showSamplerPicker = true },
+                                active = draft.samplers != null,
                                 label = {
-                                    Text(summaryLabel(draft.schedulers, knownSchedulers.size))
+                                    Text(summaryLabel(draft.samplers, knownSamplers.size))
                                 },
                             )
                         }
@@ -399,18 +400,18 @@ fun HistoryFilterSheet(
         )
     }
 
-    if (showSchedulerPicker) {
+    if (showSamplerPicker) {
         MultiSelectDialog(
             title = stringResource(R.string.history_filter_scheduler),
-            allItems = knownSchedulers,
-            initiallySelected = draft.schedulers ?: knownSchedulers.toSet(),
-            itemLabel = { schedulerDisplayName(it) },
-            onDismiss = { showSchedulerPicker = false },
+            allItems = knownSamplers,
+            initiallySelected = draft.samplers ?: knownSamplers.toSet(),
+            itemLabel = { samplerDisplayName(it) },
+            onDismiss = { showSamplerPicker = false },
             onConfirm = { selected ->
                 draft = draft.copy(
-                    schedulers = if (selected.size == knownSchedulers.size) null else selected.ifEmpty { null },
+                    samplers = if (selected.size == knownSamplers.size) null else selected.ifEmpty { null },
                 )
-                showSchedulerPicker = false
+                showSamplerPicker = false
             },
         )
     }

@@ -114,7 +114,7 @@ inline void decodeAndSetMask(const std::string &maskB64,
 /**
  * Parse the /generate JSON body into g_req and compute derived paint-rect
  * values.  Handles:
- *   1. Core fields (prompt, steps, cfg, seed, scheduler, size …)
+ *   1. Core fields (prompt, steps, cfg_scale, seed, scheduler, size …)
  *   2. SDXL aspect_ratio → sets req.{target_crop_w/h, aspect_pad_inpaint}
  *   3. Image decoding (user-supplied or synthetic base for aspect-pad inpaint)
  *   4. Mask decoding (user-supplied or full-opacity paint rect)
@@ -133,16 +133,18 @@ inline void parseGenerateRequest(
     g_req.prompt               = json["prompt"].get<std::string>();
     g_req.negative_prompt      = json.value("negative_prompt", "");
     g_req.steps                = json.value("steps", 20);
-    g_req.cfg                  = json.value("cfg", 7.5f);
-    g_req.scheduler_type       = json.value("scheduler", "dpm");
+    g_req.samples              = json.value("samples", 1);
+    g_req.cfg_scale            = json.value("cfg_scale", 7.5f);
+    g_req.sampler_type         = json.value("sampler", "dpm");
+    g_req.denoise_curve        = json.value("denoise_curve", "scaled_linear");
     g_req.use_opencl           = json.value("use_opencl", false);
     g_req.show_diffusion_process = json.value("show_diffusion_process", false);
     g_req.show_diffusion_stride  = json.value("show_diffusion_stride", 1);
-    g_req.seed                 = json.value(
-        "seed",
-        (unsigned)hashSeed(
-            std::chrono::system_clock::now().time_since_epoch().count()));
-    g_req.denoise_strength     = json.value("denoise_strength", 0.6f);
+    g_req.seed                 = json.value("seed", 0u);  // 0 = random (Stability-AI)
+    g_req.denoising_strength   = json.value("denoising_strength", 0.6f);  // A1111 name
+
+    if (g_req.samples != 1)
+        throw std::invalid_argument("samples must be 1 (batch>1 not supported)");
 
     int reqW = json.value("width", 512);
     int reqH = json.value("height", 512);
@@ -240,8 +242,8 @@ inline void parseGenerateRequest(
                     row[x] = 1.0f;
             }
         }
-        g_req.request_img2img   = true;
-        g_req.denoise_strength  = 1.0f;  // fully renoise
+        g_req.request_img2img     = true;
+        g_req.denoising_strength  = 1.0f;  // fully renoise
     }
 
     // ── Mask ─────────────────────────────────────────────────────────
@@ -322,12 +324,15 @@ inline void parseGenerateRequest(
     std::cout << "Req Rcvd: P:" << g_req.prompt
               << " NP:" << g_req.negative_prompt
               << " S:" << g_req.steps
-              << " CFG:" << g_req.cfg
+              << " CFG:" << g_req.cfg_scale
               << " Seed:" << g_req.seed
               << " Size:" << g_req.output_width << "x" << g_req.output_height
               << " Img2Img:" << g_req.request_img2img
               << " Mask:" << g_req.request_has_mask
-              << " Denoise:" << g_req.denoise_strength
+              << " Denoise:" << g_req.denoising_strength
+              << " Sampler:" << g_req.sampler_type
+              << " DenoiseCurve:" << g_req.denoise_curve
+              << " Samples:" << g_req.samples
               << " ShowProcess:" << g_req.show_diffusion_process
               << " Stride:" << g_req.show_diffusion_stride << std::endl;
 }

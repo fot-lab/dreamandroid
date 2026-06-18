@@ -90,7 +90,7 @@ interface TaskDao {
     fun observeHistoryKnownModelIds(): Flow<List<String>>
 
     @Query("SELECT DISTINCT scheduler FROM tasks WHERE task_type = 'HISTORY' ORDER BY scheduler")
-    fun observeHistoryKnownSchedulers(): Flow<List<String>>
+    fun observeHistoryKnownSamplers(): Flow<List<String>>
 
     @Query("SELECT DISTINCT (width || 'x' || height) FROM tasks WHERE task_type = 'HISTORY' ORDER BY width * height DESC")
     fun observeHistoryKnownSizes(): Flow<List<String>>

@@ -18,6 +18,7 @@ class SseStreamParser(
         data class Progress(
             val step: Int,
             val totalSteps: Int,
+            val progress: Float,
             val imageBase64: String
         ) : SseEvent()
 
@@ -25,7 +26,8 @@ class SseStreamParser(
             val imageBase64: String,
             val seed: Long,
             val width: Int,
-            val height: Int
+            val height: Int,
+            val finishReason: String = "SUCCESS"
         ) : SseEvent()
 
         data class Error(val message: String) : SseEvent()
@@ -78,15 +80,26 @@ class SseStreamParser(
             "progress" -> SseEvent.Progress(
                 step = obj.getInt("step"),
                 totalSteps = obj.getInt("total_steps"),
+                progress = obj.optDouble("progress", 0.0).toFloat(),
                 imageBase64 = obj.getString("image")
             )
             "complete" -> SseEvent.Complete(
                 imageBase64 = obj.getString("image"),
                 seed = obj.optLong("seed"),
                 width = obj.getInt("width"),
-                height = obj.getInt("height")
+                height = obj.getInt("height"),
+                finishReason = obj.optString("finish_reason", "SUCCESS")
             )
-            "error" -> SseEvent.Error(obj.getString("message"))
+            "error" -> {
+                // Stability-AI error format: has "errors" array
+                val msg = if (obj.has("errors")) {
+                    val arr = obj.getJSONArray("errors")
+                    if (arr.length() > 0) arr.getString(0) else "Unknown error"
+                } else {
+                    obj.optString("message", "Unknown error")
+                }
+                SseEvent.Error(msg)
+            }
             else -> SseEvent.Error("Unknown event type: ${obj.getString("type")}")
         }
     }

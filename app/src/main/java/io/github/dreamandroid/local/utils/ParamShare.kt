@@ -9,10 +9,10 @@ enum class ParamShareField {
     PROMPT,
     NEGATIVE_PROMPT,
     STEPS,
-    CFG,
+    CFG_SCALE,
     SEED,
-    SCHEDULER,
-    DENOISE_STRENGTH,
+    SAMPLER,
+    DENOISING_STRENGTH,
     MODE,
 }
 
@@ -20,10 +20,10 @@ data class ImportedParams(
     val prompt: String? = null,
     val negativePrompt: String? = null,
     val steps: Int? = null,
-    val cfg: Float? = null,
+    val cfgScale: Float? = null,
     val seed: Long? = null,
-    val scheduler: String? = null,
-    val denoiseStrength: Float? = null,
+    val sampler: String? = null,
+    val denoisingStrength: Float? = null,
     val mode: GenerationMode? = null,
 ) {
     fun availableFields(): Set<ParamShareField> {
@@ -34,10 +34,10 @@ data class ImportedParams(
         if (prompt != null) set += ParamShareField.PROMPT
         if (negativePrompt != null) set += ParamShareField.NEGATIVE_PROMPT
         if (steps != null) set += ParamShareField.STEPS
-        if (cfg != null) set += ParamShareField.CFG
+        if (cfgScale != null) set += ParamShareField.CFG_SCALE
         if (seed != null) set += ParamShareField.SEED
-        if (scheduler != null) set += ParamShareField.SCHEDULER
-        if (denoiseStrength != null) set += ParamShareField.DENOISE_STRENGTH
+        if (sampler != null) set += ParamShareField.SAMPLER
+        if (denoisingStrength != null) set += ParamShareField.DENOISING_STRENGTH
         return set
     }
 }
@@ -57,13 +57,13 @@ object ParamShare {
             json.put("negative_prompt", params.negativePrompt)
         }
         if (ParamShareField.STEPS in fields) json.put("steps", params.steps)
-        if (ParamShareField.CFG in fields) json.put("cfg", params.cfg.toDouble())
+        if (ParamShareField.CFG_SCALE in fields) json.put("cfg_scale", params.cfgScale.toDouble())
         if (ParamShareField.SEED in fields) {
             params.seed?.let { json.put("seed", it) }
         }
-        if (ParamShareField.SCHEDULER in fields) json.put("scheduler", params.scheduler)
-        if (ParamShareField.DENOISE_STRENGTH in fields) {
-            json.put("denoise_strength", params.denoiseStrength.toDouble())
+        if (ParamShareField.SAMPLER in fields) json.put("sampler", params.sampler)
+        if (ParamShareField.DENOISING_STRENGTH in fields) {
+            json.put("denoising_strength", params.denoisingStrength.toDouble())
         }
         // Mode is included as metadata (not a user-selectable field) when known.
         if (params.mode != GenerationMode.UNKNOWN) json.put("mode", params.mode.name)
@@ -103,7 +103,12 @@ object ParamShare {
                     null
                 },
                 steps = if (json.has("steps")) json.optInt("steps") else null,
-                cfg = if (json.has("cfg")) json.optDouble("cfg").toFloat() else null,
+                cfgScale = if (json.has("cfg_scale")) {
+                    json.optDouble("cfg_scale").toFloat()
+                } else if (json.has("cfg")) {
+                    // legacy key: tolerate "cfg" for backward compat
+                    json.optDouble("cfg").toFloat()
+                } else null,
                 seed = if (json.has("seed")) {
                     when (val v = json.opt("seed")) {
                         is Number -> v.toLong()
@@ -113,12 +118,17 @@ object ParamShare {
                 } else {
                     null
                 },
-                scheduler = if (json.has("scheduler")) {
-                    json.optString("scheduler")
+                sampler = if (json.has("sampler")) {
+                    json.optString("sampler")
+                } else if (json.has("scheduler")) {
+                    json.optString("scheduler") // legacy key
                 } else {
                     null
                 },
-                denoiseStrength = if (json.has("denoise_strength")) {
+                denoisingStrength = if (json.has("denoising_strength")) {
+                    json.optDouble("denoising_strength").toFloat()
+                } else if (json.has("denoise_strength")) {
+                    // legacy key: tolerate "denoise_strength" for backward compat
                     json.optDouble("denoise_strength").toFloat()
                 } else {
                     null

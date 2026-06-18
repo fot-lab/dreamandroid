@@ -84,7 +84,7 @@ fun padBitmapToCanvas(src: Bitmap, canvasW: Int, canvasH: Int): Bitmap {
 @Immutable
 data class GenerationParameters(
     val steps: Int,
-    val cfg: Float,
+    val cfgScale: Float,
     val seed: Long?,
     val prompt: String,
     val negativePrompt: String,
@@ -92,8 +92,8 @@ data class GenerationParameters(
     val width: Int,
     val height: Int,
     val runOnCpu: Boolean,
-    val denoiseStrength: Float = 0.6f,
+    val denoisingStrength: Float = 0.6f,
     val useOpenCL: Boolean = false,
-    val scheduler: String = "dpm",
+    val sampler: String = "dpm",
     val mode: GenerationMode = GenerationMode.UNKNOWN,
 )

@@ -106,7 +106,6 @@ class BackendManager(context: Context) {
         useOpenCL: Boolean
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            ensureNoOrphanBackend()
             stopProcess()
             _state.value = State.Starting(Mode.Diffusion, modelId)
 
@@ -184,7 +183,6 @@ class BackendManager(context: Context) {
 
     suspend fun startUpscaler(upscalerId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            ensureNoOrphanBackend()
             stopProcess()
             _state.value = State.Starting(Mode.Upscaler, upscalerId)
 
@@ -270,13 +268,15 @@ class BackendManager(context: Context) {
             put("prompt", params.prompt)
             put("negative_prompt", params.negativePrompt)
             put("steps", params.steps)
-            put("cfg", params.cfg.toDouble())
+            put("samples", 1)  // batch generation: only 1 supported
+            put("cfg_scale", params.cfgScale.toDouble())
             put("use_cfg", params.useCfg)
             put("width", params.width)
             put("height", params.height)
-            put("denoise_strength", params.denoiseStrength.toDouble())
+            put("denoising_strength", params.denoisingStrength.toDouble())
             put("use_opencl", params.useOpenCL)
-            put("scheduler", params.scheduler)
+            put("sampler", params.sampler)
+            put("denoise_curve", params.denoiseCurve)
             put("show_diffusion_process", params.showDiffusionProcess)
             put("show_diffusion_stride", params.showDiffusionStride)
             put("aspect_ratio", params.aspectRatio)
@@ -289,7 +289,7 @@ class BackendManager(context: Context) {
             .toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-            .url("${DreamHubConstants.BASE_URL}/generate")
+            .url("${DreamHubConstants.BASE_URL}/v1/generate")
             .post(requestBody)
             .build()
 
@@ -325,7 +325,7 @@ class BackendManager(context: Context) {
     suspend fun queryProgress(): Pair<Int, Int>? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
-                .url("${DreamHubConstants.BASE_URL}/progress")
+                .url("${DreamHubConstants.BASE_URL}/v1/progress")
                 .get()
                 .build()
             val response = httpClient.newCall(request).execute()
@@ -352,7 +352,7 @@ class BackendManager(context: Context) {
             .toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-            .url("${DreamHubConstants.BASE_URL}/tokenize")
+            .url("${DreamHubConstants.BASE_URL}/v1/tokenize")
             .post(requestBody)
             .build()
 
@@ -380,7 +380,7 @@ class BackendManager(context: Context) {
         val requestBody = rgbBytes.toRequestBody("application/octet-stream".toMediaType())
 
         val request = Request.Builder()
-            .url("${DreamHubConstants.BASE_URL}/upscale")
+            .url("${DreamHubConstants.BASE_URL}/v1/upscale")
             .header("X-Image-Width", width.toString())
             .header("X-Image-Height", height.toString())
             .header("X-Upscaler-Path", upscalerPath)
@@ -397,50 +397,6 @@ class BackendManager(context: Context) {
     }
 
     // ── Private Helpers ──
-
-    /**
-     * Detect and kill orphaned C++ backend processes (from previous crash/forced-quit).
-     * Called before every backend start to guarantee port 8081 is free.
-     */
-    private suspend fun ensureNoOrphanBackend() {
-        try {
-            // If we hold a process reference, stopProcess() handles it.
-            // But if process == null and health check succeeds → orphan!
-            if (process != null) return
-
-            if (healthCheck()) {
-                Log.w(TAG, "Orphan backend detected on port ${DreamHubConstants.BACKEND_PORT} — attempting shutdown")
-                // Try graceful HTTP shutdown
-                withContext(Dispatchers.IO) {
-                    try {
-                        val request = Request.Builder()
-                            .url("${DreamHubConstants.BASE_URL}/shutdown")
-                            .post(okhttp3.RequestBody.create(null, ByteArray(0)))
-                            .build()
-                        httpClient.newBuilder()
-                            .connectTimeout(2, TimeUnit.SECONDS)
-                            .readTimeout(2, TimeUnit.SECONDS)
-                            .build()
-                            .newCall(request)
-                            .execute()
-                            .close()
-                        Log.i(TAG, "Sent /shutdown to orphan backend")
-                    } catch (_: Exception) {
-                        Log.w(TAG, "/shutdown failed (backend may not support it)")
-                    }
-                }
-                // Wait for orphan to exit
-                delay(2000)
-                if (!healthCheck()) {
-                    Log.i(TAG, "Orphan backend successfully terminated")
-                } else {
-                    Log.wtf(TAG, "Orphan backend survived shutdown — port may be blocked")
-                }
-            }
-        } catch (_: Exception) {
-            // Best-effort; proceed with startup
-        }
-    }
 
     private fun stopProcess() {
         monitorThread?.interrupt()

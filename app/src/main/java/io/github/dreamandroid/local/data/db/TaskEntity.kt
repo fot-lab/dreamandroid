@@ -52,7 +52,8 @@ data class TaskEntity(
     @ColumnInfo(name = "use_opencl")
     val useOpenCL: Boolean,
 
-    val scheduler: String,
+    @ColumnInfo(name = "scheduler")
+    val sampler: String,
     val timestamp: Long,
 
     // ── Queue-specific fields ──

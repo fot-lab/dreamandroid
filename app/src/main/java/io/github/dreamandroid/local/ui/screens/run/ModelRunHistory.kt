@@ -47,7 +47,7 @@ fun ModelRunHistoryPage(
     state: ModelRunState,
     historyItems: List<HistoryItem>,
     knownModelIds: List<String>,
-    knownSchedulers: List<String>,
+    knownSamplers: List<String>,
     knownSizes: List<String>,
     scope: CoroutineScope,
     modelId: String,

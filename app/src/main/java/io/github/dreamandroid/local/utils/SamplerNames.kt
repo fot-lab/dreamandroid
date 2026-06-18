@@ -2,18 +2,14 @@ package io.github.dreamandroid.local.utils
 
 fun samplerDisplayName(id: String?): String = when (id) {
     "dpm" -> "DPM++ 2M"
+    "dpm_karras" -> "DPM++ 2M Karras"
     "euler_a" -> "Euler A"
-    "eulera" -> "Euler A"
+    "euler_a_karras" -> "Euler A Karras"
     "lcm" -> "LCM"
     "euler" -> "Euler"
+    "euler_karras" -> "Euler Karras"
     "dpm_sde" -> "DPM++ 2M SDE"
-    null -> ""
-    else -> id
-}
-
-fun denoiseCurveDisplayName(id: String?): String = when (id) {
-    "scaled_linear" -> "Scaled Linear"
-    "karras" -> "Karras"
+    "dpm_sde_karras" -> "DPM++ 2M SDE Karras"
     null -> ""
     else -> id
 }

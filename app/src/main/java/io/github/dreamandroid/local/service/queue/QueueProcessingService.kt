@@ -13,6 +13,7 @@ import io.github.dreamandroid.local.core.model.GenerateParams
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.service.QueueRepository
+import io.github.dreamandroid.local.service.queue.SseStreamParser
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -147,12 +148,12 @@ class QueueProcessingService : Service() {
                 prompt = task.prompt,
                 negativePrompt = task.negativePrompt,
                 steps = task.steps,
-                cfg = task.cfg,
+                cfgScale = task.cfg,
                 width = task.width,
                 height = task.height,
-                denoiseStrength = task.denoiseStrength,
+                denoisingStrength = task.denoiseStrength,
                 useOpenCL = task.useOpenCL,
-                scheduler = task.scheduler,
+                sampler = task.sampler,
                 aspectRatio = task.aspectRatio,
                 seed = task.seed,
             )
@@ -179,7 +180,7 @@ class QueueProcessingService : Service() {
                             if (bitmap != null) {
                                 val genParams = GenerationParameters(
                                     steps = task.steps,
-                                    cfg = task.cfg,
+                                    cfgScale = task.cfg,
                                     seed = event.seed,
                                     prompt = task.prompt,
                                     negativePrompt = task.negativePrompt,
@@ -187,9 +188,9 @@ class QueueProcessingService : Service() {
                                     width = event.width,
                                     height = event.height,
                                     runOnCpu = false,
-                                    denoiseStrength = task.denoiseStrength,
+                                    denoisingStrength = task.denoiseStrength,
                                     useOpenCL = task.useOpenCL,
-                                    scheduler = task.scheduler,
+                                    sampler = task.sampler,
                                     mode = GenerationMode.TXT2IMG,
                                 )
                                 // Check save result — do NOT mark COMPLETED if save failed

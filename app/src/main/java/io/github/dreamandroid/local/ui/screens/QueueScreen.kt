@@ -271,7 +271,7 @@ private fun TaskCard(
                         TaskDetailRow("Steps", "${task.steps}")
                         TaskDetailRow("CFG", "%.1f".format(task.cfg))
                         TaskDetailRow("Size", "${task.width}x${task.height}")
-                        TaskDetailRow("Scheduler", task.scheduler)
+                        TaskDetailRow("Sampler", task.sampler)
                         if (task.seed != null) TaskDetailRow("Seed", task.seed.toString())
                         if (!task.negativePrompt.isNullOrEmpty()) {
                             Text(

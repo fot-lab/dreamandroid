@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
-import io.github.dreamandroid.local.utils.schedulerDisplayName
+import io.github.dreamandroid.local.utils.samplerDisplayName
 
 @Composable
 fun GenerationParamsDialog(
@@ -103,7 +103,7 @@ fun GenerationParamsDialog(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "${stringResource(R.string.scheduler)}: ${schedulerDisplayName(params.scheduler)}",
+                        "采样器: ${samplerDisplayName(params.sampler)}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     val mode = displayMode ?: params.mode

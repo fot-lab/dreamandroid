@@ -47,7 +47,7 @@ data class HistoryItem(
                     runOnCpu = e.runOnCpu ?: false,
                     denoiseStrength = e.denoiseStrength ?: 0.6f,
                     useOpenCL = e.useOpenCL,
-                    scheduler = e.scheduler,
+                    sampler = e.sampler,
                     mode = mode,
                 ),
             )
@@ -118,7 +118,7 @@ class HistoryManager(private val context: Context) {
                     null
                 },
                 useOpenCL = params.useOpenCL,
-                scheduler = params.scheduler,
+                scheduler = params.sampler,
                 timestamp = timestamp,
                 imagePath = relativePath,
                 mode = mode.name,
@@ -169,7 +169,7 @@ class HistoryManager(private val context: Context) {
     }
 
     fun observeKnownModelIds(): Flow<List<String>> = dao.observeHistoryKnownModelIds()
-    fun observeKnownSchedulers(): Flow<List<String>> = dao.observeHistoryKnownSchedulers()
+    fun observeKnownSamplers(): Flow<List<String>> = dao.observeHistoryKnownSamplers()
     fun observeKnownSizes(): Flow<List<String>> = dao.observeHistoryKnownSizes()
 
     suspend fun deleteHistoryItem(item: HistoryItem): Boolean = withContext(Dispatchers.IO) {

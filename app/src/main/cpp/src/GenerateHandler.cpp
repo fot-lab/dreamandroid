@@ -350,29 +350,25 @@ GenerationResult generateImage(
     // --- Scheduler & Latents ---
     std::unique_ptr<Scheduler> scheduler;
     const char *timestep_spacing = conf.sdxl_mode ? "trailing" : "leading";
-    if (req.scheduler_type == "euler_a" || req.scheduler_type == "eulera" ||
-        req.scheduler_type == "euler_a_karras") {
-      bool use_karras = (req.scheduler_type == "euler_a_karras");
+    bool use_karras = (req.denoise_curve == "karras");
+    if (req.sampler_type == "euler_a" || req.sampler_type == "eulera") {
       scheduler = std::make_unique<EulerAncestralDiscreteScheduler>(
           1000, 0.00085f, 0.012f, "scaled_linear", "epsilon", timestep_spacing,
           0, false, use_karras);
-    } else if (req.scheduler_type == "euler" || req.scheduler_type == "euler_karras") {
-      bool use_karras = (req.scheduler_type == "euler_karras");
+    } else if (req.sampler_type == "euler") {
       scheduler = std::make_unique<EulerDiscreteScheduler>(
           1000, 0.00085f, 0.012f, "scaled_linear", "epsilon", timestep_spacing,
           0, false, use_karras);
-    } else if (req.scheduler_type == "lcm") {
+    } else if (req.sampler_type == "lcm") {
       scheduler = std::make_unique<LCMScheduler>(1000, 0.00085f, 0.012f,
                                                  "scaled_linear", "epsilon", 50,
                                                  10.0f, true, false);
-    } else if (req.scheduler_type == "dpm_sde" ||
-               req.scheduler_type == "dpm_sde_karras") {
-      bool use_karras = (req.scheduler_type == "dpm_sde_karras");
+    } else if (req.sampler_type == "dpm_sde") {
       scheduler = std::make_unique<DPMSolverMultistepScheduler>(
           1000, 0.00085f, 0.012f, "scaled_linear", 2, "epsilon",
           timestep_spacing, use_karras, "sde-dpmsolver++");
     } else {
-      bool use_karras = (req.scheduler_type == "dpm_karras");
+      // default: "dpm"
       scheduler = std::make_unique<DPMSolverMultistepScheduler>(
           1000, 0.00085f, 0.012f, "scaled_linear", 2, "epsilon",
           timestep_spacing, use_karras);
@@ -636,7 +632,7 @@ GenerationResult generateImage(
                 << "ms\n";
 
       original_latents = img_lat_scaled;
-      start_step = req.steps * (1.0f - req.denoise_strength);
+      start_step = req.steps * (1.0f - req.denoising_strength);
       if (start_step >= req.steps) start_step = req.steps - 1;
       if (start_step < 0) start_step = 0;
       total_run_steps -= start_step;
@@ -903,7 +899,7 @@ GenerationResult generateImage(
         float *latents_in_ptr = latents_in_vec.data();
         float *latents_out_ptr = unet_out_latents.data();
 
-        const bool skip_uncond = (req.cfg == 1.0f);
+        const bool skip_uncond = (req.cfg_scale == 1.0f);
 
         if (conf.sdxl_mode) {
           float *hidden_ptr = sdxl_encoder_hidden_states.data();
@@ -954,7 +950,7 @@ GenerationResult generateImage(
       std::cout << "UNET step " << i << " dur: " << step_dur.count() << "ms\n";
 
       xt::xarray<float> noise_pred;
-      if (!conf.use_mnn && req.cfg == 1.0f) {
+      if (!conf.use_mnn && req.cfg_scale == 1.0f) {
         std::vector<float> cond_only(
             unet_out_latents.begin() + single_latent_size,
             unet_out_latents.end());
@@ -964,7 +960,7 @@ GenerationResult generateImage(
             xt::adapt(unet_out_latents, shape_batch2);
         xt::xarray<float> uncond = xt::view(noise_pred_batch, 0);
         xt::xarray<float> txt = xt::view(noise_pred_batch, 1);
-        noise_pred = xt::eval(uncond + req.cfg * (txt - uncond));
+        noise_pred = xt::eval(uncond + req.cfg_scale * (txt - uncond));
       }
       latents = scheduler->step(noise_pred, timesteps(i), latents).prev_sample;
 

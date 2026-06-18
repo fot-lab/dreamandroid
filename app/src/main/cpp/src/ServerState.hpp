@@ -15,7 +15,6 @@
 // State machine:
 //   Idle  ── acquireBusy() ──►  Busy
 //   Busy  ── release()     ──►  Idle
-//   Busy  ── timeout       ──►  Error (forced release)
 //
 // Clients receive:
 //   - Normal conflict:  HTTP 503 Service Unavailable
@@ -24,7 +23,7 @@
 
 class ServerState {
  public:
-  enum class State : int { kIdle = 0, kBusy = 1, kShuttingDown = 2 };
+  enum class State : int { kIdle = 0, kBusy = 1 };
 
   // ── Configuration ──────────────────────────────────────────────────────
 
@@ -40,9 +39,6 @@ class ServerState {
   }
 
   bool isBusy() const { return currentState() == State::kBusy; }
-  bool isShuttingDown() const {
-    return currentState() == State::kShuttingDown;
-  }
 
   // ── Progress ───────────────────────────────────────────────────────────
 
@@ -60,8 +56,8 @@ class ServerState {
   // ── Busy Acquisition / Release ─────────────────────────────────────────
 
   /// Attempt to mark the server as Busy before processing a generation
-  /// request.  Returns true on success; false if the server is already busy
-  /// or shutting down.  On success the caller MUST call release().
+  /// request.  Returns true on success; false if the server is already busy.
+  /// On success the caller MUST call release().
   ///
   /// The returned token is the start time for the watchdog; pass it to
   /// release().
@@ -70,7 +66,7 @@ class ServerState {
     if (!state_.compare_exchange_strong(expected, State::kBusy,
                                         std::memory_order_acquire,
                                         std::memory_order_relaxed)) {
-      return false;  // Already busy or shutting down
+      return false;  // Already busy
     }
     acquireTime = std::chrono::steady_clock::now();
     // Reset progress for the new request
@@ -105,14 +101,6 @@ class ServerState {
               << std::endl;
     release();
     return true;
-  }
-
-  // ── Shutdown ───────────────────────────────────────────────────────────
-
-  /// Signal that the server is shutting down.  Subsequent acquireBusy()
-  /// calls will fail.
-  void initiateShutdown() {
-    state_.store(State::kShuttingDown, std::memory_order_release);
   }
 
  private:

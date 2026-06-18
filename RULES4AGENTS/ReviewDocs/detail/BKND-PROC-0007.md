@@ -55,21 +55,18 @@ ModelsViewModel(application)  // ← 主线程
 
 ## 修复方案
 
-**方案 A (已实施) — Application 层面预初始化**:
+**方案 A (推荐) — Application 层面预初始化**:
 在 `DreamAndroidApplication.onCreate()` 中提前初始化 `backendService`（现在是惰性），在启动阶段显式处理异常：
-
 ```kotlin
 override fun onCreate() {
     super.onCreate()
-    try {
-        backendService  // force lazy init with try-catch
-    } catch (e: Exception) {
-        Log.e(TAG, "BackendService init failed, backend features unavailable", e)
+    appScope.launch {
+        try { backendService } catch (e: Exception) { /* log + degrade gracefully */ }
     }
 }
 ```
 
-**方案 B — ViewModel 延迟获取** (备选):
+**方案 B — ViewModel 延迟获取**:
 将 ViewModel 中的 `val backendService = app.backendService` 改为 `viewModelScope.launch` 中 try-catch 获取。
 
 ## 变更历史
@@ -77,5 +74,3 @@ override fun onCreate() {
 | 日期 | 描述 |
 |------|------|
 | 2026-06-16 | 初始发现 |
-| 2026-06-17 | 方案A已在 DreamAndroidApplication.onCreate() 中实施 (lines 83-90) |
-| 2026-06-17 | BKND-PROC-0008 关联修复：BackendManager.generate() 增加 409 响应处理，BackendService 增加 queryProgress() 代理 |

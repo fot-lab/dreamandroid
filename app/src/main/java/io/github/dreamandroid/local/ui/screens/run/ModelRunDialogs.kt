@@ -190,10 +190,10 @@ fun ModelRunReproduceParamsDialog(
             if (ParamShareField.PROMPT in selectedFields) { state.prompt = params.prompt; state.promptFieldValue = TextFieldValue(state.prompt, TextRange(state.prompt.length)); state.promptSuggestions = emptyList() }
             if (ParamShareField.NEGATIVE_PROMPT in selectedFields) { state.negativePrompt = params.negativePrompt; state.negativePromptFieldValue = TextFieldValue(state.negativePrompt, TextRange(state.negativePrompt.length)); state.negativePromptSuggestions = emptyList() }
             if (ParamShareField.STEPS in selectedFields) { state.steps = params.steps.toFloat() }
-            if (ParamShareField.CFG in selectedFields) { state.cfg = params.cfg }
+            if (ParamShareField.CFG_SCALE in selectedFields) { state.cfg = params.cfgScale }
             if (ParamShareField.SEED in selectedFields) { state.seed = params.seed?.toString() ?: "" }
-            if (ParamShareField.SCHEDULER in selectedFields) { state.scheduler = params.scheduler }
-            if (ParamShareField.DENOISE_STRENGTH in selectedFields) { state.denoiseStrength = params.denoiseStrength }
+            if (ParamShareField.SAMPLER in selectedFields) { state.sampler = params.sampler }
+            if (ParamShareField.DENOISING_STRENGTH in selectedFields) { state.denoiseStrength = params.denoisingStrength }
             if (model?.isSdxl == true && useImg2img) {
                 val newRatio = inferAspectRatioString(params.width, params.height)
                 if (newRatio != state.aspectRatio) { state.aspectRatio = newRatio; onClearImg2img() }
@@ -352,9 +352,9 @@ fun ModelRunShareParamsDialog(
     val source = state.shareSourceParams ?: return
     val available = remember(source) {
         val list = mutableListOf<ParamShareField>()
-        list += ParamShareField.PROMPT; list += ParamShareField.NEGATIVE_PROMPT; list += ParamShareField.STEPS; list += ParamShareField.CFG
-        if (source.seed != null) list += ParamShareField.SEED; list += ParamShareField.SCHEDULER
-        if (source.mode != GenerationMode.UNKNOWN && source.mode != GenerationMode.TXT2IMG) { list += ParamShareField.DENOISE_STRENGTH }
+        list += ParamShareField.PROMPT; list += ParamShareField.NEGATIVE_PROMPT; list += ParamShareField.STEPS; list += ParamShareField.CFG_SCALE
+        if (source.seed != null) list += ParamShareField.SEED; list += ParamShareField.SAMPLER
+        if (source.mode != GenerationMode.UNKNOWN && source.mode != GenerationMode.TXT2IMG) { list += ParamShareField.DENOISING_STRENGTH }
         list
     }
     ShareParametersDialog(
@@ -364,14 +364,10 @@ fun ModelRunShareParamsDialog(
                 ParamShareField.PROMPT -> source.prompt
                 ParamShareField.NEGATIVE_PROMPT -> source.negativePrompt
                 ParamShareField.STEPS -> source.steps.toString()
-                ParamShareField.CFG -> "%.1f".format(source.cfg)
+                ParamShareField.CFG_SCALE -> "%.1f".format(source.cfgScale)
                 ParamShareField.SEED -> source.seed?.toString()
-                ParamShareField.SCHEDULER -> when (source.scheduler) {
-                    "dpm" -> "DPM++ 2M"; "dpm_karras" -> "DPM++ 2M Karras"; "euler_a" -> "Euler A"; "euler_a_karras" -> "Euler A Karras"
-                    "lcm" -> "LCM"; "euler" -> "Euler"; "euler_karras" -> "Euler Karras"
-                    "dpm_sde" -> "DPM++ 2M SDE"; "dpm_sde_karras" -> "DPM++ 2M SDE Karras"; else -> source.scheduler
-                }
-                ParamShareField.DENOISE_STRENGTH -> "%.2f".format(source.denoiseStrength)
+                ParamShareField.SAMPLER -> samplerDisplayName(source.sampler)
+                ParamShareField.DENOISING_STRENGTH -> "%.2f".format(source.denoisingStrength)
                 ParamShareField.MODE -> source.mode.name.lowercase()
             }
         },
@@ -416,10 +412,10 @@ fun ModelRunImportParamsDialog(
             if (ParamShareField.PROMPT in selectedFields) { imported.prompt?.let { state.prompt = it; state.promptFieldValue = TextFieldValue(it, TextRange(it.length)); state.promptSuggestions = emptyList() } }
             if (ParamShareField.NEGATIVE_PROMPT in selectedFields) { imported.negativePrompt?.let { state.negativePrompt = it; state.negativePromptFieldValue = TextFieldValue(it, TextRange(it.length)); state.negativePromptSuggestions = emptyList() } }
             if (ParamShareField.STEPS in selectedFields) { imported.steps?.let { state.steps = it.toFloat() } }
-            if (ParamShareField.CFG in selectedFields) { imported.cfg?.let { state.cfg = it } }
+            if (ParamShareField.CFG_SCALE in selectedFields) { imported.cfgScale?.let { state.cfg = it } }
             if (ParamShareField.SEED in selectedFields) { state.seed = imported.seed?.toString() ?: "" }
-            if (ParamShareField.SCHEDULER in selectedFields) { imported.scheduler?.let { state.scheduler = it } }
-            if (ParamShareField.DENOISE_STRENGTH in selectedFields) { imported.denoiseStrength?.let { state.denoiseStrength = it } }
+            if (ParamShareField.SAMPLER in selectedFields) { imported.sampler?.let { state.sampler = it } }
+            if (ParamShareField.DENOISING_STRENGTH in selectedFields) { imported.denoisingStrength?.let { state.denoiseStrength = it } }
             onSaveAll()
             if (clearClipboard) clearClipboardAction()
             state.pendingImport = null

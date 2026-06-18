@@ -107,23 +107,27 @@ int main(int argc, char **argv) {
         res.status = 204;
     });
 
-    // ─── GET /health ────────────────────────────────────────────────────
-    svr.Get("/health", [](const httplib::Request &, httplib::Response &res) {
+    // ─── GET /v1/health ───────────────────────────────────────────────
+    svr.Get("/v1/health", [](const httplib::Request &, httplib::Response &res) {
         res.status = 200;
     });
 
-    // ─── GET /progress ──────────────────────────────────────────────────
-    svr.Get("/progress", [&](const httplib::Request &, httplib::Response &res) {
+    // ─── GET /v1/progress ─────────────────────────────────────────────
+    svr.Get("/v1/progress", [&](const httplib::Request &, httplib::Response &res) {
+        int cur = appCtx.serverState.currentStep();
+        int tot = appCtx.serverState.totalSteps();
+        float pct = (tot > 0) ? static_cast<float>(cur) / static_cast<float>(tot) : 0.0f;
         nlohmann::json r;
         r["busy"]         = appCtx.serverState.isBusy();
-        r["current_step"] = appCtx.serverState.currentStep();
-        r["total_steps"]  = appCtx.serverState.totalSteps();
+        r["current_step"] = cur;
+        r["total_steps"]  = tot;
+        r["progress"]     = pct;
         res.status = 200;
         res.set_content(r.dump(), "application/json");
     });
 
-    // ─── POST /generate ─────────────────────────────────────────────────
-    svr.Post("/generate", [&](const httplib::Request &req,
+    // ─── POST /v1/generate ────────────────────────────────────────────
+    svr.Post("/v1/generate", [&](const httplib::Request &req,
                               httplib::Response &res) {
         std::chrono::steady_clock::time_point acquireTime;
         if (!appCtx.serverState.acquireBusy(acquireTime)) {
@@ -187,7 +191,8 @@ int main(int argc, char **argv) {
                         {"height", result.height},
                         {"channels", result.channels},
                         {"generation_time_ms", result.generation_time_ms},
-                        {"first_step_time_ms", result.first_step_time_ms}
+                        {"first_step_time_ms", result.first_step_time_ms},
+                        {"finish_reason", "SUCCESS"}
                     };
 
                     auto sendStart = std::chrono::high_resolution_clock::now();
@@ -211,8 +216,8 @@ int main(int argc, char **argv) {
             });
     });
 
-    // ─── POST /upscale ───────────────────────────────────────────────────
-    svr.Post("/upscale", [&](const httplib::Request &req,
+    // ─── POST /v1/upscale ───────────────────────────────────────────────
+    svr.Post("/v1/upscale", [&](const httplib::Request &req,
                              httplib::Response &res) {
         std::unique_ptr<QnnModel> tempUpscalerApp;
 
@@ -337,26 +342,14 @@ int main(int argc, char **argv) {
         }
     });
 
-    // ─── POST /tokenize ──────────────────────────────────────────────────
-    svr.Post("/tokenize", [&](const httplib::Request &req,
+    // ─── POST /v1/tokenize ────────────────────────────────────────────
+    svr.Post("/v1/tokenize", [&](const httplib::Request &req,
                               httplib::Response &res) {
         handleTokenize(req, res,
                        appCtx.conf.sdxl_mode,
                        text_embedding_size_2,
                        appCtx.models.promptProcessor,
                        appCtx.models.tokenizer.get());
-    });
-
-    // ─── POST /shutdown ──────────────────────────────────────────────────
-    svr.Post("/shutdown", [&](const httplib::Request &, httplib::Response &res) {
-        appCtx.serverState.initiateShutdown();
-        res.status = 200;
-        res.set_content(R"({"status":"shutting_down"})", "application/json");
-        std::cout << "[Server] Shutdown requested" << std::endl;
-        std::thread([&svr]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            svr.stop();
-        }).detach();
     });
 
     // ─── Listen ──────────────────────────────────────────────────────────

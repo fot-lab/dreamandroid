@@ -136,7 +136,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     val historyFlow = remember(state.historyFilter) { historyManager.observe(state.historyFilter) }
     val historyItems by historyFlow.collectAsState(initial = emptyList())
     val knownModelIds by remember { historyManager.observeKnownModelIds() }.collectAsState(initial = emptyList())
-    val knownSchedulers by remember { historyManager.observeKnownSchedulers() }.collectAsState(initial = emptyList())
+    val knownSamplers by remember { historyManager.observeKnownSamplers() }.collectAsState(initial = emptyList())
     val knownSizes by remember { historyManager.observeKnownSizes() }.collectAsState(initial = emptyList())
 
     // Share preferences
@@ -224,7 +224,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
             }
             state.steps = prefs.steps; state.cfg = prefs.cfg; state.seed = prefs.seed
             state.denoiseStrength = prefs.denoiseStrength; state.useOpenCL = prefs.useOpenCL
-            state.batchCounts = prefs.batchCounts; state.scheduler = prefs.scheduler
+            state.batchCounts = prefs.batchCounts; state.sampler = prefs.sampler; state.denoiseCurve = prefs.denoiseCurve
             state.aspectRatio = if (useImg2img) prefs.aspectRatio else "1:1"
             state.currentWidth = if (model?.isSdxl == true) 1024 else if (prefs.width == -1) (if (model?.runOnCpu == true) 256 else 512) else prefs.width
             state.currentHeight = if (model?.isSdxl == true) 1024 else if (prefs.height == -1) (if (model?.runOnCpu == true) 256 else 512) else prefs.height
@@ -520,7 +520,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                             effectiveHeight = effectiveSize.second,
                                             denoiseStrength = state.denoiseStrength,
                                             useOpenCL = state.useOpenCL,
-                                            scheduler = state.scheduler,
+                                            sampler = state.sampler,
                                             aspectRatio = state.aspectRatio,
                                             count = actualCount.coerceAtLeast(1),
                                         )
@@ -528,17 +528,17 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                     }
                                 },
                                 onResetAll = {
-                                    state.steps = 20f; state.cfg = 7f; state.seed = ""; state.batchCounts = 1; state.scheduler = "dpm"; state.aspectRatio = "1:1"
+                                    state.steps = 20f; state.cfg = 7f; state.seed = ""; state.batchCounts = 1; state.sampler = "dpm"; state.denoiseCurve = "scaled_linear"; state.aspectRatio = "1:1"
                                     state.prompt = model.defaultPrompt; state.negativePrompt = model.defaultNegativePrompt
                                     state.promptFieldValue = TextFieldValue(state.prompt, TextRange(state.prompt.length))
                                     state.negativePromptFieldValue = TextFieldValue(state.negativePrompt, TextRange(state.negativePrompt.length))
                                     state.promptSuggestions = emptyList(); state.negativePromptSuggestions = emptyList(); state.denoiseStrength = 0.6f
                                     scope.launch(Dispatchers.IO) {
-                                        generationPreferences.saveAllFields(modelId = modelId, prompt = model.defaultPrompt, negativePrompt = model.defaultNegativePrompt, steps = 20f, cfg = 7f, seed = "", width = if (model.isSdxl) 1024 else if (model.runOnCpu) 256 else 512, height = if (model.isSdxl) 1024 else if (model.runOnCpu) 256 else 512, denoiseStrength = 0.6f, useOpenCL = state.useOpenCL, batchCounts = 1, scheduler = "dpm", aspectRatio = "1:1")
+                                        generationPreferences.saveAllFields(modelId = modelId, prompt = model.defaultPrompt, negativePrompt = model.defaultNegativePrompt, steps = 20f, cfgScale = 7f, seed = "", width = if (model.isSdxl) 1024 else if (model.runOnCpu) 256 else 512, height = if (model.isSdxl) 1024 else if (model.runOnCpu) 256 else 512, denoisingStrength = 0.6f, useOpenCL = state.useOpenCL, batchCounts = 1, sampler = "dpm", denoiseCurve = "scaled_linear", aspectRatio = "1:1")
                                     }
                                 },
                                 onShareCurrent = {
-                                    val tmp = GenerationParameters(steps = state.steps.roundToInt(), cfg = state.cfg, seed = state.seed.toLongOrNull(), prompt = state.prompt, negativePrompt = state.negativePrompt, generationTime = "", width = state.currentWidth, height = state.currentHeight, runOnCpu = model.runOnCpu, denoiseStrength = state.denoiseStrength, useOpenCL = state.useOpenCL, scheduler = state.scheduler, mode = GenerationMode.TXT2IMG)
+                                    val tmp = GenerationParameters(steps = state.steps.roundToInt(), cfgScale = state.cfg, seed = state.seed.toLongOrNull(), prompt = state.prompt, negativePrompt = state.negativePrompt, generationTime = "", width = state.currentWidth, height = state.currentHeight, runOnCpu = model.runOnCpu, denoisingStrength = state.denoiseStrength, useOpenCL = state.useOpenCL, sampler = state.sampler, mode = GenerationMode.TXT2IMG)
                                     state.shareSourceParams = tmp; state.shareSourceModelId = modelId
                                 },
                                 onPasteClipboard = {
@@ -558,7 +558,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                             )
                             2 -> ModelRunHistoryPage(
                                 state = state, historyItems = historyItems, knownModelIds = knownModelIds,
-                                knownSchedulers = knownSchedulers, knownSizes = knownSizes, scope = scope,
+                                knownSamplers = knownSamplers, knownSizes = knownSizes, scope = scope,
                                 modelId = modelId, msgImageSaved = msgImageSaved, msgDeleted = msgDeleted,
                                 msgDeleteFailedMessage = msgDeleteFailedMessage, resources = resources,
                                 msgSavedCountWithFailed = msgSavedCountWithFailed, msgDeletedCountWithFailed = msgDeletedCountWithFailed,

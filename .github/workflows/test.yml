@@ -1,12 +1,9 @@
 name: Test APK on Emulator
 
 on:
-  workflow_call:
-    inputs:
-      build-run-id:
-        description: 'Run ID of the build.yml workflow that uploaded debug APKs'
-        required: false
-        type: string
+  workflow_run:
+    workflows: ["Build Android APK"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       build-run-id:
@@ -16,6 +13,8 @@ on:
 
 jobs:
   instrumentation-test:
+    # Only run when the triggering build workflow succeeded
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -27,45 +26,35 @@ jobs:
         target: [google_apis]
 
     steps:
-      # ── Download pre-built debug APKs from build.yml ──
-      # Must specify run-id: workflow_call child jobs need explicit run-id to access
-      # parent workflow's artifacts, even within the same run.
+      # ── Download pre-built debug APKs from build.yml's apk job ──
       - name: Download debug APKs
         uses: actions/download-artifact@v4
         with:
           name: debug-apks
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build-run-id || github.event.workflow_run.id }}
           path: apks/
-          run-id: ${{ inputs.build-run-id || github.run_id }}
 
       # ── Verify APKs exist ──
-      # download-artifact@v4 normally extracts ZIP artifacts automatically.
-      # If extraction failed, we detect ZIP files here and unzip them.
       - name: Verify APKs
         run: |
-          echo "=== Directory listing ==="
-          ls -lR apks/ || echo "NOTE: apks/ not found or empty"
-          echo ""
-
-          # Detect ZIP files (artifact may not have been extracted)
-          ZIP_COUNT=$(find apks/ -name "*.zip" 2>/dev/null | wc -l)
-          if [ "$ZIP_COUNT" -gt 0 ]; then
-            echo "⚠️  Found $ZIP_COUNT ZIP file(s) — artifact was NOT extracted"
-            find apks/ -name "*.zip" -exec ls -lh {} \;
-            echo "Unzipping..."
-            find apks/ -name "*.zip" -exec sh -c 'cd "$(dirname "$1")" && unzip -o "$(basename "$1")"' _ {} \;
-            echo "=== After unzip ==="
-            ls -lR apks/
-            echo ""
-          fi
-
-          APK_COUNT=$(find apks/ -name "*.apk" 2>/dev/null | wc -l)
-          echo "APK count: $APK_COUNT"
-          find apks/ -name "*.apk" 2>/dev/null -exec ls -lh {} \;
-          if [ "$APK_COUNT" -lt 2 ]; then
-            echo "❌ Expected 2 APK files (app + test), found $APK_COUNT"
+          echo "APK files:"
+          find apks/ -name "*.apk" -exec ls -lh {} \;
+          # Expect: app-basic-debug.apk + app-basic-debug-androidTest.apk
+          if [ $(find apks/ -name "*.apk" | wc -l) -lt 2 ]; then
+            echo "❌ Expected 2 APK files (app + test), found fewer"
             exit 1
           fi
           echo "✅ APKs ready"
+
+      # ── AVD cache (official recommended caching pattern) ──
+      - name: Cache AVD
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{ matrix.target }}-v2
 
       # ── Enable KVM (required for hardware acceleration on Linux) ──
       - name: Enable KVM
@@ -74,19 +63,8 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # ── AVD cache ──
-      - name: AVD cache
-        uses: actions/cache@v4
-        id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-v3
-
-      # ── Create AVD + generate snapshot (only on cache miss) ──
+      # ── First run: create AVD + generate snapshot for caching ──
       - name: Create AVD and generate snapshot
-        if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -94,91 +72,9 @@ jobs:
           target: ${{ matrix.target }}
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: false
           script: echo "AVD snapshot generated for caching."
 
-      # ── Write test script to file ──
-      # android-emulator-runner@v2 executes each line as a separate sh -c,
-      # so variables/functions cannot span lines. We write the script to a
-      # file and run it as a single shell invocation.
-      - name: Write test script
-        run: |
-          cat > test-script.sh << 'SCRIPT_EOF'
-          #!/bin/sh
-          set -eu
-
-          APKS="apks"
-          echo "Searching APKs in $PWD/$APKS ..."
-          ls -la "$APKS"/
-
-          MAIN_APK="$(find "$APKS" -name '*.apk' ! -name '*androidTest*' ! -name '*test*' | head -1)"
-          TEST_APK="$(find "$APKS" -name '*androidTest*.apk' -o -name '*test*.apk' | head -1)"
-
-          # Trap: capture logcat on any exit (install failure, crash, normal)
-          capture_logcat() {
-            {
-              echo "=== logcat (errors) ==="
-              adb logcat -d -s AndroidRuntime:E System.err:W '*:F' DEBUG:I ActivityManager:I 2>/dev/null || true
-              echo ""
-              echo "=== logcat (package) ==="
-              adb logcat -d 2>/dev/null | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
-              echo ""
-              echo "=== tombstone (native crash) ==="
-              adb shell ls -t /data/tombstones/ 2>/dev/null | head -3 | while read f; do
-                echo "--- $f ---"
-                adb shell cat "/data/tombstones/$f" 2>/dev/null || true
-              done
-            } > logcat.txt
-          }
-          trap capture_logcat EXIT
-
-          # Uninstall old versions first (snapshot may contain stale app with mismatched signature)
-          echo "Cleaning old packages..."
-          adb uninstall io.github.dreamandroid.local || true
-          adb uninstall io.github.dreamandroid.local.test || true
-
-          echo "Installing: $MAIN_APK"
-          adb install -r -g "$MAIN_APK"
-
-          echo "Installing: $TEST_APK"
-          adb install -r -g "$TEST_APK"
-
-          echo "Running tests..."
-
-          # Capture full instrumentation output so we can detect failures
-          # that am instrument masks (e.g. app process crash still returns 0).
-          INSTR_OUT="$(adb shell am instrument -w -r \
-            -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
-            io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner 2>&1)" || true
-          echo "$INSTR_OUT"
-
-          # Parse: detect any test failure
-          # - "FAILURES!!!" = standard JUnit runner failure summary
-          # - INSTRUMENTATION_STATUS_CODE: -2 = individual test failed
-          # - INSTRUMENTATION_RESULT: shortMsg= = process crash
-          FAILED=0
-          if echo "$INSTR_OUT" | grep -q "FAILURES!!!"; then
-            echo "❌ Test runner reported failures"
-            FAILED=1
-          fi
-          if echo "$INSTR_OUT" | grep -q "INSTRUMENTATION_STATUS_CODE: -2"; then
-            echo "❌ Individual test returned failure status (-2)"
-            FAILED=1
-          fi
-          if echo "$INSTR_OUT" | grep -q "INSTRUMENTATION_RESULT: shortMsg="; then
-            echo "❌ Instrumentation result contains error message"
-            FAILED=1
-          fi
-
-          if [ "$FAILED" -eq 1 ]; then
-            echo "❌ TESTS FAILED"
-            exit 1
-          fi
-          echo "✅ All tests passed"
-          SCRIPT_EOF
-          chmod +x test-script.sh
-
-      # ── Run tests (use cached snapshot, do not save new snapshot) ──
+      # ── Second run: load cached snapshot + install APKs + run tests ──
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -186,26 +82,43 @@ jobs:
           arch: ${{ matrix.arch }}
           target: ${{ matrix.target }}
           force-avd-creation: false
-          disk-size: 2G
-          heap-size: 1G
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: sh ./test-script.sh
+          script: |
+            set -euo pipefail
 
-      # ── Upload logcat (always) ──
+            # Install main APK + test APK
+            MAIN_APK=$(find apks/ -name "*.apk" ! -name "*androidTest*" ! -name "*test*" | head -1)
+            TEST_APK=$(find apks/ -name "*androidTest*.apk" -o -name "*test*.apk" | head -1)
+
+            echo "Installing: $MAIN_APK"
+            adb install -r -g "$MAIN_APK"
+
+            echo "Installing: $TEST_APK"
+            adb install -r -g "$TEST_APK"
+
+            # Run instrumentation tests
+            echo "Running tests..."
+            adb shell am instrument -w -r \
+              -e class io.github.dreamandroid.local.AppLaunchInstrumentationTest \
+              io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner
+
+      # ── Upload test report (always) ──
+      - name: Capture logcat
+        if: always()
+        run: |
+          {
+            echo "=== logcat (errors) ==="
+            adb logcat -d -s AndroidRuntime:E System.err:W '*:F' || true
+            echo ""
+            echo "=== logcat (package) ==="
+            adb logcat -d | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
+          } > logcat.txt
+
       - name: Upload logcat
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: logcat-${{ matrix.api-level }}-${{ matrix.target }}
           path: logcat.txt
-          retention-days: 7
-
-      # ── Upload test reports (always) ──
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-reports-${{ matrix.api-level }}-${{ matrix.target }}
-          path: app/build/reports/androidTests/connected/**
           retention-days: 7

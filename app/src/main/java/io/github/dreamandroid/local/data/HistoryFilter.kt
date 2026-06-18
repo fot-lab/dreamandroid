@@ -30,7 +30,7 @@ data class HistoryFilter(
     val from: Long? = null,
     val to: Long? = null,
     val sizes: Set<String>? = null,
-    val schedulers: Set<String>? = null,
+    val samplers: Set<String>? = null,
     val devices: Set<DeviceFilter>? = null,
     val promptSubstring: String? = null,
     val descending: Boolean = true,
@@ -67,9 +67,9 @@ data class HistoryFilter(
             where += "(width || 'x' || height) IN (${sizes.joinToString(",") { "?" }})"
             args.addAll(sizes)
         }
-        if (!schedulers.isNullOrEmpty()) {
-            where += "scheduler IN (${schedulers.joinToString(",") { "?" }})"
-            args.addAll(schedulers)
+        if (!samplers.isNullOrEmpty()) {
+            where += "scheduler IN (${samplers.joinToString(",") { "?" }})"
+            args.addAll(samplers)
         }
         if (!devices.isNullOrEmpty()) {
             val parts = mutableListOf<String>()

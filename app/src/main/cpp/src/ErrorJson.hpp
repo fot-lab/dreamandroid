@@ -44,9 +44,20 @@ inline nlohmann::json errorJson(const std::string &category,
 
 /**
  * Build a 503 "busy" error JSON — used by /generate and /upscale.
+ *
+ * Produces all fields matching upstream protocol:
+ *   id, name, errors, error, detail, message, body, messages
+ * where body=message, error=id, detail=name, messages=errors.
  */
 inline nlohmann::json busyErrorJson() {
-    return errorJson("busy", "Server is currently processing another request");
+    auto base = errorJson("busy", "Server is currently processing another request");
+    std::string msg = "Server is busy";
+    base["message"]  = msg;
+    base["body"]     = msg;
+    base["error"]    = base["id"];
+    base["detail"]   = base["name"];
+    base["messages"] = base["errors"];
+    return base;
 }
 
 } // namespace http_detail

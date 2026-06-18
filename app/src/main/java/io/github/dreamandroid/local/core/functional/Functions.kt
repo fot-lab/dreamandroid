@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 // ──────────────────────────────────────────
 
 /**
- * Probe a /health endpoint on [baseUrl] with the given timeouts.
+ * Probe a /v1/health endpoint on [baseUrl] with the given timeouts.
  *
  * Returns `true` if the endpoint responds 2xx, `false` on any error
  * (connection refused, timeout, non-2xx, etc.).
@@ -34,7 +34,7 @@ fun healthCheck(
 ): Boolean {
     return try {
         val request = Request.Builder()
-            .url("$baseUrl/health")
+            .url("$baseUrl/v1/health")
             .get()
             .build()
 

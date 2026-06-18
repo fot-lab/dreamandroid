@@ -27,7 +27,8 @@ class GenerationPreferences(private val context: Context) {
     private fun getUseOpenCLKey(modelId: String) = booleanPreferencesKey("${modelId}_use_opencl")
 
     private fun getBatchCountsKey(modelId: String) = intPreferencesKey("${modelId}_batch_counts")
-    private fun getSchedulerKey(modelId: String) = stringPreferencesKey("${modelId}_scheduler")
+    private fun getSamplerKey(modelId: String) = stringPreferencesKey("${modelId}_sampler")
+    private fun getDenoiseCurveKey(modelId: String) = stringPreferencesKey("${modelId}_denoise_curve")
     private fun getAspectRatioKey(modelId: String) = stringPreferencesKey("${modelId}_aspect_ratio")
 
     private val BASE_URL_KEY = stringPreferencesKey("base_url")
@@ -116,14 +117,15 @@ class GenerationPreferences(private val context: Context) {
         prompt: String,
         negativePrompt: String,
         steps: Float,
-        cfg: Float,
+        cfgScale: Float,
         seed: String,
         width: Int,
         height: Int,
-        denoiseStrength: Float,
+        denoisingStrength: Float,
         useOpenCL: Boolean,
         batchCounts: Int,
-        scheduler: String,
+        sampler: String,
+        denoiseCurve: String = "scaled_linear",
         aspectRatio: String = "1:1",
     ) {
         context.dataStore.edit { preferences ->
@@ -131,14 +133,15 @@ class GenerationPreferences(private val context: Context) {
             preferences[getPromptKey(modelId)] = prompt
             preferences[getNegativePromptKey(modelId)] = negativePrompt
             preferences[getStepsKey(modelId)] = steps
-            preferences[getCfgKey(modelId)] = cfg
+            preferences[getCfgKey(modelId)] = cfgScale
             preferences[getSeedKey(modelId)] = seed
             preferences[getWidthKey(modelId)] = width
             preferences[getHeightKey(modelId)] = height
-            preferences[getDenoiseStrengthKey(modelId)] = denoiseStrength
+            preferences[getDenoiseStrengthKey(modelId)] = denoisingStrength
             preferences[getUseOpenCLKey(modelId)] = useOpenCL
             preferences[getBatchCountsKey(modelId)] = batchCounts
-            preferences[getSchedulerKey(modelId)] = scheduler
+            preferences[getSamplerKey(modelId)] = sampler
+            preferences[getDenoiseCurveKey(modelId)] = denoiseCurve
             preferences[getAspectRatioKey(modelId)] = aspectRatio
             // Also persist globally (screen-level) for GenerateScreen
             preferences[GLOBAL_PROMPT_KEY] = prompt
@@ -169,14 +172,15 @@ class GenerationPreferences(private val context: Context) {
                 prompt = preferences[getPromptKey(modelId)] ?: "",
                 negativePrompt = preferences[getNegativePromptKey(modelId)] ?: "",
                 steps = preferences[getStepsKey(modelId)] ?: 20f,
-                cfg = preferences[getCfgKey(modelId)] ?: 7f,
+                cfgScale = preferences[getCfgKey(modelId)] ?: 7f,
                 seed = preferences[getSeedKey(modelId)] ?: "",
                 width = preferences[getWidthKey(modelId)] ?: -1,
                 height = preferences[getHeightKey(modelId)] ?: -1,
-                denoiseStrength = preferences[getDenoiseStrengthKey(modelId)] ?: 0.6f,
+                denoisingStrength = preferences[getDenoiseStrengthKey(modelId)] ?: 0.6f,
                 useOpenCL = preferences[getUseOpenCLKey(modelId)] ?: false,
                 batchCounts = preferences[getBatchCountsKey(modelId)] ?: 1,
-                scheduler = preferences[getSchedulerKey(modelId)] ?: "dpm",
+                sampler = preferences[getSamplerKey(modelId)] ?: "dpm",
+                denoiseCurve = preferences[getDenoiseCurveKey(modelId)] ?: "scaled_linear",
                 aspectRatio = preferences[getAspectRatioKey(modelId)] ?: "1:1",
             )
         }
@@ -193,7 +197,8 @@ class GenerationPreferences(private val context: Context) {
             preferences.remove(getDenoiseStrengthKey(modelId))
             preferences.remove(getUseOpenCLKey(modelId))
             preferences.remove(getBatchCountsKey(modelId))
-            preferences.remove(getSchedulerKey(modelId))
+            preferences.remove(getSamplerKey(modelId))
+            preferences.remove(getDenoiseCurveKey(modelId))
             preferences.remove(getAspectRatioKey(modelId))
         }
     }
@@ -204,13 +209,14 @@ data class GenerationPrefs(
     val prompt: String = "",
     val negativePrompt: String = "",
     val steps: Float = 20f,
-    val cfg: Float = 7f,
+    val cfgScale: Float = 7f,
     val seed: String = "",
     val width: Int = -1,
     val height: Int = -1,
-    val denoiseStrength: Float = 0.6f,
+    val denoisingStrength: Float = 0.6f,
     val useOpenCL: Boolean = false,
     val batchCounts: Int = 1,
-    val scheduler: String = "dpm",
+    val sampler: String = "dpm",
+    val denoiseCurve: String = "scaled_linear",
     val aspectRatio: String = "1:1",
 )

@@ -28,7 +28,7 @@ data class GenerateParameterRecord(
     val seed: Long?,
     val width: Int,
     val height: Int,
-    val scheduler: String,
+    val sampler: String,
     val timestamp: Long = System.currentTimeMillis(),
     val source: RecordSource,
 ) {
@@ -46,7 +46,7 @@ data class GenerateParameterRecord(
         if (seed != null) put("seed", seed)
         put("width", width)
         put("height", height)
-        put("scheduler", scheduler)
+        put("sampler", sampler)
         put("timestamp", timestamp)
         put("source", source.name)
     }
@@ -62,7 +62,7 @@ data class GenerateParameterRecord(
             seed = if (obj.has("seed") && !obj.isNull("seed")) obj.getLong("seed") else null,
             width = obj.getInt("width"),
             height = obj.getInt("height"),
-            scheduler = obj.optString("scheduler", "dpm"),
+            sampler = obj.optString("sampler", "dpm"),
             timestamp = obj.getLong("timestamp"),
             source = try {
                 RecordSource.valueOf(obj.getString("source"))
@@ -104,7 +104,7 @@ data class GenerateParameterRecord(
                 seed = e.seed,
                 width = e.width,
                 height = e.height,
-                scheduler = e.scheduler,
+                sampler = e.sampler,
                 timestamp = e.timestamp,
                 source = source,
             )
@@ -129,7 +129,7 @@ data class GenerateParameterRecord(
         height = height,
         denoiseStrength = null,
         useOpenCL = false,
-        scheduler = scheduler,
+        scheduler = sampler,
         timestamp = timestamp,
         tags = """{"source":"${source.name}"}""",
     )

@@ -11,7 +11,6 @@ import androidx.compose.runtime.setValue
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.navigation.BottomTab
 import io.github.dreamandroid.local.ui.frontend.ImportingModelState
-import kotlinx.coroutines.flow.first
 
 /**
  * Centralized mutable state holder for [AppContent].
@@ -37,7 +36,8 @@ class AppContentState {
     var genCfg by mutableFloatStateOf(7f)
     var genSeed by mutableStateOf("")
     var genBatchCounts by mutableIntStateOf(1)
-    var genScheduler by mutableStateOf("dpm")
+    var genSampler by mutableStateOf("dpm")
+    var genDenoiseCurve by mutableStateOf("scaled_linear")
     var genDenoiseStrength by mutableFloatStateOf(0.6f)
     var genUseOpenCL by mutableStateOf(false)
     var genWidth by mutableIntStateOf(512)
@@ -99,10 +99,11 @@ class AppContentState {
         if (genNegativePrompt.isEmpty() && p.negativePrompt.isNotEmpty()) genNegativePrompt = p.negativePrompt
         if (genBatchCounts == 1 && p.batchCounts > 1) genBatchCounts = p.batchCounts
         if (p.steps > 0) genSteps = p.steps
-        if (p.cfg > 0) genCfg = p.cfg
+        if (p.cfgScale > 0) genCfg = p.cfgScale
         if (p.seed.isNotEmpty()) genSeed = p.seed
-        genScheduler = p.scheduler
-        genDenoiseStrength = p.denoiseStrength
+        genSampler = p.sampler
+        genDenoiseCurve = p.denoiseCurve
+        genDenoiseStrength = p.denoisingStrength
         genUseOpenCL = p.useOpenCL
     }
 }

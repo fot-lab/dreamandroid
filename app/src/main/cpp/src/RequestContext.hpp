@@ -25,10 +25,12 @@ struct RequestContext {
 
   // ── Generation parameters ──
   int steps = 20;
-  float cfg = 7.5f;
-  unsigned seed = 0;
-  std::string scheduler_type = "euler_ancestral";
-  float denoise_strength = 0.75f;
+  int samples = 1;
+  float cfg_scale = 7.5f;
+  unsigned seed = 0;                // 0 = random (Stability-AI convention)
+  std::string sampler_type = "dpm";
+  std::string denoise_curve = "scaled_linear";
+  float denoising_strength = 0.75f;  // A1111-compatible name
 
   // ── Image input (img2img / inpaint) ──
   std::vector<float> img_data;        // 3×W×H, empty = txt2img

@@ -553,35 +553,38 @@ fun AdvancedSettingsDialog(
                     }
                 }
 
-                // Scheduler
+                // Sampler (采样器)
+                val samplerOptions = listOf("dpm" to "DPM++ 2M", "dpm_sde" to "DPM++ 2M SDE", "euler_a" to "Euler A", "euler" to "Euler", "lcm" to "LCM")
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val baseId = state.scheduler.removeSuffix("_karras")
-                    val karras = state.scheduler.endsWith("_karras")
-                    val karrasSupported = baseId != "lcm"
-                    val baseOptions = listOf("dpm" to "DPM++ 2M", "dpm_sde" to "DPM++ 2M SDE", "euler_a" to "Euler A", "euler" to "Euler", "lcm" to "LCM")
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.scheduler), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        Text("Karras", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 8.dp).alpha(if (karrasSupported) 1f else 0.4f))
-                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-                            Switch(checked = karras && karrasSupported, enabled = karrasSupported, onCheckedChange = { enable ->
-                                state.scheduler = if (enable) "${baseId}_karras" else baseId
-                                onSaveAllFields()
-                            }, modifier = Modifier.scale(0.8f))
-                        }
-                    }
+                    Text("采样器", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                        baseOptions.forEachIndexed { _, (id, label) ->
+                        samplerOptions.forEachIndexed { _, (id, label) ->
                             FilterChip(
-                                selected = baseId == id,
+                                selected = state.sampler == id,
                                 onClick = {
-                                    if (baseId != id) {
-                                        val nextKarras = karras && id != "lcm"
-                                        state.scheduler = if (nextKarras) "${id}_karras" else id
+                                    if (state.sampler != id) {
+                                        state.sampler = id
                                         onSaveAllFields()
                                     }
                                 },
                                 label = { Text(label) },
                             )
+                        }
+                    }
+                }
+
+                // Denoise Curve (降噪曲线)
+                val karrasSupported = state.sampler != "lcm"
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("降噪曲线", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text("Karras", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 8.dp).alpha(if (karrasSupported) 1f else 0.4f))
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                            Switch(checked = state.denoiseCurve == "karras" && karrasSupported, enabled = karrasSupported, onCheckedChange = { enable ->
+                                state.denoiseCurve = if (enable) "karras" else "scaled_linear"
+                                onSaveAllFields()
+                            }, modifier = Modifier.scale(0.8f))
                         }
                     }
                 }

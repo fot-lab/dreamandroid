@@ -7,7 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.data.HistoryFilter
 import io.github.dreamandroid.local.data.HistoryItem
@@ -33,7 +33,7 @@ import kotlinx.coroutines.withContext
  * - Filtering by modelId
  * - Detail/preview dialogs
  */
-class BrowseViewModel(application: Application) : AndroidViewModel(application) {
+class BrowseViewModel(application: Application) : ViewModel() {
 
     private val historyManager = HistoryManager(application)
 
@@ -126,7 +126,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── Batch Save Params ─────────────────────────────────────
 
-    suspend fun batchSaveParams(recordRepository: RecordRepository): Int {
+    fun batchSaveParams(recordRepository: RecordRepository): Int {
         var savedCount = 0
         selectedItems.toList().forEach { item ->
             try {
@@ -139,7 +139,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
                     seed = item.params.seed,
                     width = item.params.width,
                     height = item.params.height,
-                    scheduler = item.params.scheduler,
+                    sampler = item.params.sampler,
                     timestamp = item.timestamp,
                     source = RecordSource.GALLERY,
                 )
@@ -155,7 +155,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── Single Item Actions ───────────────────────────────────
 
-    suspend fun deleteSingleItem(item: HistoryItem) {
+    fun deleteSingleItem(item: HistoryItem) {
         historyManager.deleteHistoryItem(item)
         showHistoryDetailDialog = null
     }
@@ -173,7 +173,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    suspend fun saveSingleParams(item: HistoryItem, recordRepository: RecordRepository) {
+    fun saveSingleParams(item: HistoryItem, recordRepository: RecordRepository) {
         val record = GenerateParameterRecord(
             prompt = item.params.prompt,
             negativePrompt = item.params.negativePrompt,
@@ -183,7 +183,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
             seed = item.params.seed,
             width = item.params.width,
             height = item.params.height,
-            scheduler = item.params.scheduler,
+            sampler = item.params.sampler,
             timestamp = item.timestamp,
             source = RecordSource.GALLERY,
         )

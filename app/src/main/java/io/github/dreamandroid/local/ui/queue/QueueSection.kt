@@ -34,7 +34,7 @@ fun TabQueueScreen(
                 seed = task.seed,
                 width = task.width,
                 height = task.height,
-                scheduler = task.scheduler,
+                sampler = task.sampler,
                 timestamp = task.timestamp,
                 source = RecordSource.QUEUE,
             )

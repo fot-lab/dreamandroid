@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
@@ -16,7 +16,6 @@ import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResul
 import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -30,7 +29,7 @@ import kotlin.math.roundToInt
  * - Tokenize calls (via BackendService HTTP middleware) with AppError-based error handling
  * - Add-to-queue logic
  */
-class GenerateViewModel(application: Application) : AndroidViewModel(application) {
+class GenerateViewModel(application: Application) : ViewModel() {
 
     private val app = application as DreamAndroidApplication
     private val backendService: BackendService = app.backendService
@@ -42,7 +41,8 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
     var genCfg by mutableFloatStateOf(7f)
     var genSeed by mutableStateOf("")
     var genBatchCounts by mutableIntStateOf(1)
-    var genScheduler by mutableStateOf("dpm")
+    var genSampler by mutableStateOf("dpm")
+    var genDenoiseCurve by mutableStateOf("scaled_linear")
     var genDenoiseStrength by mutableFloatStateOf(0.6f)
     var genUseOpenCL by mutableStateOf(false)
     var genWidth by mutableIntStateOf(512)
@@ -75,10 +75,11 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
         if (genNegativePrompt.isEmpty() && p.negativePrompt.isNotEmpty()) genNegativePrompt = p.negativePrompt
         if (genBatchCounts == 1 && p.batchCounts > 1) genBatchCounts = p.batchCounts
         if (p.steps > 0) genSteps = p.steps
-        if (p.cfg > 0) genCfg = p.cfg
+        if (p.cfgScale > 0) genCfg = p.cfgScale
         if (p.seed.isNotEmpty()) genSeed = p.seed
-        genScheduler = p.scheduler
-        genDenoiseStrength = p.denoiseStrength
+        genSampler = p.sampler
+        genDenoiseCurve = p.denoiseCurve
+        genDenoiseStrength = p.denoisingStrength
         genUseOpenCL = p.useOpenCL
     }
 
@@ -132,14 +133,15 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
             prompt = genPrompt,
             negativePrompt = genNegativePrompt,
             steps = genSteps,
-            cfg = genCfg,
+            cfgScale = genCfg,
             seed = genSeed,
             width = genWidth,
             height = genHeight,
-            denoiseStrength = genDenoiseStrength,
+            denoisingStrength = genDenoiseStrength,
             useOpenCL = genUseOpenCL,
             batchCounts = genBatchCounts,
-            scheduler = genScheduler,
+            sampler = genSampler,
+            denoiseCurve = genDenoiseCurve,
             aspectRatio = inferAspectRatioString(genWidth, genHeight),
         )
     }
@@ -164,7 +166,7 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
             effectiveHeight = genHeight,
             denoiseStrength = genDenoiseStrength,
             useOpenCL = genUseOpenCL,
-            scheduler = genScheduler,
+            sampler = genSampler,
             aspectRatio = inferAspectRatioString(genWidth, genHeight),
             count = count.coerceAtLeast(1),
         )
@@ -178,7 +180,8 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
         genCfg = 7f
         genSeed = ""
         genBatchCounts = 1
-        genScheduler = "dpm"
+        genSampler = "dpm"
+        genDenoiseCurve = "scaled_linear"
         genDenoiseStrength = 0.6f
         genUseOpenCL = false
         genWidth = 512

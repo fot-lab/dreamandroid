@@ -137,7 +137,7 @@ object HistoryMigration {
                 null
             },
             useOpenCL = json.optBoolean("useOpenCL", false),
-            scheduler = json.optString("scheduler", "dpm"),
+            sampler = json.optString("scheduler", "dpm"),
             timestamp = timestamp,
             imagePath = "history/$modelId/${imageFile.name}",
             mode = GenerationMode.UNKNOWN.name,
