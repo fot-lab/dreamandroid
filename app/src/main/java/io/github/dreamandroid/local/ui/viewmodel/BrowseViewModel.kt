@@ -135,7 +135,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
                     negativePrompt = item.params.negativePrompt,
                     modelId = item.modelId,
                     steps = item.params.steps,
-                    cfg = item.params.cfg,
+                    cfg = item.params.cfgScale,
                     seed = item.params.seed,
                     width = item.params.width,
                     height = item.params.height,
@@ -143,7 +143,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
                     timestamp = item.timestamp,
                     source = RecordSource.GALLERY,
                 )
-                recordRepository.addRecord(record)
+                viewModelScope.launch { recordRepository.addRecord(record) }
                 savedCount++
             } catch (_: Exception) { }
         }
@@ -156,7 +156,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
     // ── Single Item Actions ───────────────────────────────────
 
     fun deleteSingleItem(item: HistoryItem) {
-        historyManager.deleteHistoryItem(item)
+        viewModelScope.launch { historyManager.deleteHistoryItem(item) }
         showHistoryDetailDialog = null
     }
 
@@ -179,7 +179,7 @@ class BrowseViewModel(application: Application) : ViewModel() {
             negativePrompt = item.params.negativePrompt,
             modelId = item.modelId,
             steps = item.params.steps,
-            cfg = item.params.cfg,
+            cfg = item.params.cfgScale,
             seed = item.params.seed,
             width = item.params.width,
             height = item.params.height,
@@ -187,6 +187,6 @@ class BrowseViewModel(application: Application) : ViewModel() {
             timestamp = item.timestamp,
             source = RecordSource.GALLERY,
         )
-        recordRepository.addRecord(record)
+        viewModelScope.launch { recordRepository.addRecord(record) }
     }
 }

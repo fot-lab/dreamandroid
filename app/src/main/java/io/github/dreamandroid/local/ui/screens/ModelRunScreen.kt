@@ -226,8 +226,8 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                 state.promptFieldValue = TextFieldValue(prefs.prompt, TextRange(prefs.prompt.length))
                 state.negativePromptFieldValue = TextFieldValue(prefs.negativePrompt, TextRange(prefs.negativePrompt.length))
             }
-            state.steps = prefs.steps; state.cfg = prefs.cfg; state.seed = prefs.seed
-            state.denoiseStrength = prefs.denoiseStrength; state.useOpenCL = prefs.useOpenCL
+            state.steps = prefs.steps; state.cfg = prefs.cfgScale; state.seed = prefs.seed
+            state.denoiseStrength = prefs.denoisingStrength; state.useOpenCL = prefs.useOpenCL
             state.batchCounts = prefs.batchCounts; state.sampler = prefs.sampler; state.denoiseCurve = prefs.denoiseCurve
             state.aspectRatio = if (useImg2img) prefs.aspectRatio else "1:1"
             state.currentWidth = if (model?.isSdxl == true) 1024 else if (prefs.width == -1) (if (model?.runOnCpu == true) 256 else 512) else prefs.width
@@ -281,14 +281,14 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     // ── DisposableEffects ─────────────────────────────────────
 
-    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState) } }
+    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState, backendService) } }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState)
+            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState, backendService)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState) }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState, backendService) }
     }
 
     DisposableEffect(modelId) {
@@ -444,7 +444,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     fun handleSelectImageClick() { onSelectImageClick(state, context, msgMediaPermissionHint, { photoPickerLauncher.launch(it) }, { contentPickerLauncher.launch("image/*") }, { requestStoragePermissionLauncher.launch(it) }) }
 
-    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState); navController.navigateUp() }
+    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState, backendService); navController.navigateUp() }
 
     // ── BackHandler ───────────────────────────────────────────
 

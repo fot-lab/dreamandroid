@@ -31,7 +31,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.graphicsLayer
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -158,7 +158,7 @@ fun ModelRunResultPage(
                         }
                         Icon(
                             Icons.Default.Image, contentDescription = null,
-                            modifier = Modifier.size(48.dp).graphicsLayer(scaleX = iconScale.value, scaleY = iconScale.value),
+                            modifier = Modifier.size(48.dp).graphicsLayer { scaleX = iconScale.value; scaleY = iconScale.value },
                             tint = MaterialTheme.colorScheme.primary,
                         )
                         Text(stringResource(R.string.no_results), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
@@ -242,7 +242,7 @@ fun ModelRunResultPage(
                                     Icon(Icons.Default.Info, contentDescription = "view details", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 state.generationParams?.let { params ->
-                                    Text(stringResource(R.string.result_params, params.steps, params.cfg, params.seed.toString()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(stringResource(R.string.result_params, params.steps, params.cfgScale, params.seed.toString()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text(stringResource(R.string.result_params_2, params.width, params.height, params.generationTime ?: "unknown",
                                         if (params.runOnCpu) { if (params.useOpenCL) "GPU" else "CPU" } else { "NPU" }),
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -45,7 +45,7 @@ class ModelRunState {
     var generationParamsModelId by mutableStateOf("")
     var generationParamsTmp by mutableStateOf(
         GenerationParameters(
-            steps = 0, cfg = 0f, seed = 0, prompt = "", negativePrompt = "",
+            steps = 0, cfgScale = 0f, seed = 0, prompt = "", negativePrompt = "",
             generationTime = "", width = 512, height = 512, runOnCpu = false,
         ),
     )

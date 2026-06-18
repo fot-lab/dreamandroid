@@ -9,8 +9,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.dreamandroid.local.data.ModelInfo
+import io.github.dreamandroid.local.data.GenerationPrefs
 import io.github.dreamandroid.local.navigation.BottomTab
 import io.github.dreamandroid.local.ui.frontend.ImportingModelState
+import kotlinx.coroutines.flow.first
 
 /**
  * Centralized mutable state holder for [AppContent].

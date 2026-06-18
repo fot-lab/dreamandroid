@@ -78,7 +78,7 @@ fun GenerationParamsDialog(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "CFG: %.1f".format(params.cfg),
+                        "CFG: %.1f".format(params.cfgScale),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
@@ -114,7 +114,7 @@ fun GenerationParamsDialog(
                         )
                         if (mode != GenerationMode.TXT2IMG) {
                             Text(
-                                stringResource(R.string.basic_denoise, params.denoiseStrength),
+                                stringResource(R.string.basic_denoise, params.denoisingStrength),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }

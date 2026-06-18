@@ -267,7 +267,7 @@ fun BrowseScreen(
                     }
                     Text(
                         text = stringResource(R.string.result_params).format(
-                            item.params.steps.toString(), item.params.cfg,
+                            item.params.steps.toString(), item.params.cfgScale,
                             item.params.seed?.toString() ?: "-",
                         ),
                         style = MaterialTheme.typography.bodySmall,

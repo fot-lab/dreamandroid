@@ -147,10 +147,10 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         scope.launch { db.taskDao().deleteQueueByBatch(batchGroupId) }
     }
 
-    fun updateTask(id: String, update: (GenerationTask) -> GenerationTask) {
+    fun updateTask(id: String, transform: (GenerationTask) -> GenerationTask) {
         var updated: GenerationTask? = null
         _tasks.update { tasks ->
-            tasks.map { t -> if (t.id == id) { val u = update(t); updated = u; u } else t }
+            tasks.map { t -> if (t.id == id) { val u = transform(t); updated = u; u } else t }
         }
         updated?.let { scope.launch { db.taskDao().insert(it.toEntity()) } }
     }
@@ -286,7 +286,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         height = height,
         denoiseStrength = denoiseStrength,
         useOpenCL = useOpenCL,
-        scheduler = sampler,
+        sampler = sampler,
         timestamp = timestamp,
         batchGroupId = batchGroupId,
         batchIndex = batchIndex,
@@ -315,7 +315,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         effectiveHeight = effectiveHeight ?: height,
         denoiseStrength = denoiseStrength ?: 0.6f,
         useOpenCL = useOpenCL,
-        scheduler = sampler,
+        sampler = sampler,
         aspectRatio = aspectRatio ?: "",
         status = try { TaskStatus.valueOf(status ?: "PENDING") } catch (_: Exception) { TaskStatus.PENDING },
         timestamp = timestamp,
