@@ -54,7 +54,6 @@
 
 // MNN
 #include <MNN/MNNDefine.h>
-
 #include <MNN/Interpreter.hpp>
 
 // Xtensor
@@ -70,845 +69,765 @@
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xview.hpp>
 
-
-// TokenEmbTable → SDUtils.hpp  (BKND-PROC-0008 P3 split)
-// MmapFile → QnnHelper.hpp    (BKND-PROC-0008 P2 split)
-
-// ── BKND-PROC-0008 P2: Centralised Application State
-//
-// All mutable application state lives in AppContext, owned by main().
-// Per-request mutable state is isolated in RequestContext (passed as const&
-// to generateImage).  Model objects (MNN/QNN/CLIP) are legitimate shared
-// resources loaded once at startup.
-//
-// Macro aliases provide backward-compatible access during migration;
-// the long-term goal is explicit AppContext& parameters on all functions.
-
-#define gctx  (appCtx)
-#define gconf (appCtx.conf)
-#define gmod  (appCtx.models)
-#define gsvr  (appCtx.serverState)
-
-// Shorthand macros for frequently-accessed fields.
-// All expand to appCtx.conf.xxx or appCtx.models.xxx.
-#define sdxl_mode           (gconf.sdxl_mode)
-#define use_mnn             (gconf.use_mnn)
-#define upscaler_mode       (gconf.upscaler_mode)
-#define lowram_mode         (gconf.lowram_mode)
-#define no_img2img          (gconf.no_img2img)
-#define use_v_pred          (gconf.use_v_pred)
-#define use_safety_checker  (gconf.use_safety_checker)
-#define cvt_model           (gconf.cvt_model)
-#define nsfw_threshold      (gconf.nsfw_threshold)
-#define port                (gconf.port)
-#define listen_address      (gconf.listen_address)
-#define clip_skip_2         (gmod.clip_skip_2)
-#define clipPath            (gconf.clipPath)
-#define clip2Path           (gconf.clip2Path)
-#define unetPath            (gconf.unetPath)
-#define vaeDecoderPath      (gconf.vaeDecoderPath)
-#define vaeEncoderPath      (gconf.vaeEncoderPath)
-#define safetyCheckerPath   (gconf.safetyCheckerPath)
-#define tokenizerPath       (gconf.tokenizerPath)
-#define patchPath           (gconf.patchPath)
-#define modelDir            (gconf.modelDir)
-#define g_backendPathCmd    (gconf.backendPathCmd)
-#define g_qnnSystemFuncs    (gmod.qnnSystemFuncs)
-#define g_unetPatchedBuffer (gmod.unetPatchedBuffer)
-#define unetApp             (gmod.unetApp)
-#define vaeDecoderApp       (gmod.vaeDecoderApp)
-#define vaeEncoderApp       (gmod.vaeEncoderApp)
-#define clipInterpreter     (gmod.clipInterpreter)
-#define clip2Interpreter    (gmod.clip2Interpreter)
-#define safetyCheckerInterpreter (gmod.safetyCheckerInterpreter)
-#define clipSession         (gmod.clipSession)
-#define clip2Session        (gmod.clip2Session)
-#define safetyCheckerSession (gmod.safetyCheckerSession)
-#define pos_emb             (gmod.pos_emb)
-#define token_emb           (gmod.token_emb)
-#define pos_emb_2           (gmod.pos_emb_2)
-#define token_emb_2         (gmod.token_emb_2)
-#define tokenizer           (gmod.tokenizer)
-#define promptProcessor     (gmod.promptProcessor)
-#define g_serverState       (gsvr)
-
-// ── BKND-PROC-0008 P3: Per-request state migrated to RequestContext
-//     Filled by the /generate handler, passed as const& to generateImage().
-//     Macro aliases provide backward-compatible access during migration.
 RequestContext g_req;
 
-#define prompt                  (g_req.prompt)
-#define negative_prompt         (g_req.negative_prompt)
-#define steps                   (g_req.steps)
-#define cfg                     (g_req.cfg)
-#define seed                    (g_req.seed)
-#define scheduler_type          (g_req.scheduler_type)
-#define img_data                (g_req.img_data)
-#define mask_data               (g_req.mask_data)
-#define mask_data_full          (g_req.mask_data_full)
-#define denoise_strength        (g_req.denoise_strength)
-#define request_img2img         (g_req.request_img2img)
-#define request_has_mask        (g_req.request_has_mask)
-#define use_opencl              (g_req.use_opencl)
-#define aspect_pad_inpaint      (g_req.aspect_pad_inpaint)
-#define target_crop_width       (g_req.target_crop_width)
-#define target_crop_height      (g_req.target_crop_height)
-#define aspect_pad_synthetic_base (g_req.aspect_pad_synthetic_base)
-#define user_supplied_mask      (g_req.user_supplied_mask)
-#define show_diffusion_process  (g_req.show_diffusion_process)
-#define show_diffusion_stride   (g_req.show_diffusion_stride)
-#define output_width            (g_req.output_width)
-#define output_height           (g_req.output_height)
-#define sample_width            (g_req.sample_width)
-#define sample_height           (g_req.sample_height)
+// ════════════════════════════════════════════════════════════════════════════
+// §  Internal Helper Functions  (file-scope, not exposed in headers)
+// ════════════════════════════════════════════════════════════════════════════
 
-// utf8ByteOffsetToUtf16 → PromptCacheUtils.cpp (BKND-PROC-0008 P2 split)
+namespace {
 
-// prefixBytesWithinBudget → TokenizeHandler.cpp (BKND-PROC-0008 P2 split)
+// ── Magic Numbers ──────────────────────────────────────────────────────
+constexpr int kAspectPadPx   = 8;     // pixel padding for aspect-ratio inpaint
+constexpr int kUpscaleMinEdge = 192;   // minimum edge before upscale pre-resize
 
-// ensureCacheDir         → MnnHelper.cpp  (BKND-PROC-0008 P2 split)
-// createQnnModel          → QnnHelper.cpp  (BKND-PROC-0008 P2 split)
-// createMnnInterpreterMmap → MnnHelper.cpp (BKND-PROC-0008 P2 split)
-// readFileForPatch / applyZstdPatchToBuffer → QnnHelper.cpp
-// initializeQnnApp        → QnnHelper.hpp  (BKND-PROC-0008 P2 split)
+// ══════════════════════════════════════════════════════════════════════
+// §1  JSON / Error helpers  —  eliminate 10+ repeated error-json blocks
+// ══════════════════════════════════════════════════════════════════════
 
-// promptHasEmbedding / promptCachePath / loadPromptCache / savePromptCache
-//   → PromptCacheUtils.cpp  (BKND-PROC-0008 P2 split)
+/**
+ * Generate a unique timestamp-based ID for error-response `id` fields.
+ * Uses steady_clock for monotonicity; cast to ms for compactness.
+ */
+inline uint64_t nowId() {
+    return static_cast<uint64_t>(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+}
 
-// createQnnModel → QnnHelper.cpp, createMnnInterpreterMmap → MnnHelper.cpp
-// qnn::tools::sample_app::readFileForPatch / applyZstdPatchToBuffer → QnnHelper.cpp
-// initializeQnnApp template → QnnHelper.hpp  (BKND-PROC-0008 P2 split)
+/**
+ * Build a Stability-AI-compatible error JSON object.
+ *
+ * @param category  Short prefix for the id field (e.g. "busy", "parse").
+ * @param message   Human-readable error string.
+ * @param idSuffix  Optional suffix appended to the timestamp id; defaults
+ *                  to the timestamp itself.
+ */
+inline nlohmann::json errorJson(const std::string &category,
+                                const std::string &message,
+                                const std::string &idSuffix = {}) {
+    std::string id = category + "-";
+    if (idSuffix.empty())
+        id += std::to_string(nowId());
+    else
+        id += idSuffix;
+    return {{"id", id}, {"name", category}, {"errors", {message}}};
+}
 
-// showHelp / showHelpAndExit / processCommandLine → ServerCli.cpp
-// (BKND-PROC-0008 P3 split)
+/**
+ * Build a 503 "busy" error JSON — used by /generate and /upscale.
+ */
+inline nlohmann::json busyErrorJson() {
+    return errorJson("busy", "Server is currently processing another request");
+}
 
-// ── BKND-PROC-0008 P2: qnn::tools::sample_app namespace closes
-//     were removed — QnnHelper.hpp already opens/closes them.
-// SDXL lowram load/release helpers moved:
-//   - MNN CLIP:  loadSdxlClipMnnIfNeeded / releaseSdxlClipMnn → MnnHelper.cpp
-//   - QNN UNET:  loadSdxlQnnUnetIfNeeded / releaseSdxlQnnUnet → QnnHelper.cpp
-//   - QNN VAE:   loadSdxlQnnVaeDecoderIfNeeded etc.              → QnnHelper.cpp
-//   (BKND-PROC-0008 P2 split)
+// ══════════════════════════════════════════════════════════════════════
+// §2  HTTP / SSE response helpers  —  eliminate repeated sink.write() +
+//     header-setting boilerplate
+// ══════════════════════════════════════════════════════════════════════
 
-// processWeightedPrompt / processPromptPair → TextEncoder.cpp (BKND-PROC-0008 P3 split)
+/**
+ * Set a standard HTTP error response (JSON body + status code).
+ */
+inline void setHttpError(httplib::Response &res, int status,
+                         const std::string &category,
+                         const std::string &message) {
+    res.status = status;
+    res.set_content(errorJson(category, message).dump(), "application/json");
+}
 
-// ── VAE tiling functions → VaeTilingHelper.cpp (BKND-PROC-0008 P2 split)
+/**
+ * Set a 503 Service Unavailable response with Retry-After.
+ */
+inline void set503Busy(httplib::Response &res) {
+    res.status = 503;
+    res.set_header("Retry-After", "3");
+    res.set_content(busyErrorJson().dump(), "application/json");
+}
 
-// upscaleImageWithMNN → MnnHelper.cpp (BKND-PROC-0008 P2 split)
+/**
+ * Write a single SSE event (name + JSON body) to a chunked sink.
+ * Returns false if the underlying write fails (sink disconnected).
+ */
+inline bool sseWrite(httplib::DataSink &sink,
+                     const std::string &event,
+                     const std::string &jsonPayload) {
+    std::string frame = "event: " + event + "\ndata: " + jsonPayload + "\n\n";
+    return sink.write(frame.c_str(), frame.size());
+}
 
-// generateImage() → GenerateHandler.cpp (BKND-PROC-0008 P4 split)
+/** Overload that accepts nlohmann::json. */
+inline bool sseWrite(httplib::DataSink &sink,
+                     const std::string &event,
+                     const nlohmann::json &data) {
+    return sseWrite(sink, event, data.dump());
+}
 
-// --- Main Function ---
-int main(int argc, char **argv) {
-  // ── BKND-PROC-0008 P2: Centralised application state ──
-  // All model objects, config, and server state are owned here.
-  // Macro aliases (defined above) expand to appCtx.conf.xxx / appCtx.models.xxx.
-  AppContext appCtx;
+/**
+ * Write an SSE error event, mark the sink done, and return false
+ * (the canonical "generation failed" exit from a chunked provider).
+ */
+inline bool sseErrorDone(httplib::DataSink &sink,
+                         const std::string &message) {
+    sseWrite(sink, "error", errorJson("generation_error", message));
+    sink.done();
+    return false;
+}
 
-  using namespace qnn::tools;
-  if (!qnn::log::initializeLogging()) {
-    std::cerr << "ERROR: Init logging failed!\n";
-    return EXIT_FAILURE;
-  }
-  processCommandLine(argc, argv, appCtx);
+// ══════════════════════════════════════════════════════════════════════
+// §3  Duration logging helper  —  eliminate repeated duration_cast blocks
+// ══════════════════════════════════════════════════════════════════════
 
-  // ── BKND-PROC-0008 P4: Model initialization extracted to ModelLoader ──
-  int initStatus = initializeModels(appCtx);
-  if (initStatus != EXIT_SUCCESS) return initStatus;
-  // --- HTTP Server ---
-  httplib::Server svr;
-  svr.set_default_headers({
-      {"Access-Control-Allow-Origin", "*"},
-      {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
-      {"Access-Control-Allow-Headers", "Content-Type, Authorization"},
-      {"Access-Control-Max-Age", "86400"},
-  });
-  svr.Options(R"(.*)", [](const httplib::Request &, httplib::Response &res) {
-    res.status = 204;
-  });
-  svr.Get("/health", [](const httplib::Request &, httplib::Response &res) {
-    res.status = 200;
-  });
+inline void logDuration(const char *label,
+                        std::chrono::high_resolution_clock::time_point start,
+                        std::chrono::high_resolution_clock::time_point end) {
+    std::cout << label << ": "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     end - start)
+                     .count()
+              << "ms\n";
+}
 
-  // ── BKND-PROC-0008: Progress query endpoint ──
-  // Allows the Android client to poll generation progress without holding
-  // an SSE connection.  Returns JSON with current step, total steps, and
-  // whether a generation is currently in progress.
-  svr.Get("/progress", [&](const httplib::Request &, httplib::Response &res) {
-    nlohmann::json r;
-    r["busy"] = g_serverState.isBusy();
-    r["current_step"] = g_serverState.currentStep();
-    r["total_steps"] = g_serverState.totalSteps();
-    res.status = 200;
-    res.set_content(r.dump(), "application/json");
-  });
-  svr.Post("/generate", [&](const httplib::Request &req,
-                            httplib::Response &res) {
-    // ── BKND-PROC-0008: Reject concurrent requests ──
-    // Returns 503 Service Unavailable (aligned with Stability AI/Ollama
-    // conventions) with a standard Retry-After header.  The error body
-    // follows Stability AI's format: { "id", "name", "errors" }.
-    std::chrono::steady_clock::time_point acquireTime;
-    if (!g_serverState.acquireBusy(acquireTime)) {
-      nlohmann::json busy = {
-          {"id",
-           "busy-" +
-               std::to_string(
-                   std::chrono::system_clock::now()
-                       .time_since_epoch()
-                       .count())},
-          {"name", "busy"},
-          {"errors",
-           {"Server is currently processing another request"}},
-      };
-      res.status = 503;
-      res.set_header("Retry-After", "3");
-      res.set_content(busy.dump(), "application/json");
-      return;
+// ══════════════════════════════════════════════════════════════════════
+// §4  Busy-lock RAII guard  —  ensures appCtx.serverState.release() is
+//     called on every exit path (including exceptions).
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * RAII guard that *optionally* calls ServerState::release() on destruction.
+ * Set `detach()` to prevent the release (used by the /generate chunked-callback
+ * which must release itself after the async generation completes).
+ */
+class BusyGuard {
+public:
+    explicit BusyGuard(ServerState &st) : state_(&st) {}
+    ~BusyGuard() { if (state_) state_->release(); }
+
+    BusyGuard(const BusyGuard &) = delete;
+    BusyGuard &operator=(const BusyGuard &) = delete;
+
+    /** Detach: the callback will release manually. */
+    void detach() { state_ = nullptr; }
+
+private:
+    ServerState *state_;
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// §5  Request parsing helpers  —  extract repeated sub-logic from the
+//     /generate handler
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Parse the base64-encoded image from JSON into req.img_data (float [C,H,W]).
+ * Handles decode → resize (aspect-ratio preserving, center-crop) →
+ * normalize [-1, +1].
+ *
+ * Throws std::runtime_error / std::invalid_argument on failure.
+ */
+static void decodeAndSetImage(const std::string &imgB64,
+                              RequestContext &req) {
+    std::string decStr = base64_decode(imgB64);
+    std::vector<uint8_t> decBuf(decStr.begin(), decStr.end());
+    std::vector<uint8_t> decPix;
+    decode_image(decBuf, decPix, req.output_width, req.output_height);
+
+    if (decPix.size() != 3u * req.output_width * req.output_height)
+        throw std::runtime_error("Img size mismatch");
+
+    std::vector<int> imgShape = {1, req.output_height, req.output_width, 3};
+    xt::xarray<uint8_t> xu8 = xt::adapt(decPix, imgShape);
+    xt::xarray<float> xf = xt::cast<float>(xu8);
+    xf = xt::eval(xf / 127.5f - 1.0f);
+    xf = xt::transpose(xf, {0, 3, 1, 2});
+    req.img_data.assign(xf.begin(), xf.end());
+}
+
+/**
+ * Parse the base64-encoded mask from JSON into req.{mask_data, mask_data_full}.
+ * Produces both latent-resolution (4ch) and full-resolution (3ch) masks.
+ *
+ * Throws std::runtime_error on failure.
+ */
+static void decodeAndSetMask(const std::string &maskB64,
+                             RequestContext &req) {
+    std::string decStr = base64_decode(maskB64);
+    std::vector<uint8_t> decBuf(decStr.begin(), decStr.end());
+
+    std::vector<uint8_t> maskLatRgb, maskFullRgb;
+    decode_image(decBuf, maskLatRgb, req.sample_width, req.sample_height);
+    decode_image(decBuf, maskFullRgb, req.output_width, req.output_height);
+
+    if (maskLatRgb.empty() || maskFullRgb.empty())
+        throw std::runtime_error("Mask decode empty");
+
+    // Latent-resolution mask: 4-channel broadcast
+    {
+        std::vector<int> shape = {req.sample_height, req.sample_width, 3};
+        xt::xarray<uint8_t> xu8 = xt::adapt(maskLatRgb, shape);
+        xt::xarray<float> xf = xt::mean(xt::cast<float>(xu8), {2});
+        xf = xt::eval(xf / 255.0f);
+        xf = xt::reshape_view(xf, {1, 1, req.sample_height, req.sample_width});
+        xt::xarray<float> xf4 = xt::concatenate(xt::xtuple(xf, xf, xf, xf), 1);
+        req.mask_data.assign(xf4.begin(), xf4.end());
     }
 
-    // RAII: release the busy flag on every exit path so the server
-    // can accept new requests again.
-    auto clearBusy = [&]() { g_serverState.release(); };
-    try {
-      auto json = nlohmann::json::parse(req.body);
-      if (!json.contains("prompt"))
-        throw std::invalid_argument("Missing 'prompt'");
-      prompt = json["prompt"].get<std::string>();
-      negative_prompt = json.value("negative_prompt", "");
-      steps = json.value("steps", 20);
-      cfg = json.value("cfg", 7.5f);
-      scheduler_type = json.value("scheduler", "dpm");
-      use_opencl = json.value("use_opencl", false);
-      show_diffusion_process = json.value("show_diffusion_process", false);
-      show_diffusion_stride = json.value("show_diffusion_stride", 1);
-      seed = json.value(
-          "seed",
-          (unsigned)hashSeed(
-              std::chrono::system_clock::now().time_since_epoch().count()));
-      int req_width = json.value("width", 512);
-      int req_height = json.value("height", 512);
-      if (json.contains("size")) {
-        int size = json.value("size", 512);
-        req_width = size;
-        req_height = size;
-      }
-      if (sdxl_mode) {
-        req_width = 1024;
-        req_height = 1024;
-      }
-      denoise_strength = json.value("denoise_strength", 0.6f);
-      request_img2img = false;
-      request_has_mask = false;
-      aspect_pad_inpaint = false;
-      aspect_pad_synthetic_base = false;
-      user_supplied_mask = false;
-      target_crop_width = 0;
-      target_crop_height = 0;
-      // BKND-PROC-0008 P1: Release vector capacity between requests
-      img_data.clear();
-      img_data.shrink_to_fit();
-      mask_data.clear();
-      mask_data.shrink_to_fit();
-      mask_data_full.clear();
-      mask_data_full.shrink_to_fit();
-      output_width = req_width;
-      output_height = req_height;
-      sample_width = req_width / 8;
-      sample_height = req_height / 8;
+    // Full-resolution mask: 3-channel broadcast
+    {
+        std::vector<int> shape = {req.output_height, req.output_width, 3};
+        xt::xarray<uint8_t> xu8 = xt::adapt(maskFullRgb, shape);
+        xt::xarray<float> xf = xt::mean(xt::cast<float>(xu8), {2});
+        xf = xt::eval(xf / 255.0f);
+        xf = xt::reshape_view(xf, {1, 1, req.output_height, req.output_width});
+        xt::xarray<float> xf3 = xt::concatenate(xt::xtuple(xf, xf, xf), 1);
+        req.mask_data_full.assign(xf3.begin(), xf3.end());
+    }
+}
 
-      // --- SDXL aspect ratio: parse target dims first ----------------------
-      // Resolve target_crop_w/h from aspect_ratio. We compute it independently
-      // of img/mask presence so all three modes (txt2img / img2img / inpaint)
-      // share the same downstream crop-after-decode behavior. Requires a VAE
-      // encoder so the synthetic black canvas can be encoded as the inpaint
-      // base latent; if the SDXL build was started without one, fall through
-      // to plain 1024x1024 generation.
-      if (sdxl_mode && json.contains("aspect_ratio") &&
-          !vaeEncoderPath.empty()) {
+/**
+ * Parse the /generate JSON body into g_req and compute derived paint-rect
+ * values (`paint_*`).  Handles:
+ *   1. Core fields (prompt, steps, cfg, seed, scheduler, size …)
+ *   2. SDXL aspect_ratio → sets req.{target_crop_w/h, aspect_pad_inpaint}
+ *   3. Image decoding (user-supplied or synthetic base for aspect-pad inpaint)
+ *   4. Mask decoding (user-supplied or full-opacity paint rect)
+ *   5. Aspect-padding mask intersection
+ *
+ * Throws on any parse/decode error; the caller catches and returns 4xx.
+ */
+static void parseGenerateRequest(
+    const nlohmann::json &json,
+    AppContext &appCtx)
+{
+    // ── Core fields ──────────────────────────────────────────────────
+    if (!json.contains("prompt"))
+        throw std::invalid_argument("Missing 'prompt'");
+
+    g_req.prompt               = json["prompt"].get<std::string>();
+    g_req.negative_prompt      = json.value("negative_prompt", "");
+    g_req.steps                = json.value("steps", 20);
+    g_req.cfg                  = json.value("cfg", 7.5f);
+    g_req.scheduler_type       = json.value("scheduler", "dpm");
+    g_req.use_opencl           = json.value("use_opencl", false);
+    g_req.show_diffusion_process = json.value("show_diffusion_process", false);
+    g_req.show_diffusion_stride  = json.value("show_diffusion_stride", 1);
+    g_req.seed                 = json.value(
+        "seed",
+        (unsigned)hashSeed(
+            std::chrono::system_clock::now().time_since_epoch().count()));
+    g_req.denoise_strength     = json.value("denoise_strength", 0.6f);
+
+    int reqW = json.value("width", 512);
+    int reqH = json.value("height", 512);
+    if (json.contains("size")) {
+        int sz = json.value("size", 512);
+        reqW = sz; reqH = sz;
+    }
+    if (appCtx.conf.sdxl_mode) { reqW = 1024; reqH = 1024; }
+
+    // Zero-init img2img / mask fields
+    g_req.request_img2img       = false;
+    g_req.request_has_mask     = false;
+    g_req.aspect_pad_inpaint   = false;
+    g_req.aspect_pad_synthetic_base = false;
+    g_req.user_supplied_mask   = false;
+    g_req.target_crop_width    = 0;
+    g_req.target_crop_height   = 0;
+
+    // Release previous request vector capacity
+    g_req.img_data.clear();       g_req.img_data.shrink_to_fit();
+    g_req.mask_data.clear();      g_req.mask_data.shrink_to_fit();
+    g_req.mask_data_full.clear(); g_req.mask_data_full.shrink_to_fit();
+
+    g_req.output_width  = reqW;
+    g_req.output_height = reqH;
+    g_req.sample_width  = reqW / 8;
+    g_req.sample_height = reqH / 8;
+
+    // ── SDXL aspect ratio ────────────────────────────────────────────
+    if (appCtx.conf.sdxl_mode && json.contains("aspect_ratio") &&
+        !appCtx.conf.vaeEncoderPath.empty()) {
         std::string ar = json["aspect_ratio"].get<std::string>();
         auto colon = ar.find(':');
         if (colon != std::string::npos) {
-          try {
-            int rw = std::stoi(ar.substr(0, colon));
-            int rh = std::stoi(ar.substr(colon + 1));
-            if (rw > 0 && rh > 0 && !(rw == rh)) {
-              int tw, th;
-              if (rw >= rh) {
-                tw = 1024;
-                th = (int)((1024.0 * rh) / rw);
-                th = (th / 8) * 8;
-                if (th < 8) th = 8;
-              } else {
-                th = 1024;
-                tw = (int)((1024.0 * rw) / rh);
-                tw = (tw / 8) * 8;
-                if (tw < 8) tw = 8;
-              }
-              target_crop_width = tw;
-              target_crop_height = th;
-              aspect_pad_inpaint = true;
+            try {
+                int rw = std::stoi(ar.substr(0, colon));
+                int rh = std::stoi(ar.substr(colon + 1));
+                if (rw > 0 && rh > 0 && rw != rh) {
+                    int tw, th;
+                    if (rw >= rh) {
+                        tw = 1024;
+                        th = static_cast<int>((1024.0 * rh) / rw);
+                        th = (th / 8) * 8;
+                        if (th < 8) th = 8;
+                    } else {
+                        th = 1024;
+                        tw = static_cast<int>((1024.0 * rw) / rh);
+                        tw = (tw / 8) * 8;
+                        if (tw < 8) tw = 8;
+                    }
+                    g_req.target_crop_width  = tw;
+                    g_req.target_crop_height = th;
+                    g_req.aspect_pad_inpaint = true;
+                }
+            } catch (...) {
+                // Bad aspect_ratio string — proceed with 1:1.
             }
-          } catch (...) {
-            // Bad aspect_ratio string, ignore and proceed with 1:1.
-          }
         }
-      }
+    }
 
-      // Paint rectangle = target + short-axis pad. Shared by the synthetic
-      // white-on-black base image and the aspect padding mask so both stay
-      // strictly aligned. Only computed when aspect padding is in effect.
-      const int kAspectPadPx = 8;
-      int paint_w = target_crop_width;
-      int paint_h = target_crop_height;
-      int paint_x0 = 0, paint_y0 = 0;
-      if (aspect_pad_inpaint) {
-        if (target_crop_width < output_width)
-          paint_w =
-              std::min(output_width, target_crop_width + 2 * kAspectPadPx);
-        if (target_crop_height < output_height)
-          paint_h =
-              std::min(output_height, target_crop_height + 2 * kAspectPadPx);
-        paint_x0 = (output_width - paint_w) / 2;
-        paint_y0 = (output_height - paint_h) / 2;
-      }
+    // ── Compute paint rectangle ──────────────────────────────────────
+    int paint_w  = g_req.target_crop_width;
+    int paint_h  = g_req.target_crop_height;
+    int paint_x0 = 0;
+    int paint_y0 = 0;
+    if (g_req.aspect_pad_inpaint) {
+        if (g_req.target_crop_width < g_req.output_width)
+            paint_w = std::min(g_req.output_width,
+                               g_req.target_crop_width + 2 * kAspectPadPx);
+        if (g_req.target_crop_height < g_req.output_height)
+            paint_h = std::min(g_req.output_height,
+                               g_req.target_crop_height + 2 * kAspectPadPx);
+        paint_x0 = (g_req.output_width  - paint_w) / 2;
+        paint_y0 = (g_req.output_height - paint_h) / 2;
+    }
 
-      // --- Base image: user-supplied or synthetic --------------------------
-      if (json.contains("image")) {
-        request_img2img = true;
-        std::string img_b64 = json["image"].get<std::string>();
-        try {
-          std::string dec_str = base64_decode(img_b64);
-          std::vector<uint8_t> dec_buf(dec_str.begin(), dec_str.end());
-          std::vector<uint8_t> dec_pix;
-          decode_image(dec_buf, dec_pix, output_width, output_height);
-          if (dec_pix.size() != 3 * output_width * output_height)
-            throw std::runtime_error("Img size mismatch");
-          std::vector<int> img_shape = {1, output_height, output_width, 3};
-          xt::xarray<uint8_t> xt_u8 = xt::adapt(dec_pix, img_shape);
-          xt::xarray<float> xt_f = xt::cast<float>(xt_u8);
-          xt_f = xt::eval(xt_f / 127.5f - 1.0f);
-          xt_f = xt::transpose(xt_f, {0, 3, 1, 2});
-          img_data.assign(xt_f.begin(), xt_f.end());
-        } catch (const std::exception &e) {
-          throw std::invalid_argument("Err proc img: " + std::string(e.what()));
-        }
-      } else if (aspect_pad_inpaint) {
-        // No user image but aspect padding requested: synthesise the
-        // white-on-black canvas as the inpaint base. Outer ring = black
-        // (value -1) to signal "edge"; center paint region = white (value
-        // +1) to hint "content". The white region extends `kAspectPadPx`
-        // pixels past the crop along the short axis so the mask boundary
-        // never coincides with the latent's black->white transition; the
-        // pad area gets generated but is cropped away on output.
-        // This is also the only path eligible for the per-target
-        // VAE-encoder cache.
-        aspect_pad_synthetic_base = true;
-        size_t img_total = 3 * (size_t)output_width * output_height;
-        img_data.assign(img_total, -1.0f);
+    // ── Image (user-supplied or synthetic base) ──────────────────────
+    if (json.contains("image")) {
+        g_req.request_img2img = true;
+        decodeAndSetImage(json["image"].get<std::string>(), g_req);
+    } else if (g_req.aspect_pad_inpaint) {
+        // Synthetic white-on-black canvas: black border (-1) with white
+        // paint region (+1) extended kAspectPadPx past the crop along the
+        // short axis so the mask boundary never coincides with the latent's
+        // black→white transition.
+        g_req.aspect_pad_synthetic_base = true;
+        size_t imgTotal = 3ull * g_req.output_width * g_req.output_height;
+        g_req.img_data.assign(imgTotal, -1.0f);
         for (int c = 0; c < 3; ++c) {
-          for (int y = paint_y0; y < paint_y0 + paint_h; ++y) {
-            float *row = img_data.data() +
-                         ((size_t)c * output_height + y) * output_width;
-            for (int x = paint_x0; x < paint_x0 + paint_w; ++x) row[x] = 1.0f;
-          }
+            for (int y = paint_y0; y < paint_y0 + paint_h; ++y) {
+                float *row = g_req.img_data.data() +
+                             (static_cast<size_t>(c) * g_req.output_height + y) *
+                                 g_req.output_width;
+                for (int x = paint_x0; x < paint_x0 + paint_w; ++x)
+                    row[x] = 1.0f;
+            }
         }
-        request_img2img = true;
-        // Pure txt2img through the inpaint pipeline: fully renoise.
-        denoise_strength = 1.0f;
-      }
+        g_req.request_img2img   = true;
+        g_req.denoise_strength  = 1.0f;  // fully renoise
+    }
 
-      // --- Mask: user-supplied, possibly intersected with aspect mask -----
-      if (json.contains("mask")) {
-        try {
-          if (!request_img2img) throw std::runtime_error("mask requires image");
-          request_has_mask = true;
-          user_supplied_mask = true;
-          std::string mask_b64 = json["mask"].get<std::string>();
-          std::string dec_mask_str = base64_decode(mask_b64);
-          std::vector<uint8_t> dec_mask_buf(dec_mask_str.begin(),
-                                            dec_mask_str.end());
-          std::vector<uint8_t> mask_pix_lat_rgb, mask_pix_full_rgb;
-          decode_image(dec_mask_buf, mask_pix_lat_rgb, sample_width,
-                       sample_height);
-          decode_image(dec_mask_buf, mask_pix_full_rgb, output_width,
-                       output_height);
-          if (mask_pix_lat_rgb.empty() || mask_pix_full_rgb.empty())
-            throw std::runtime_error("Mask decode empty");
-          std::vector<int> mlat_shape = {sample_height, sample_width, 3};
-          xt::xarray<uint8_t> xmlat_u8 =
-              xt::adapt(mask_pix_lat_rgb, mlat_shape);
-          xt::xarray<float> xmlat_f = xt::mean(xt::cast<float>(xmlat_u8), {2});
-          xmlat_f = xt::eval(xmlat_f / 255.0f);
-          xmlat_f =
-              xt::reshape_view(xmlat_f, {1, 1, sample_height, sample_width});
-          xt::xarray<float> xmlat_f_4 = xt::concatenate(
-              xt::xtuple(xmlat_f, xmlat_f, xmlat_f, xmlat_f), 1);
-          mask_data.assign(xmlat_f_4.begin(), xmlat_f_4.end());
+    // ── Mask ─────────────────────────────────────────────────────────
+    if (json.contains("mask")) {
+        if (!g_req.request_img2img)
+            throw std::runtime_error("mask requires image");
+        g_req.request_has_mask  = true;
+        g_req.user_supplied_mask = true;
+        decodeAndSetMask(json["mask"].get<std::string>(), g_req);
+    }
 
-          std::vector<int> mfull_shape = {output_height, output_width, 3};
-          xt::xarray<uint8_t> xmfull_u8 =
-              xt::adapt(mask_pix_full_rgb, mfull_shape);
-          xt::xarray<float> xmfull_f =
-              xt::mean(xt::cast<float>(xmfull_u8), {2});
-          xmfull_f = xt::eval(xmfull_f / 255.0f);
-          xmfull_f =
-              xt::reshape_view(xmfull_f, {1, 1, output_height, output_width});
-          xt::xarray<float> xmfull_f_3 =
-              xt::concatenate(xt::xtuple(xmfull_f, xmfull_f, xmfull_f), 1);
-          mask_data_full.assign(xmfull_f_3.begin(), xmfull_f_3.end());
-        } catch (const std::exception &e) {
-          throw std::invalid_argument("Err proc mask: " +
-                                      std::string(e.what()));
-        }
-      }
-
-      // --- Aspect padding mask --------------------------------------------
-      // Install or intersect with the centered paint rectangle (computed
-      // above). If a user mask was supplied we zero out everything outside
-      // it so the user can never paint outside the visible crop area;
-      // otherwise we install the paint rect directly so the outer black
-      // border is preserved through every diffusion step. Latent (1/8)
-      // bounds use floor(origin) and ceil(end) to fully cover the
-      // pixel-space paint rect.
-      if (aspect_pad_inpaint) {
+    // ── Aspect padding mask (intersect or install) ───────────────────
+    if (g_req.aspect_pad_inpaint) {
         int lx0 = paint_x0 / 8;
         int ly0 = paint_y0 / 8;
-        int lx1 = std::min(sample_width, (paint_x0 + paint_w + 7) / 8);
-        int ly1 = std::min(sample_height, (paint_y0 + paint_h + 7) / 8);
+        int lx1 = std::min(g_req.sample_width,
+                           (paint_x0 + paint_w + 7) / 8);
+        int ly1 = std::min(g_req.sample_height,
+                           (paint_y0 + paint_h + 7) / 8);
 
-        if (request_has_mask) {
-          // Zero out everything outside the paint rectangle.
-          for (int c = 0; c < 4; ++c) {
-            for (int y = 0; y < sample_height; ++y) {
-              float *row = mask_data.data() +
-                           ((size_t)c * sample_height + y) * sample_width;
-              if (y < ly0 || y >= ly1) {
-                std::fill(row, row + sample_width, 0.0f);
-              } else {
-                std::fill(row, row + lx0, 0.0f);
-                std::fill(row + lx1, row + sample_width, 0.0f);
-              }
-            }
-          }
-          for (int c = 0; c < 3; ++c) {
-            for (int y = 0; y < output_height; ++y) {
-              float *row = mask_data_full.data() +
-                           ((size_t)c * output_height + y) * output_width;
-              if (y < paint_y0 || y >= paint_y0 + paint_h) {
-                std::fill(row, row + output_width, 0.0f);
-              } else {
-                std::fill(row, row + paint_x0, 0.0f);
-                std::fill(row + paint_x0 + paint_w, row + output_width, 0.0f);
-              }
-            }
-          }
-        } else {
-          // No user mask: aspect mask alone, full opacity in the paint rect.
-          mask_data.assign((size_t)4 * sample_width * sample_height, 0.0f);
-          for (int c = 0; c < 4; ++c) {
-            for (int y = ly0; y < ly1; ++y) {
-              float *row = mask_data.data() +
-                           ((size_t)c * sample_height + y) * sample_width;
-              for (int x = lx0; x < lx1; ++x) row[x] = 1.0f;
-            }
-          }
-          mask_data_full.assign((size_t)3 * output_width * output_height, 0.0f);
-          for (int c = 0; c < 3; ++c) {
-            for (int y = paint_y0; y < paint_y0 + paint_h; ++y) {
-              float *row = mask_data_full.data() +
-                           ((size_t)c * output_height + y) * output_width;
-              for (int x = paint_x0; x < paint_x0 + paint_w; ++x) row[x] = 1.0f;
-            }
-          }
-          request_has_mask = true;
-        }
-      }
-      std::cout << "Req Rcvd (globals): P:" << prompt
-                << " NP:" << negative_prompt << " S:" << steps << " CFG:" << cfg
-                << " Seed:" << seed << " Size:" << output_width << "x"
-                << output_height << " Img2Img:" << request_img2img
-                << " Mask:" << request_has_mask
-                << " Denoise:" << denoise_strength
-                << " ShowProcess:" << show_diffusion_process
-                << " Stride:" << show_diffusion_stride << std::endl;
-      res.set_header("Content-Type", "text/event-stream");
-      res.set_header("Cache-Control", "no-cache");
-      res.set_header("Connection", "keep-alive");
-      res.set_chunked_content_provider(
-          "text/event-stream", [&](intptr_t, httplib::DataSink &sink) -> bool {
-            try {
-              // BKND-PROC-0008: Watchdog — check for hung generation before
-              // starting.  A previously stuck pipeline may have left the flag
-              // set; force-release if the timeout is exceeded.
-              if (g_serverState.checkAndReleaseTimeout(acquireTime)) {
-                nlohmann::json err = {
-                    {"id",
-                     "timeout-" +
-                         std::to_string(
-                             std::chrono::system_clock::now()
-                                 .time_since_epoch()
-                                 .count())},
-                    {"name", "timeout"},
-                    {"errors",
-                     {"Generation timed out after " +
-                      std::to_string(g_serverState.generation_timeout_secs) +
-                      "s"}},
-                };
-                std::string ev = "event: error\ndata: " + err.dump() + "\n\n";
-                sink.write(ev.c_str(), ev.size());
-                sink.done();
-                return false;
-              }
-              auto result =
-                  generateImage(g_req, appCtx, [&sink](int s, int t, const std::string &img) {
-                    // BKND-PROC-0008: Track progress via ServerState
-                    g_serverState.setProgress(s, t);
-                    nlohmann::json p = {
-                        {"type", "progress"}, {"step", s}, {"total_steps", t}};
-                    if (!img.empty()) {
-                      p["image"] = img;
+        if (g_req.request_has_mask) {
+            // Intersect: zero out everything outside the paint rectangle
+            for (int c = 0; c < 4; ++c) {
+                for (int y = 0; y < g_req.sample_height; ++y) {
+                    float *row = g_req.mask_data.data() +
+                                 (static_cast<size_t>(c) * g_req.sample_height + y) *
+                                     g_req.sample_width;
+                    if (y < ly0 || y >= ly1) {
+                        std::fill(row, row + g_req.sample_width, 0.0f);
+                    } else {
+                        std::fill(row, row + lx0, 0.0f);
+                        std::fill(row + lx1, row + g_req.sample_width, 0.0f);
                     }
-                    std::string ev =
-                        "event: progress\ndata: " + p.dump() + "\n\n";
-                    sink.write(ev.c_str(), ev.size());
-                  });
-              auto enc_start = std::chrono::high_resolution_clock::now();
-              std::string image_str_result(result.image_data.begin(),
-                                           result.image_data.end());
-              std::string enc_img = base64_encode(image_str_result);
-              auto enc_end = std::chrono::high_resolution_clock::now();
-              std::cout
-                  << "Enc time: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(
-                         enc_end - enc_start)
-                         .count()
-                  << "ms\n";
-              nlohmann::json c = {
-                  {"type", "complete"},
-                  {"image", enc_img},
-                  {"seed", seed},
-                  {"width", result.width},
-                  {"height", result.height},
-                  {"channels", result.channels},
-                  {"generation_time_ms", result.generation_time_ms},
-                  {"first_step_time_ms", result.first_step_time_ms}};
-              std::string ev = "event: complete\ndata: " + c.dump() + "\n\n";
-              auto send_start = std::chrono::high_resolution_clock::now();
-              sink.write(ev.c_str(), ev.size());
-              auto send_end = std::chrono::high_resolution_clock::now();
-              std::cout
-                  << "Image send time: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(
-                         send_end - send_start)
-                         .count()
-                  << "ms, size: " << ev.size() << " bytes\n";
-              sink.done();
-              clearBusy();
-              return true;
-            } catch (const std::exception &e) {
-              clearBusy();
-              nlohmann::json err = {
-                  {"id",
-                   "gen-err-" +
-                       std::to_string(
-                           std::chrono::system_clock::now()
-                               .time_since_epoch()
-                               .count())},
-                  {"name", "generation_error"},
-                  {"errors", {std::string(e.what())}},
-              };
-              std::string ev = "event: error\ndata: " + err.dump() + "\n\n";
-              sink.write(ev.c_str(), ev.size());
-              sink.done();
-              return false;
+                }
             }
-          });
-    } catch (const nlohmann::json::parse_error &e) {
-      clearBusy();
-      nlohmann::json err = {
-          {"id",
-           "parse-" +
-               std::to_string(
-                   std::chrono::system_clock::now()
-                       .time_since_epoch()
-                       .count())},
-          {"name", "invalid_json"},
-          {"errors", {std::string(e.what())}},
-      };
-      res.status = 400;
-      res.set_content(err.dump(), "application/json");
-    } catch (const std::invalid_argument &e) {
-      clearBusy();
-      nlohmann::json err = {
-          {"id",
-           "arg-" +
-               std::to_string(
-                   std::chrono::system_clock::now()
-                       .time_since_epoch()
-                       .count())},
-          {"name", "invalid_argument"},
-          {"errors", {std::string(e.what())}},
-      };
-      res.status = 400;
-      res.set_content(err.dump(), "application/json");
-    } catch (const std::exception &e) {
-      clearBusy();
-      nlohmann::json err = {
-          {"id",
-           "srv-" +
-               std::to_string(
-                   std::chrono::system_clock::now()
-                       .time_since_epoch()
-                       .count())},
-          {"name", "server_error"},
-          {"errors", {std::string(e.what())}},
-      };
-      res.status = 500;
-      res.set_content(err.dump(), "application/json");
+            for (int c = 0; c < 3; ++c) {
+                for (int y = 0; y < g_req.output_height; ++y) {
+                    float *row = g_req.mask_data_full.data() +
+                                 (static_cast<size_t>(c) * g_req.output_height + y) *
+                                     g_req.output_width;
+                    if (y < paint_y0 || y >= paint_y0 + paint_h) {
+                        std::fill(row, row + g_req.output_width, 0.0f);
+                    } else {
+                        std::fill(row, row + paint_x0, 0.0f);
+                        std::fill(row + paint_x0 + paint_w,
+                                  row + g_req.output_width, 0.0f);
+                    }
+                }
+            }
+        } else {
+            // Install full-opacity paint-rect mask
+            g_req.mask_data.assign(
+                4ull * g_req.sample_width * g_req.sample_height, 0.0f);
+            for (int c = 0; c < 4; ++c) {
+                for (int y = ly0; y < ly1; ++y) {
+                    float *row = g_req.mask_data.data() +
+                                 (static_cast<size_t>(c) * g_req.sample_height + y) *
+                                     g_req.sample_width;
+                    for (int x = lx0; x < lx1; ++x) row[x] = 1.0f;
+                }
+            }
+            g_req.mask_data_full.assign(
+                3ull * g_req.output_width * g_req.output_height, 0.0f);
+            for (int c = 0; c < 3; ++c) {
+                for (int y = paint_y0; y < paint_y0 + paint_h; ++y) {
+                    float *row = g_req.mask_data_full.data() +
+                                 (static_cast<size_t>(c) * g_req.output_height + y) *
+                                     g_req.output_width;
+                    for (int x = paint_x0; x < paint_x0 + paint_w; ++x)
+                        row[x] = 1.0f;
+                }
+            }
+            g_req.request_has_mask = true;
+        }
     }
-  });
 
-  // Binary protocol upscale endpoint - optimized for performance
-  svr.Post("/upscale", [&](const httplib::Request &req,
-                           httplib::Response &res) {
-    std::unique_ptr<QnnModel> tempUpscalerApp = nullptr;
+    // ── Log parsed request ───────────────────────────────────────────
+    std::cout << "Req Rcvd: P:" << g_req.prompt
+              << " NP:" << g_req.negative_prompt
+              << " S:" << g_req.steps
+              << " CFG:" << g_req.cfg
+              << " Seed:" << g_req.seed
+              << " Size:" << g_req.output_width << "x" << g_req.output_height
+              << " Img2Img:" << g_req.request_img2img
+              << " Mask:" << g_req.request_has_mask
+              << " Denoise:" << g_req.denoise_strength
+              << " ShowProcess:" << g_req.show_diffusion_process
+              << " Stride:" << g_req.show_diffusion_stride << std::endl;
+}
 
-    // BKND-PROC-0008: Upscaler uses the GPU/QNN — serialize with generation
-    // to prevent resource contention.  Returns 503 if busy.
-    std::chrono::steady_clock::time_point upscaleAcquireTime;
-    if (!g_serverState.acquireBusy(upscaleAcquireTime)) {
-      nlohmann::json busy = {
-          {"id",
-           "busy-" +
-               std::to_string(
-                   std::chrono::system_clock::now()
-                       .time_since_epoch()
-                       .count())},
-          {"name", "busy"},
-          {"errors",
-           {"Server is currently processing another request"}},
-      };
-      res.status = 503;
-      res.set_header("Retry-After", "3");
-      res.set_content(busy.dump(), "application/json");
-      return;
+// ══════════════════════════════════════════════════════════════════════
+// §6  Generation SSE callback —  build and write progress events
+// ══════════════════════════════════════════════════════════════════════
+
+static void onGenerateProgress(httplib::DataSink &sink,
+                               ServerState &serverState,
+                               int step, int totalSteps,
+                               const std::string &imgBase64) {
+    serverState.setProgress(step, totalSteps);
+    nlohmann::json p = {
+        {"type", "progress"},
+        {"step", step},
+        {"total_steps", totalSteps}
+    };
+    if (!imgBase64.empty()) p["image"] = imgBase64;
+    sseWrite(sink, "progress", p);
+}
+
+} // anonymous namespace
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// Main
+// ════════════════════════════════════════════════════════════════════════════
+
+int main(int argc, char **argv) {
+
+    AppContext appCtx;
+
+    using namespace qnn::tools;
+    if (!qnn::log::initializeLogging()) {
+        std::cerr << "ERROR: Init logging failed!\n";
+        return EXIT_FAILURE;
     }
-    auto clearUpscaleBusy = [&]() { g_serverState.release(); };
+    processCommandLine(argc, argv, appCtx);
 
-    try {
-      // Read parameters from headers
-      if (!req.has_header("X-Image-Width")) {
-        throw std::invalid_argument("Missing 'X-Image-Width' header");
-      }
-      if (!req.has_header("X-Image-Height")) {
-        throw std::invalid_argument("Missing 'X-Image-Height' header");
-      }
-      if (!req.has_header("X-Upscaler-Path")) {
-        throw std::invalid_argument("Missing 'X-Upscaler-Path' header");
-      }
+    int initStatus = initializeModels(appCtx);
+    if (initStatus != EXIT_SUCCESS) return initStatus;
 
-      int original_width = std::stoi(req.get_header_value("X-Image-Width"));
-      int original_height = std::stoi(req.get_header_value("X-Image-Height"));
-      std::string upscaler_path = req.get_header_value("X-Upscaler-Path");
+    // ─── HTTP Server ────────────────────────────────────────────────────
+    httplib::Server svr;
+    svr.set_default_headers({
+        {"Access-Control-Allow-Origin", "*"},
+        {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
+        {"Access-Control-Allow-Headers", "Content-Type, Authorization"},
+        {"Access-Control-Max-Age", "86400"},
+    });
 
-      // Check if use_opencl header is present (for MNN models)
-      bool local_use_opencl = false;
-      if (req.has_header("X-Use-OpenCL")) {
-        std::string opencl_str = req.get_header_value("X-Use-OpenCL");
-        local_use_opencl = (opencl_str == "true" || opencl_str == "1");
-      }
+    svr.Options(R"(.*)", [](const httplib::Request &, httplib::Response &res) {
+        res.status = 204;
+    });
 
-      // Determine model type based on file extension
-      bool is_mnn_model = false;
-      if (upscaler_path.size() >= 4) {
-        std::string ext = upscaler_path.substr(upscaler_path.size() - 4);
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-        is_mnn_model = (ext == ".mnn");
-      }
+    // ─── GET /health ────────────────────────────────────────────────────
+    svr.Get("/health", [](const httplib::Request &, httplib::Response &res) {
+        res.status = 200;
+    });
 
-      QNN_INFO("Binary upscale request: %dx%d, upscaler: %s, type: %s%s",
-               original_width, original_height, upscaler_path.c_str(),
-               is_mnn_model ? "MNN" : "QNN",
-               is_mnn_model && local_use_opencl ? " (OpenCL)" : "");
+    // ─── GET /progress ──────────────────────────────────────────────────
+    svr.Get("/progress", [&](const httplib::Request &, httplib::Response &res) {
+        nlohmann::json r;
+        r["busy"]         = appCtx.serverState.isBusy();
+        r["current_step"] = appCtx.serverState.currentStep();
+        r["total_steps"]  = appCtx.serverState.totalSteps();
+        res.status = 200;
+        res.set_content(r.dump(), "application/json");
+    });
 
-      std::vector<uint8_t> image_data(req.body.begin(), req.body.end());
+    // ─── POST /generate ─────────────────────────────────────────────────
+    svr.Post("/generate", [&](const httplib::Request &req,
+                              httplib::Response &res) {
+        std::chrono::steady_clock::time_point acquireTime;
+        if (!appCtx.serverState.acquireBusy(acquireTime)) {
+            set503Busy(res);
+            return;
+        }
+        BusyGuard busyGuard(appCtx.serverState);
 
-      if (image_data.size() != original_width * original_height * 3) {
-        throw std::invalid_argument(
-            "Image data size mismatch. Expected " +
-            std::to_string(original_width * original_height * 3) +
-            " bytes, got " + std::to_string(image_data.size()) + " bytes");
-      }
-
-      // Pre-process: resize if shortest edge < 192
-      const int min_size = 192;
-      int process_width = original_width;
-      int process_height = original_height;
-      std::vector<uint8_t> process_image = image_data;
-
-      if (std::min(original_width, original_height) < min_size) {
-        QNN_INFO("Image too small (%dx%d), resizing to min edge %d",
-                 original_width, original_height, min_size);
-        process_image =
-            resizeImageToMinSize(image_data, original_width, original_height,
-                                 min_size, process_width, process_height);
-        QNN_INFO("Resized to %dx%d for processing", process_width,
-                 process_height);
-      }
-
-      auto start_time = std::chrono::high_resolution_clock::now();
-
-      xt::xarray<uint8_t> upscaled;
-
-      if (is_mnn_model) {
-        // Use MNN model
-        upscaled =
-            upscaleImageWithMNN(process_image, process_width, process_height,
-                                upscaler_path, local_use_opencl);
-      } else {
-        // Use QNN model
-        tempUpscalerApp = createQnnModel(upscaler_path, "upscaler", appCtx);
-        if (!tempUpscalerApp) {
-          throw std::runtime_error("Failed to create upscaler model from: " +
-                                   upscaler_path);
+        // ── Phase 1: parse request (sync) ────────────────────────────
+        try {
+            parseGenerateRequest(
+                nlohmann::json::parse(req.body), appCtx);
+        } catch (const nlohmann::json::parse_error &e) {
+            setHttpError(res, 400, "invalid_json", e.what());
+            return;
+        } catch (const std::invalid_argument &e) {
+            setHttpError(res, 400, "invalid_argument", e.what());
+            return;
+        } catch (const std::exception &e) {
+            setHttpError(res, 500, "server_error", e.what());
+            return;
         }
 
-        auto status = sample_app::initializeQnnApp("Upscaler", tempUpscalerApp);
-        if (status != EXIT_SUCCESS) {
-          throw std::runtime_error("Failed to initialize upscaler model");
-        }
+        // ── Phase 2: SSE chunked generation (async) ──────────────────
+        busyGuard.detach();  // chunked callback releases itself
 
-        upscaled = upscaleImageWithModel(process_image, process_width,
-                                         process_height, tempUpscalerApp);
-      }
+        res.set_header("Content-Type", "text/event-stream");
+        res.set_header("Cache-Control", "no-cache");
+        res.set_header("Connection", "keep-alive");
+        res.set_chunked_content_provider(
+            "text/event-stream",
+            [&appCtx, acquireTime](intptr_t, httplib::DataSink &sink) -> bool {
+                // Watchdog: check for hung generation
+                if (appCtx.serverState.checkAndReleaseTimeout(acquireTime))
+                    return sseErrorDone(sink,
+                        "Generation timed out after " +
+                        std::to_string(appCtx.serverState.generation_timeout_secs) +
+                        "s");
 
-      auto end_time = std::chrono::high_resolution_clock::now();
-      int duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                         end_time - start_time)
-                         .count();
+                try {
+                    auto result = generateImage(
+                        g_req, appCtx,
+                        [&sink, &appCtx](int s, int t,
+                                         const std::string &img) {
+                            onGenerateProgress(sink, appCtx.serverState, s, t,
+                                               img);
+                        });
 
-      int upscaled_width = process_width * 4;
-      int upscaled_height = process_height * 4;
+                    auto encStart = std::chrono::high_resolution_clock::now();
+                    std::string imageStr(result.image_data.begin(),
+                                         result.image_data.end());
+                    std::string encImg = base64_encode(imageStr);
+                    logDuration("Enc time", encStart,
+                                std::chrono::high_resolution_clock::now());
 
-      // Post-process: resize back to target dimensions if needed
-      int final_width = original_width * 4;
-      int final_height = original_height * 4;
-      std::vector<uint8_t> final_rgb(upscaled.begin(), upscaled.end());
+                    nlohmann::json complete = {
+                        {"type", "complete"},
+                        {"image", encImg},
+                        {"seed", g_req.seed},
+                        {"width", result.width},
+                        {"height", result.height},
+                        {"channels", result.channels},
+                        {"generation_time_ms", result.generation_time_ms},
+                        {"first_step_time_ms", result.first_step_time_ms}
+                    };
 
-      if (upscaled_width != final_width || upscaled_height != final_height) {
-        QNN_INFO("Resizing output from %dx%d to %dx%d", upscaled_width,
-                 upscaled_height, final_width, final_height);
-        final_rgb =
-            resizeImageToTarget(final_rgb, upscaled_width, upscaled_height,
-                                final_width, final_height);
-      }
+                    auto sendStart = std::chrono::high_resolution_clock::now();
+                    sseWrite(sink, "complete", complete);
+                    auto sendEnd = std::chrono::high_resolution_clock::now();
+                    std::cout << "Image send time: "
+                              << std::chrono::duration_cast<
+                                     std::chrono::milliseconds>(
+                                     sendEnd - sendStart)
+                                     .count()
+                              << "ms\n";
 
-      auto encode_start = std::chrono::high_resolution_clock::now();
-      std::vector<uint8_t> output_jpeg =
-          encodeJPEG(final_rgb, final_width, final_height, 95);
-      auto encode_end = std::chrono::high_resolution_clock::now();
-      int encode_duration =
-          std::chrono::duration_cast<std::chrono::milliseconds>(encode_end -
-                                                                encode_start)
-              .count();
+                    sink.done();
+                    appCtx.serverState.release();
+                    return true;
 
-      QNN_INFO("Upscaling completed in %d ms: %dx%d -> %dx%d", duration,
-               original_width, original_height, final_width, final_height);
-      QNN_INFO("JPEG encoding time: %d ms, size: %zu KB", encode_duration,
-               output_jpeg.size() / 1024);
+                } catch (const std::exception &e) {
+                    appCtx.serverState.release();
+                    return sseErrorDone(sink, e.what());
+                }
+            });
+    });
 
-      res.status = 200;
-      res.set_content(std::string(output_jpeg.begin(), output_jpeg.end()),
-                      "image/jpeg");
-      res.set_header("X-Output-Width", std::to_string(final_width));
-      res.set_header("X-Output-Height", std::to_string(final_height));
-      res.set_header("X-Duration-Ms", std::to_string(duration));
-      res.set_header("Access-Control-Expose-Headers",
-                     "X-Output-Width,X-Output-Height,X-Duration-Ms");
-
-      // Release the temporary upscaler model
-      if (tempUpscalerApp) {
-        tempUpscalerApp.reset();
-        QNN_INFO("Upscaler model released");
-      }
-      clearUpscaleBusy();
-
-    } catch (const std::invalid_argument &e) {
-      tempUpscalerApp.reset();
-      clearUpscaleBusy();
-      nlohmann::json err = {
-          {"id",
-           "upscale-arg-" +
-               std::to_string(
-                   std::chrono::system_clock::now()
-                       .time_since_epoch()
-                       .count())},
-          {"name", "invalid_argument"},
-          {"errors", {std::string(e.what())}},
-      };
-      res.status = 400;
-      res.set_content(err.dump(), "application/json");
-    } catch (const std::exception &e) {
-      tempUpscalerApp.reset();
-      clearUpscaleBusy();
-      nlohmann::json err = {
-          {"id",
-           "upscale-srv-" +
-               std::to_string(
-                   std::chrono::system_clock::now()
-                       .time_since_epoch()
-                       .count())},
-          {"name", "server_error"},
-          {"errors", {std::string(e.what())}},
-      };
-      res.status = 500;
-      res.set_content(err.dump(), "application/json");
-    }
-  });
-
-  svr.Post("/tokenize", [&](const httplib::Request &req,
-                            httplib::Response &res) {
-    handleTokenize(req, res, sdxl_mode, text_embedding_size_2,
-                   promptProcessor, tokenizer.get());
-  });
-
-  // ── Graceful Shutdown ─────────────────────────────────────────────────
-  // POST /shutdown  sets the server state to ShuttingDown so queued health
-  // checks (Orphan Detection in BackendManager) see the backend as gone.
-  // After responding 200, the server exits svr.listen() via svr.stop().
-  svr.Post("/shutdown", [&](const httplib::Request &,
+    // ─── POST /upscale ───────────────────────────────────────────────────
+    svr.Post("/upscale", [&](const httplib::Request &req,
                              httplib::Response &res) {
-    g_serverState.initiateShutdown();
-    nlohmann::json resp = {{"status", "shutting_down"}};
-    res.status = 200;
-    res.set_content(resp.dump(), "application/json");
-    std::cout << "[Server] Shutdown requested via /shutdown" << std::endl;
-    // Schedule async stop so the 200 response is sent first.
-    std::thread([&svr]() {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      svr.stop();
-    }).detach();
-  });
+        std::unique_ptr<QnnModel> tempUpscalerApp;
 
-  std::cout << "Server listening on " << listen_address << ":" << port
-            << std::endl;
-  svr.listen(listen_address.c_str(), port);
+        std::chrono::steady_clock::time_point acquireTime;
+        if (!appCtx.serverState.acquireBusy(acquireTime)) {
+            set503Busy(res);
+            return;
+        }
+        // Guard releases the busy flag AND resets the upscaler model.
+        BusyGuard busyGuard(appCtx.serverState);
+        auto cleanupUpscaler = [&]() {
+            if (tempUpscalerApp) tempUpscalerApp.reset();
+        };
 
-  // --- Cleanup ---
-  if (clipSession) clipInterpreter->releaseSession(clipSession);
-  clipSession = nullptr;
-  if (clip2Session) clip2Interpreter->releaseSession(clip2Session);
-  clip2Session = nullptr;
-  if (safetyCheckerSession)
-    safetyCheckerInterpreter->releaseSession(safetyCheckerSession);
-  safetyCheckerSession = nullptr;
-  delete clipInterpreter;
-  delete clip2Interpreter;
-  delete safetyCheckerInterpreter;
-  unetApp.reset();
-  vaeDecoderApp.reset();
-  vaeEncoderApp.reset();
+        try {
+            // Validate headers
+            auto requireHeader = [&](const char *name) {
+                if (!req.has_header(name))
+                    throw std::invalid_argument(
+                        std::string("Missing '") + name + "' header");
+            };
+            requireHeader("X-Image-Width");
+            requireHeader("X-Image-Height");
+            requireHeader("X-Upscaler-Path");
 
-  return EXIT_SUCCESS;
+            int origW   = std::stoi(req.get_header_value("X-Image-Width"));
+            int origH   = std::stoi(req.get_header_value("X-Image-Height"));
+            std::string upPath = req.get_header_value("X-Upscaler-Path");
+
+            bool useOpenCL = false;
+            if (req.has_header("X-Use-OpenCL")) {
+                std::string v = req.get_header_value("X-Use-OpenCL");
+                useOpenCL = (v == "true" || v == "1");
+            }
+
+            // Determine model type from file extension
+            std::string ext;
+            if (upPath.size() >= 4)
+                ext = upPath.substr(upPath.size() - 4);
+            bool isMnn = (ext == ".mnn");
+
+            QNN_INFO("Upscale: %dx%d → %s %s%s",
+                     origW, origH, upPath.c_str(),
+                     isMnn ? "MNN" : "QNN",
+                     (isMnn && useOpenCL) ? "OpenCL" : "");
+
+            std::vector<uint8_t> imgData(req.body.begin(), req.body.end());
+            if (imgData.size() != static_cast<size_t>(origW) * origH * 3) {
+                throw std::invalid_argument(
+                    "Image data size mismatch. Expected " +
+                    std::to_string(origW * origH * 3) +
+                    " bytes, got " + std::to_string(imgData.size()));
+            }
+
+            // Pre-process: upsample tiny images to at least kUpscaleMinEdge
+            int procW = origW, procH = origH;
+            std::vector<uint8_t> procImg = imgData;
+            if (std::min(origW, origH) < kUpscaleMinEdge) {
+                QNN_INFO("Image too small (%dx%d), resizing to min edge %d",
+                         origW, origH, kUpscaleMinEdge);
+                procImg = resizeImageToMinSize(imgData, origW, origH,
+                                               kUpscaleMinEdge, procW, procH);
+                QNN_INFO("Resized to %dx%d", procW, procH);
+            }
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+            xt::xarray<uint8_t> upscaled;
+
+            if (isMnn) {
+                upscaled = upscaleImageWithMNN(procImg, procW, procH,
+                                               upPath, useOpenCL);
+            } else {
+                tempUpscalerApp = createQnnModel(upPath, "upscaler", appCtx);
+                if (!tempUpscalerApp)
+                    throw std::runtime_error("Failed to create upscaler: " + upPath);
+                if (sample_app::initializeQnnApp("Upscaler", tempUpscalerApp) !=
+                    EXIT_SUCCESS)
+                    throw std::runtime_error("Failed to init upscaler");
+
+                upscaled = upscaleImageWithModel(procImg, procW, procH,
+                                                 tempUpscalerApp);
+            }
+            logDuration("Upscaling", t0,
+                        std::chrono::high_resolution_clock::now());
+
+            int upW = procW * 4, upH = procH * 4;
+            int finalW = origW * 4, finalH = origH * 4;
+            std::vector<uint8_t> finalRgb(upscaled.begin(), upscaled.end());
+
+            if (upW != finalW || upH != finalH) {
+                QNN_INFO("Resizing output %dx%d → %dx%d",
+                         upW, upH, finalW, finalH);
+                finalRgb = resizeImageToTarget(finalRgb, upW, upH,
+                                               finalW, finalH);
+            }
+
+            auto encStart = std::chrono::high_resolution_clock::now();
+            auto outJpeg = encodeJPEG(finalRgb, finalW, finalH, 95);
+            logDuration("JPEG encode", encStart,
+                        std::chrono::high_resolution_clock::now());
+
+            res.status = 200;
+            res.set_content(
+                std::string(outJpeg.begin(), outJpeg.end()), "image/jpeg");
+            res.set_header("X-Output-Width",  std::to_string(finalW));
+            res.set_header("X-Output-Height", std::to_string(finalH));
+            res.set_header("X-Duration-Ms",
+                std::to_string(std::chrono::duration_cast<
+                    std::chrono::milliseconds>(
+                    std::chrono::high_resolution_clock::now() - t0).count()));
+            res.set_header("Access-Control-Expose-Headers",
+                           "X-Output-Width,X-Output-Height,X-Duration-Ms");
+
+            cleanupUpscaler();
+
+        } catch (const std::invalid_argument &e) {
+            cleanupUpscaler();
+            setHttpError(res, 400, "invalid_argument", e.what());
+        } catch (const std::exception &e) {
+            cleanupUpscaler();
+            setHttpError(res, 500, "server_error", e.what());
+        }
+    });
+
+    // ─── POST /tokenize ──────────────────────────────────────────────────
+    svr.Post("/tokenize", [&](const httplib::Request &req,
+                              httplib::Response &res) {
+        handleTokenize(req, res,
+                       appCtx.conf.sdxl_mode,
+                       text_embedding_size_2,
+                       appCtx.models.promptProcessor,
+                       appCtx.models.tokenizer.get());
+    });
+
+    // ─── POST /shutdown ──────────────────────────────────────────────────
+    svr.Post("/shutdown", [&](const httplib::Request &, httplib::Response &res) {
+        appCtx.serverState.initiateShutdown();
+        res.status = 200;
+        res.set_content(R"({"status":"shutting_down"})", "application/json");
+        std::cout << "[Server] Shutdown requested" << std::endl;
+        std::thread([&svr]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            svr.stop();
+        }).detach();
+    });
+
+    // ─── Listen ──────────────────────────────────────────────────────────
+    std::cout << "Server listening on " << appCtx.conf.listen_address
+              << ":" << appCtx.conf.port << std::endl;
+    svr.listen(appCtx.conf.listen_address.c_str(), appCtx.conf.port);
+
+    // ─── Cleanup ─────────────────────────────────────────────────────────
+    auto &m = appCtx.models;
+    if (m.clipSession)
+        m.clipInterpreter->releaseSession(m.clipSession);
+    if (m.clip2Session)
+        m.clip2Interpreter->releaseSession(m.clip2Session);
+    if (m.safetyCheckerSession)
+        m.safetyCheckerInterpreter->releaseSession(m.safetyCheckerSession);
+    m.clipSession = m.clip2Session = m.safetyCheckerSession = nullptr;
+    delete m.clipInterpreter;
+    delete m.clip2Interpreter;
+    delete m.safetyCheckerInterpreter;
+    m.unetApp.reset();
+    m.vaeDecoderApp.reset();
+    m.vaeEncoderApp.reset();
+
+    return EXIT_SUCCESS;
 }
