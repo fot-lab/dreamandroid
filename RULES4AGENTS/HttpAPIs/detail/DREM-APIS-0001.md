@@ -43,7 +43,6 @@ GET /v1/progress
 ```json
 {
   "status": "busy",
-  "busy": true,
   "current_step": 5,
   "total_steps": 20,
   "progress": 0.25

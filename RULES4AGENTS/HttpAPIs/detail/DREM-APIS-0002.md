@@ -89,7 +89,6 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 ```json
 {
   "status": "idle",
-  "busy": false,
   "current_step": 0,
   "total_steps": 0,
   "progress": 0.0
@@ -104,7 +103,6 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 ```json
 {
   "status": "busy",
-  "busy": true,
   "current_step": 5,
   "total_steps": 20,
   "progress": 0.25
@@ -119,7 +117,6 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 ```json
 {
   "status": "busy",
-  "busy": true,
   "current_step": 20,
   "total_steps": 20,
   "progress": 1.0
@@ -129,8 +126,7 @@ curl -X GET http://127.0.0.1:8081/v1/progress
 **字段说明**:
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `status` | string | `"idle"` 或 `"busy"` — 字符串形式的忙碌状态 |
-| `busy` | bool | 后端是否正在处理请求 |
+| `status` | string | `"idle"` 或 `"busy"` |
 | `current_step` | int | 当前推理步数 |
 | `total_steps` | int | 总推理步数 (空闲时为 0) |
 | `progress` | float | 进度百分比 0.0~1.0 (`current_step / total_steps`) |

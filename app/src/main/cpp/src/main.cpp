@@ -124,7 +124,6 @@ int main(int argc, char **argv) {
         bool busy = appCtx.serverState.isBusy();
         nlohmann::json r;
         r["status"]       = busy ? "busy" : "idle";
-        r["busy"]         = busy;
         r["current_step"] = cur;
         r["total_steps"]  = tot;
         r["progress"]     = pct;
