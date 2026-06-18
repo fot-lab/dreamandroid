@@ -10,7 +10,12 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.core.model.GenerateParams
@@ -127,109 +132,132 @@ class GenerationWorker(
 
             // ── 3. Execute generation via BackendManager (SSE Flow) ──
             try {
-                backendManager.generate(params).collect { event ->
-                    if (isStopped) throw CancellationException("Worker cancelled")
+                // Read user-configured timeout
+                val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                val timeoutSeconds = prefs.getInt("generation_timeout_s", 60).coerceAtLeast(10)
+                val timeoutMs = timeoutSeconds * 1000L
 
-                    when (event) {
-                        is SseStreamParser.SseEvent.Progress -> {
-                            val progress = event.step.toFloat() / event.totalSteps
-                            queueRepository.updateTaskProgress(task.id, progress)
-                            setProgress(workDataOf(
-                                KEY_PROGRESS to (progress * 100).toInt(),
-                                KEY_TASK_ID to task.id,
-                                KEY_PROMPT to task.prompt.take(30),
-                            ))
-                            setForeground(createForegroundInfo(
-                                "Generating: ${task.prompt.take(30)}...",
-                                (progress * 100).toInt(),
-                            ))
-                        }
+                // Launch timeout monitor — does NOT cancel the SSE stream
+                val timeoutMonitor = CoroutineScope(coroutineContext + Job()).launch {
+                    delay(timeoutMs)
+                    if (isActive) {
+                        Log.w(TAG, "Generation timed out after ${timeoutSeconds}s for task ${task.id}")
+                        queueRepository.setGenerationTimedOut(true)
+                    }
+                }
 
-                        is SseStreamParser.SseEvent.Complete -> {
-                            val bitmap = base64ToBitmap(
-                                event.imageBase64,
-                                event.width,
-                                event.height,
-                            )
-                            if (bitmap != null) {
-                                // Save to history via HistoryManager
-                                val genParams = GenerationParameters(
-                                    steps = task.steps,
-                                    cfgScale = task.cfg,
-                                    seed = event.seed,
-                                    prompt = task.prompt,
-                                    negativePrompt = task.negativePrompt,
-                                    generationTime = System.currentTimeMillis().toString(),
-                                    width = event.width,
-                                    height = event.height,
-                                    runOnCpu = false,
-                                    denoisingStrength = task.denoiseStrength,
-                                    useOpenCL = task.useOpenCL,
-                                    sampler = task.sampler,
-                                    mode = GenerationMode.TXT2IMG,
+                try {
+                    backendManager.generate(params).collect { event ->
+                        if (isStopped) throw CancellationException("Worker cancelled")
+
+                        when (event) {
+                            is SseStreamParser.SseEvent.Progress -> {
+                                val progress = event.step.toFloat() / event.totalSteps
+                                queueRepository.updateTaskProgress(task.id, progress)
+                                setProgress(workDataOf(
+                                    KEY_PROGRESS to (progress * 100).toInt(),
+                                    KEY_TASK_ID to task.id,
+                                    KEY_PROMPT to task.prompt.take(30),
+                                ))
+                                setForeground(createForegroundInfo(
+                                    "Generating: ${task.prompt.take(30)}...",
+                                    (progress * 100).toInt(),
+                                ))
+                            }
+
+                            is SseStreamParser.SseEvent.Complete -> {
+                                // Clear timeout state on successful completion
+                                queueRepository.setGenerationTimedOut(false)
+                                val bitmap = base64ToBitmap(
+                                    event.imageBase64,
+                                    event.width,
+                                    event.height,
                                 )
-                                // Check save result — do NOT mark COMPLETED if save failed
-                                val historyItem = historyManager.saveGeneratedImage(
-                                    modelId = task.modelId,
-                                    bitmap = bitmap,
-                                    params = genParams,
-                                    mode = GenerationMode.TXT2IMG,
-                                )
-                                if (historyItem != null) {
-                                    // Save bitmap to queue cache file (not memory)
-                                    // HistoryManager already saved a copy to history storage
-                                    var cachePath: String? = null
-                                    try {
-                                        val cacheFile = File(
-                                            applicationContext.cacheDir,
-                                            "queue_result_${task.id}.jpg",
-                                        )
-                                        cacheFile.outputStream().use { out ->
-                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                                if (bitmap != null) {
+                                    // Save to history via HistoryManager
+                                    val genParams = GenerationParameters(
+                                        steps = task.steps,
+                                        cfgScale = task.cfg,
+                                        seed = event.seed,
+                                        prompt = task.prompt,
+                                        negativePrompt = task.negativePrompt,
+                                        generationTime = System.currentTimeMillis().toString(),
+                                        width = event.width,
+                                        height = event.height,
+                                        runOnCpu = false,
+                                        denoisingStrength = task.denoiseStrength,
+                                        useOpenCL = task.useOpenCL,
+                                        sampler = task.sampler,
+                                        mode = GenerationMode.TXT2IMG,
+                                    )
+                                    // Check save result — do NOT mark COMPLETED if save failed
+                                    val historyItem = historyManager.saveGeneratedImage(
+                                        modelId = task.modelId,
+                                        bitmap = bitmap,
+                                        params = genParams,
+                                        mode = GenerationMode.TXT2IMG,
+                                    )
+                                    if (historyItem != null) {
+                                        // Save bitmap to queue cache file (not memory)
+                                        // HistoryManager already saved a copy to history storage
+                                        var cachePath: String? = null
+                                        try {
+                                            val cacheFile = File(
+                                                applicationContext.cacheDir,
+                                                "queue_result_${task.id}.jpg",
+                                            )
+                                            cacheFile.outputStream().use { out ->
+                                                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                                            }
+                                            cachePath = cacheFile.absolutePath
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "Failed to cache result bitmap", e)
                                         }
-                                        cachePath = cacheFile.absolutePath
-                                    } catch (e: Exception) {
-                                        Log.w(TAG, "Failed to cache result bitmap", e)
-                                    }
-                                    // Recycle in-memory bitmap immediately (stored on disk)
-                                    bitmap.recycle()
+                                        // Recycle in-memory bitmap immediately (stored on disk)
+                                        bitmap.recycle()
 
-                                    queueRepository.markTaskComplete(task.id, cachePath, event.seed)
-                                    setProgress(workDataOf(
-                                        KEY_PROGRESS to 100,
-                                        KEY_TASK_ID to task.id,
-                                        KEY_PROMPT to task.prompt.take(30),
-                                    ))
-                                    setForeground(createForegroundInfo(
-                                        "Complete: ${task.prompt.take(30)}...",
-                                        100,
-                                    ))
+                                        queueRepository.markTaskComplete(task.id, cachePath, event.seed)
+                                        setProgress(workDataOf(
+                                            KEY_PROGRESS to 100,
+                                            KEY_TASK_ID to task.id,
+                                            KEY_PROMPT to task.prompt.take(30),
+                                        ))
+                                        setForeground(createForegroundInfo(
+                                            "Complete: ${task.prompt.take(30)}...",
+                                            100,
+                                        ))
+                                    } else {
+                                        queueRepository.markTaskError(
+                                            task.id,
+                                            AppError.Storage("Failed to save generated image to history"),
+                                        )
+                                        // Recycle bitmap since save failed and it won't be displayed
+                                        bitmap.recycle()
+                                    }
                                 } else {
                                     queueRepository.markTaskError(
                                         task.id,
-                                        AppError.Storage("Failed to save generated image to history"),
+                                        AppError.Parse("Failed to decode result bitmap"),
                                     )
-                                    // Recycle bitmap since save failed and it won't be displayed
-                                    bitmap.recycle()
                                 }
-                            } else {
+                            }
+
+                            is SseStreamParser.SseEvent.Error -> {
+                                // Clear timeout state on backend error
+                                queueRepository.setGenerationTimedOut(false)
                                 queueRepository.markTaskError(
                                     task.id,
-                                    AppError.Parse("Failed to decode result bitmap"),
+                                    AppError.Backend(event.message),
                                 )
                             }
                         }
-
-                        is SseStreamParser.SseEvent.Error -> {
-                            queueRepository.markTaskError(
-                                task.id,
-                                AppError.Backend(event.message),
-                            )
-                        }
                     }
+                } finally {
+                    timeoutMonitor.cancel()
                 }
             } catch (e: CancellationException) {
                 Log.d(TAG, "Worker cancelled during generation")
+                queueRepository.setGenerationTimedOut(false)
                 // Reset task to PENDING so it can be retried when the queue resumes
                 queueRepository.resetTaskToPending(task.id)
                 throw e
@@ -238,6 +266,7 @@ class GenerationWorker(
                 // The queue does NOT mark this as a permanent error because the
                 // task itself is valid; only the infrastructure is temporarily unavailable.
                 Log.e(TAG, "Generation interrupted for task ${task.id} (backend may be down)", e)
+                queueRepository.setGenerationTimedOut(false)
                 queueRepository.resetTaskToPending(task.id)
                 // Loop will re-enter waitForBackend() at the top of the next iteration
             }

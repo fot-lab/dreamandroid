@@ -102,6 +102,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     val backendState by backendService.state.collectAsState()
     val queueRepository = remember { QueueRepository.getInstance(context) }
     val queueTasks by queueRepository.tasks.collectAsState()
+    val generationTimedOut by queueRepository.generationTimedOut.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     val modelRepository = remember { ModelRepository(context) }
@@ -120,6 +121,9 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     val msgUpscaleFailed = stringResource(R.string.upscale_failed)
     val msgSavedCountWithFailed = stringResource(R.string.saved_count_with_failed)
     val msgDeletedCountWithFailed = stringResource(R.string.deleted_count_with_failed)
+    val msgTimedOutTitle = stringResource(R.string.generation_timed_out_title)
+    val msgTimedOutKill = stringResource(R.string.generation_timed_out_kill)
+    val msgTimedOutWaiting = stringResource(R.string.generation_timed_out_waiting)
 
     val model = remember { modelRepository.models.find { it.id == modelId } }
     val historyManager = remember { HistoryManager(context) }
@@ -551,6 +555,18 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                 state = state, model = model, context = context, scope = scope, coroutineScope = coroutineScope,
                                 useImg2img = useImg2img, generationParamsModelId = state.generationParamsModelId,
                                 pagerState = pagerState, msgImageSaved = msgImageSaved, historyItems = historyItems,
+                                isTimedOut = generationTimedOut,
+                                timeoutSeconds = preferences.getInt("generation_timeout_s", 60),
+                                msgTimedOutTitle = msgTimedOutTitle,
+                                msgTimedOutMessage = stringResource(R.string.generation_timed_out_message, preferences.getInt("generation_timeout_s", 60)),
+                                msgTimedOutKill = msgTimedOutKill,
+                                msgTimedOutWaiting = msgTimedOutWaiting,
+                                onKillBackend = {
+                                    scope.launch {
+                                        backendService.stop()
+                                        queueRepository.setGenerationTimedOut(false)
+                                    }
+                                },
                                 onSaveImage = { ctx, bmp, onOk, onErr -> handleSaveImage(state, ctx, coroutineScope, bmp, onOk, onErr) },
                                 onSendToImg2img = { sendBitmapToImg2img(state, context, model, scope, it, pagerState) },
                                 onPreview = { state.isPreviewMode = true },

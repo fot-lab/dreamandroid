@@ -1,6 +1,12 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
 import android.content.Context
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -68,6 +74,7 @@ fun AppContent() {
     val queueTasks by queueViewModel.queueRepository.tasks.collectAsState()
     val queueProcessing by queueViewModel.queueRepository.processingActive.collectAsState()
     val queueBatchGroups = remember(queueTasks) { queueViewModel.queueRepository.getBatchGroups() }
+    val generationTimedOut by queueViewModel.queueRepository.generationTimedOut.collectAsState()
 
     // ── Upscaler preferences ──
     val persistedUpscalerId = remember {
@@ -324,12 +331,33 @@ fun AppContent() {
                 }
             },
             bottomBar = {
+                // Red flash animation for Models tab when generation timed out
+                val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
+                    initialValue = 1f,
+                    targetValue = 0.3f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(500, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "flashAlpha",
+                )
                 NavigationBar {
                     BottomTab.entries.forEach { tab ->
+                        val isModelsTab = tab == BottomTab.Models
+                        val shouldFlash = isModelsTab && generationTimedOut
                         NavigationBarItem(
                             selected = mainViewModel.selectedTab == tab,
                             onClick = { mainViewModel.selectedTab = tab },
-                            icon = { Icon(tab.icon, stringResource(tab.labelResId)) },
+                            icon = {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = stringResource(tab.labelResId),
+                                    tint = if (shouldFlash)
+                                        MaterialTheme.colorScheme.error.copy(alpha = flashAlpha)
+                                    else
+                                        LocalContentColor.current,
+                                )
+                            },
                             label = { Text(stringResource(tab.labelResId)) },
                         )
                     }

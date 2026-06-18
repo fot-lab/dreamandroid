@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoFixHigh
@@ -25,11 +26,13 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -65,6 +68,13 @@ fun ModelRunResultPage(
     pagerState: PagerState,
     msgImageSaved: String,
     historyItems: List<HistoryItem>,
+    isTimedOut: Boolean = false,
+    timeoutSeconds: Int = 60,
+    msgTimedOutTitle: String = "Generation Timed Out",
+    msgTimedOutMessage: String = "",
+    msgTimedOutKill: String = "Kill Process",
+    msgTimedOutWaiting: String = "Waiting…",
+    onKillBackend: (() -> Unit)? = null,
     onSaveImage: (Context, Bitmap, () -> Unit, (String) -> Unit) -> Unit,
     onSendToImg2img: (Bitmap) -> Unit,
     onPreview: () -> Unit,
@@ -75,6 +85,63 @@ fun ModelRunResultPage(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // ── Timeout warning card ──
+        if (isTimedOut) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Text(
+                            msgTimedOutTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                    Text(
+                        if (msgTimedOutMessage.isNotEmpty()) msgTimedOutMessage
+                        else stringResource(R.string.generation_timed_out_message, timeoutSeconds),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            msgTimedOutWaiting,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
+                        )
+                        Button(
+                            onClick = { onKillBackend?.invoke() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError,
+                            ),
+                        ) {
+                            Text(msgTimedOutKill)
+                        }
+                    }
+                }
+            }
+        }
+
         Crossfade(targetState = state.currentBitmap != null, label = "result_crossfade") { hasResult ->
             if (!hasResult) {
                 ElevatedCard(modifier = Modifier.padding(16.dp)) {

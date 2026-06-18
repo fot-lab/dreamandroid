@@ -50,6 +50,9 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     private val _processingActive = MutableStateFlow(false)
     val processingActive: StateFlow<Boolean> = _processingActive
 
+    private val _generationTimedOut = MutableStateFlow(false)
+    val generationTimedOut: StateFlow<Boolean> = _generationTimedOut
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // ── Init: restore from Room ──
@@ -65,6 +68,10 @@ class QueueRepository private constructor(private val db: AppDatabase) {
 
     fun setProcessingActive(active: Boolean) {
         _processingActive.value = active
+    }
+
+    fun setGenerationTimedOut(timedOut: Boolean) {
+        _generationTimedOut.value = timedOut
     }
 
     // ── Batch / Task mutations ──
@@ -116,6 +123,8 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         // Persist async
         val entities = newTasks.map { it.toEntity() }
         scope.launch { db.taskDao().insertAll(entities) }
+        // Reset timeout flag on new batch
+        _generationTimedOut.value = false
         return batchGroupId
     }
 

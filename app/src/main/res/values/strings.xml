@@ -244,6 +244,10 @@
     <string name="unknown_error">unknown error</string>
     <string name="backend_not_healthy">Backend server is not responding. Please check if the model is loaded.</string>
     <string name="generation_timeout_retry">Generation timed out (attempt %d). Retrying…</string>
+    <string name="generation_timed_out_title">Generation Timed Out</string>
+    <string name="generation_timed_out_message">Generation has exceeded the timeout limit (%d s). The backend process is still running. You can wait for it to finish or kill the process to free resources.</string>
+    <string name="generation_timed_out_kill">Kill Process</string>
+    <string name="generation_timed_out_waiting">Waiting…</string>
     <string name="prompt_token_overflow">Prompt exceeds the 77-token CLIP limit</string>
 
     <!-- Info Messages -->

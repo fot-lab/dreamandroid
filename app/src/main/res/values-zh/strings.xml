@@ -235,6 +235,10 @@
     <string name="unknown_error">未知错误</string>
     <string name="backend_not_healthy">后端服务无响应，请确认模型已加载。</string>
     <string name="generation_timeout_retry">生成超时（第%d次尝试）。正在重试…</string>
+    <string name="generation_timed_out_title">生成超时</string>
+    <string name="generation_timed_out_message">生成已超过超时限制（%d 秒）。后端进程仍在运行，您可以等待其完成，或终止进程以释放资源。</string>
+    <string name="generation_timed_out_kill">终止进程</string>
+    <string name="generation_timed_out_waiting">等待中…</string>
     <string name="prompt_token_overflow">提示词超出 77 token CLIP 限制</string>
 
     <!-- Info Messages -->
