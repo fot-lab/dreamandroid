@@ -713,10 +713,10 @@ int main(int argc, char **argv) {
       std::string upscaler_path = req.get_header_value("X-Upscaler-Path");
 
       // Check if use_opencl header is present (for MNN models)
-      bool use_opencl = false;
+      bool local_use_opencl = false;
       if (req.has_header("X-Use-OpenCL")) {
         std::string opencl_str = req.get_header_value("X-Use-OpenCL");
-        use_opencl = (opencl_str == "true" || opencl_str == "1");
+        local_use_opencl = (opencl_str == "true" || opencl_str == "1");
       }
 
       // Determine model type based on file extension
@@ -730,7 +730,7 @@ int main(int argc, char **argv) {
       QNN_INFO("Binary upscale request: %dx%d, upscaler: %s, type: %s%s",
                original_width, original_height, upscaler_path.c_str(),
                is_mnn_model ? "MNN" : "QNN",
-               is_mnn_model && use_opencl ? " (OpenCL)" : "");
+               is_mnn_model && local_use_opencl ? " (OpenCL)" : "");
 
       std::vector<uint8_t> image_data(req.body.begin(), req.body.end());
 
@@ -765,7 +765,7 @@ int main(int argc, char **argv) {
         // Use MNN model
         upscaled =
             upscaleImageWithMNN(process_image, process_width, process_height,
-                                upscaler_path, use_opencl);
+                                upscaler_path, local_use_opencl);
       } else {
         // Use QNN model
         tempUpscalerApp = createQnnModel(upscaler_path, "upscaler", appCtx);
