@@ -60,14 +60,13 @@ class TokenEmbTable {
   size_t mapBytes_ = 0;
 };
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-
 #include <MNN/MNNDefine.h>
 
 #include <MNN/Interpreter.hpp>
 
+// stb_image headers are included for declarations only.
+// The actual implementations (triggered by STB_IMAGE_IMPLEMENTATION macros)
+// are compiled exactly once in StbImpl.cpp to avoid duplicate symbols.
 #include "stb_image.h"
 #include "stb_image_resize2.h"
 #include "stb_image_write.h"
