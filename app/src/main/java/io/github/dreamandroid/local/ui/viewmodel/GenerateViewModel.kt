@@ -13,6 +13,7 @@ import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResult
+import kotlinx.coroutines.flow.first
 import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
 import kotlinx.coroutines.Dispatchers

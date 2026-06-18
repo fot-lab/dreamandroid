@@ -111,7 +111,7 @@ suspend fun reportImage(
                         put("prompt", params.prompt)
                         put("negative_prompt", params.negativePrompt)
                         put("steps", params.steps)
-                        put("cfg", params.cfg)
+                        put("cfg", params.cfgScale)
                         put("seed", params.seed ?: JSONObject.NULL)
                         put("size", "${params.width}x${params.height}")
                         put("run_on_cpu", params.runOnCpu)
