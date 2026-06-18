@@ -121,9 +121,8 @@ int main(int argc, char **argv) {
         int cur = appCtx.serverState.currentStep();
         int tot = appCtx.serverState.totalSteps();
         float pct = (tot > 0) ? static_cast<float>(cur) / static_cast<float>(tot) : 0.0f;
-        bool busy = appCtx.serverState.isBusy();
         nlohmann::json r;
-        r["status"]       = busy ? "busy" : "idle";
+        r["status"]       = appCtx.serverState.isBusy() ? "busy" : "idle";
         r["current_step"] = cur;
         r["total_steps"]  = tot;
         r["progress"]     = pct;
