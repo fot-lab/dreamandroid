@@ -13,6 +13,7 @@ fun samplerDisplayName(id: String?): String = when (id) {
 
 fun denoiseCurveDisplayName(id: String?): String = when (id) {
     "scaled_linear" -> "Scaled Linear"
+    "linear" -> "Linear"
     "karras" -> "Karras"
     null -> ""
     else -> id

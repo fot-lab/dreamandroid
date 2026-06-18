@@ -276,7 +276,7 @@ class BackendManager(context: Context) {
             put("denoising_strength", params.denoisingStrength.toDouble())
             put("use_opencl", params.useOpenCL)
             put("sampler", params.sampler)
-            put("denoise_curve", params.denoiseCurve)
+            put("scheduler", params.denoiseCurve)
             put("show_diffusion_process", params.showDiffusionProcess)
             put("show_diffusion_stride", params.showDiffusionStride)
             put("aspect_ratio", params.aspectRatio)

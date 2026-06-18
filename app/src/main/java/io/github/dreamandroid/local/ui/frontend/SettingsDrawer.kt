@@ -303,6 +303,34 @@ fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(4.dp))
         HorizontalDivider()
 
+        // ────── Debug ──────
+        SectionHeader(stringResource(R.string.debug_section))
+
+        var debugQueue by remember { mutableStateOf(appPrefs.getBoolean("debug_queue", false)) }
+        SwitchSetting(
+            title = stringResource(R.string.debug_queue),
+            hint = stringResource(R.string.debug_queue_hint),
+            checked = debugQueue,
+            onCheckedChange = { checked ->
+                debugQueue = checked
+                appPrefs.edit { putBoolean("debug_queue", checked) }
+            },
+        )
+
+        var debugModel by remember { mutableStateOf(appPrefs.getBoolean("debug_model", false)) }
+        SwitchSetting(
+            title = stringResource(R.string.debug_model),
+            hint = stringResource(R.string.debug_model_hint),
+            checked = debugModel,
+            onCheckedChange = { checked ->
+                debugModel = checked
+                appPrefs.edit { putBoolean("debug_model", checked) }
+            },
+        )
+
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
+
         // ────── About ──────
         SectionHeader(stringResource(R.string.about_app))
         Text(

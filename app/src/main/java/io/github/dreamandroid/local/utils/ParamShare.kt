@@ -118,13 +118,7 @@ object ParamShare {
                 } else {
                     null
                 },
-                sampler = if (json.has("sampler")) {
-                    json.optString("sampler")
-                } else if (json.has("scheduler")) {
-                    json.optString("scheduler") // legacy key
-                } else {
-                    null
-                },
+                sampler = if (json.has("sampler")) json.optString("sampler") else null,
                 denoisingStrength = if (json.has("denoising_strength")) {
                     json.optDouble("denoising_strength").toFloat()
                 } else if (json.has("denoise_strength")) {
