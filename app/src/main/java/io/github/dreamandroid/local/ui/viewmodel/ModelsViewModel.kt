@@ -7,7 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.data.ModelInfo
@@ -33,9 +33,9 @@ import java.io.File
  * - Model rename/delete
  * - Upscaler preferences
  */
-class ModelsViewModel(application: Application) : ViewModel() {
+class ModelsViewModel(application: Application) : AndroidViewModel(application) {
 
-    val app = application as DreamAndroidApplication
+    val app get() = getApplication<DreamAndroidApplication>()
     val backendService: BackendService = app.backendService
     val modelRepository = ModelRepository(application)
 
