@@ -18,6 +18,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
+import java.io.IOException
 import io.github.dreamandroid.local.core.model.GenerateParams
 import java.io.IOException
 import io.github.dreamandroid.local.data.GenerationMode
@@ -189,7 +190,6 @@ class GenerationWorker(
                 //   1. UI progress updates even if SSE is slow/laggy
                 //   2. Liveness detection: if SSE breaks but poller saw progress,
                 //      we know the backend is still working.
-                @Volatile
                 var wasBackendProgressing = false
                 val lastPolledStep = java.util.concurrent.atomic.AtomicInteger(0)
 

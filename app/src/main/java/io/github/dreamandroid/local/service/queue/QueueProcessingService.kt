@@ -10,6 +10,7 @@ import android.util.Base64
 import android.util.Log
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
+import java.io.IOException
 import io.github.dreamandroid.local.core.model.GenerateParams
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.HistoryManager
@@ -221,7 +222,6 @@ class QueueProcessingService : Service() {
                 // ── Parallel progress poller (non-SSE side-channel) ──
                 // Aligned with GenerationWorker.  Uses GET /v1/progress for
                 // liveness detection and progress display independent of SSE.
-                @Volatile
                 var wasBackendProgressing = false
                 val lastPolledStep = java.util.concurrent.atomic.AtomicInteger(0)
 
