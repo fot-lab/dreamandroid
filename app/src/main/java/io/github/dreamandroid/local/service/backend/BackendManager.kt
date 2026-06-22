@@ -356,8 +356,15 @@ class BackendManager(context: Context) {
 
     /**
      * Query the C++ backend for the current generation progress.
-     * Returns null if the backend is not reachable, otherwise a pair of
-     * (currentStep, totalSteps).  Safe to call concurrently from any thread.
+     * Returns null if the backend is not reachable, OR if the backend reports
+     * "busy" but has no per-step progress (e.g. upscale in progress).
+     * Otherwise returns a pair of (currentStep, totalSteps).
+     *
+     * Important: the C++ /v1/progress endpoint includes a "status" field
+     * ("busy"/"idle") in addition to step counts.  When status is "busy"
+     * but step counts are 0/0, the backend is doing a non-step-tracked
+     * operation (upscale).  Returning null in that case prevents callers
+     * from incorrectly assuming the backend is idle.
      */
     suspend fun queryProgress(): Pair<Int, Int>? = withContext(Dispatchers.IO) {
         try {
@@ -369,8 +376,13 @@ class BackendManager(context: Context) {
             if (!response.isSuccessful) return@withContext null
             val body = response.body?.string() ?: return@withContext null
             val json = JSONObject(body)
+            val status = json.optString("status", "idle")
             val current = json.optInt("current_step", 0)
             val total = json.optInt("total_steps", 0)
+            // Backend reports busy but has no step progress — it's doing
+            // a non-step-tracked operation (e.g. upscale).  Report as
+            // unreachable so callers keep waiting.
+            if (status == "busy" && current == 0 && total == 0) return@withContext null
             Pair(current, total)
         } catch (_: Exception) {
             null
