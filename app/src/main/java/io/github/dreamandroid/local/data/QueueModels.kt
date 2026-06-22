@@ -31,11 +31,15 @@ data class GenerationTask(
     val errorMessage: String? = null,
     val progress: Float = 0f,
 ) {
-    /** Display-friendly status label */
+    /** Display-friendly status label with progress percentage when processing */
     val statusLabel: String
         get() = when (status) {
             TaskStatus.PENDING -> "PENDING"
-            TaskStatus.PROCESSING -> "PROCESSING"
+            TaskStatus.PROCESSING -> if (progress > 0f) {
+                "PROCESSING: ${(progress * 100).toInt()}%"
+            } else {
+                "PROCESSING"
+            }
             TaskStatus.COMPLETED -> "COMPLETED"
             TaskStatus.ERROR -> "ERROR"
             TaskStatus.CANCELLED -> "CANCELLED"

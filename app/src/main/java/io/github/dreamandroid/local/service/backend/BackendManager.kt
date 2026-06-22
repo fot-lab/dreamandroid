@@ -147,19 +147,46 @@ class BackendManager(context: Context) {
             val useImg2img = prefs.getBoolean("use_img2img", true)
             val listenOnAll = prefs.getBoolean("listen_on_all_addresses", false)
 
+            val isNpu = !model.runOnCpu
+            val modelExt = if (isNpu) "bin" else "mnn"
+            val clipFilename = when {
+                model.isSdxl -> "clip.mnn"
+                else -> "clip_v2.mnn"
+            }
+
             val command = mutableListOf(
                 executableFile.absolutePath,
-                "--type", model.backendType,
-                "--model_dir", modelsDir.absolutePath,
+                "--clip", File(modelsDir, clipFilename).absolutePath,
+                "--unet", File(modelsDir, "unet.$modelExt").absolutePath,
+                "--vae_decoder", File(modelsDir, "vae_decoder.$modelExt").absolutePath,
+                "--tokenizer", File(modelsDir, "tokenizer.json").absolutePath,
+                "--text_embedding_size", model.textEmbeddingSize.toString(),
                 "--port", DreamHubConstants.BACKEND_PORT.toString()
             )
-            if (!model.runOnCpu) {
-                command += listOf("--lib_dir", RuntimeDirPreparer.prepare(context).absolutePath)
+
+            if (model.runOnCpu) {
+                command += "--cpu"
             }
-            if (!useImg2img) command += "--no_img2img"
+            if (model.isSdxl) {
+                command += "--sdxl"
+            }
+            if (!model.runOnCpu) {
+                val runtimeDir = RuntimeDirPreparer.prepare(context)
+                command += listOf(
+                    "--backend", File(runtimeDir, "libQnnHtp.so").absolutePath,
+                    "--system_library", File(runtimeDir, "libQnnSystem.so").absolutePath,
+                )
+            }
+            if (!useImg2img) {
+                command += "--no_img2img"
+            } else {
+                command += listOf(
+                    "--vae_encoder", File(modelsDir, "vae_encoder.$modelExt").absolutePath,
+                )
+            }
 
             // SD1.5 NPU non-512x512 patch
-            if (model.backendType == "sd15npu" && (width != 512 || height != 512)) {
+            if (!model.isSdxl && !model.runOnCpu && (width != 512 || height != 512)) {
                 val patchFile = if (width == height) {
                     val squarePatch = File(modelsDir, "$width.patch")
                     if (squarePatch.exists()) squarePatch
@@ -224,10 +251,12 @@ class BackendManager(context: Context) {
             val listenOnAll = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 .getBoolean("listen_on_all_addresses", false)
 
+            val runtimeDir = RuntimeDirPreparer.prepare(context)
             var command = listOf(
                 executableFile.absolutePath,
                 "--upscaler_mode",
-                "--lib_dir", RuntimeDirPreparer.prepare(context).absolutePath,
+                "--backend", File(runtimeDir, "libQnnHtp.so").absolutePath,
+                "--system_library", File(runtimeDir, "libQnnSystem.so").absolutePath,
                 "--port", DreamHubConstants.BACKEND_PORT.toString()
             )
             if (listenOnAll) command = command + "--listen_all"

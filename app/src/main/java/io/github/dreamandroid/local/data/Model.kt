@@ -112,12 +112,18 @@ data class Model(
 
 ) {
     // Backend --type value; each type implies the full model file layout.
+    @Deprecated("Use individual --cpu/--sdxl flags + file paths instead")
     val backendType: String
         get() = when {
             isSdxl -> "sdxl"
             runOnCpu -> "sd15cpu"
             else -> "sd15npu"
         }
+
+    // Text embedding size passed to --text_embedding_size CLI arg.
+    // SD1.5 / SDXL CLIP-L: 768; SD2.1: 1024.
+    val textEmbeddingSize: Int
+        get() = 768
 
     fun startDownload(context: Context) {
         if (isCustom || fileUri.isEmpty()) return

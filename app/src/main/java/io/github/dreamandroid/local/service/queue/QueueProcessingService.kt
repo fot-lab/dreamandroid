@@ -54,6 +54,12 @@ class QueueProcessingService : Service() {
         private const val BACKEND_POLL_INTERVAL_MS = 3000L
 
         /**
+         * Interval for parallel progress polling via GET /v1/progress.
+         * Aligned with [GenerationWorker.PROGRESS_POLL_INTERVAL_MS].
+         */
+        private const val PROGRESS_POLL_INTERVAL_MS = 2000L
+
+        /**
          * Max consecutive retries for the same task before marking it ERROR.
          * Prevents the PROCESSING → PENDING flicker death-loop when the
          * backend is temporarily unavailable (e.g. model switch kills process).
@@ -186,7 +192,7 @@ class QueueProcessingService : Service() {
                 seed = task.seed,
             )
 
-            // 3. Execute generation via BackendManager with per-step timeout
+            // 3. Execute generation via BackendManager (dual-path: SSE + polling)
             try {
                 // Read user-configured per-step SSE timeout
                 val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -194,7 +200,6 @@ class QueueProcessingService : Service() {
                 val timeoutMs = timeoutSeconds * 1000L
 
                 // Per-step timeout: restarts on each SSE message.
-                // Fires only when a single step exceeds the timeout window.
                 var stepTimeoutJob: Job? = null
                 // Capture coroutineContext before the local non-suspend function
                 val ctx = coroutineContext
@@ -210,6 +215,36 @@ class QueueProcessingService : Service() {
                             Log.w(TAG, "SSE step timed out after ${timeoutSeconds}s for task ${task.id}")
                             queueRepository.setGenerationTimedOut(true)
                         }
+                    }
+                }
+
+                // ── Parallel progress poller (non-SSE side-channel) ──
+                // Aligned with GenerationWorker.  Uses GET /v1/progress for
+                // liveness detection and progress display independent of SSE.
+                @Volatile
+                var wasBackendProgressing = false
+                val lastPolledStep = java.util.concurrent.atomic.AtomicInteger(0)
+
+                val progressPollerJob = CoroutineScope(ctx + Job()).launch {
+                    while (isActive) {
+                        delay(PROGRESS_POLL_INTERVAL_MS)
+                        try {
+                            val p = backendManager.queryProgress()
+                            if (p != null && p.second > 0 && p.first > 0) {
+                                wasBackendProgressing = true
+                                val pollProgress = p.first.toFloat() / p.second.toFloat()
+                                val lastStep = lastPolledStep.get()
+                                if (p.first > lastStep && lastPolledStep.compareAndSet(lastStep, p.first)) {
+                                    _currentProgress.value = pollProgress
+                                    queueRepository.updateTaskProgress(task.id, pollProgress)
+                                    updateNotification(
+                                        "Generating: ${task.prompt.take(30)}...",
+                                        (pollProgress * 100).toInt(),
+                                    )
+                                    resetStepTimeout()
+                                }
+                            }
+                        } catch (_: Exception) { }
                     }
                 }
 
@@ -305,19 +340,45 @@ class QueueProcessingService : Service() {
                     }
                 } finally {
                     stepTimeoutJob?.cancel()
+                    progressPollerJob.cancel()
                 }
             } catch (e: CancellationException) {
-                // User cancelled via ACTION_STOP → reset for retry
                 Log.d(TAG, "Service cancelled during generation — resetting task ${task.id}")
                 queueRepository.setGenerationTimedOut(false)
                 queueRepository.resetTaskToPending(task.id)
                 throw e
             } catch (e: Exception) {
-                // Backend may have crashed mid-generation.
+                Log.e(TAG, "Generation interrupted for task ${task.id}: ${e.message}", e)
+                queueRepository.setGenerationTimedOut(false)
+
+                // If backend was actively progressing (detected via /v1/progress poller),
+                // the SSE disconnect is a transient client-side issue — do not consume retry.
+                // Aligned with GenerationWorker Case 2.
+                if ((e is IOException || e is AppError.Network) && backendManager.healthCheck() && wasBackendProgressing) {
+                    Log.d(TAG, "SSE disconnected but backend was actively generating — " +
+                        "waiting for backend to finish, then retrying (no retry consumed)")
+                    // Poll for idle — backend is still working on the original request
+                    val pollIntervalMs = 3000L
+                    var waitCount = 0
+                    while (coroutineContext.isActive && waitCount < 40) {
+                        delay(pollIntervalMs)
+                        val progress = backendManager.queryProgress()
+                        val isIdle = progress != null && (
+                            (progress.first == 0 && progress.second == 0) ||
+                            progress.first >= progress.second
+                        )
+                        if (isIdle) break
+                        waitCount++
+                    }
+                    queueRepository.resetTaskToPending(task.id)
+                    if (coroutineContext.isActive) { delay(TASK_RETRY_DELAY_MS) }
+                    continue
+                }
+
+                // Normal retry path (backend crashed or never made progress)
                 taskRetryCount++
                 Log.e(TAG, "Generation interrupted for task ${task.id} " +
-                    "(attempt $taskRetryCount/$MAX_TASK_RETRIES, backend may be down)", e)
-                queueRepository.setGenerationTimedOut(false)
+                    "(attempt $taskRetryCount/$MAX_TASK_RETRIES)", e)
 
                 if (taskRetryCount >= MAX_TASK_RETRIES) {
                     Log.e(TAG, "Task ${task.id} exceeded max retries ($MAX_TASK_RETRIES), marking ERROR")
