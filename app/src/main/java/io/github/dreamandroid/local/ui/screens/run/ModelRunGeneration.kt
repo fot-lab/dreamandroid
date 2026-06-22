@@ -22,8 +22,6 @@ import io.github.dreamandroid.local.ui.screens.PathData
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
-import io.github.dreamandroid.local.service.backend.BackendService
-import io.github.dreamandroid.local.service.QueueRepository
 
 import io.github.dreamandroid.local.utils.saveImage
 import kotlinx.coroutines.CancellationException
@@ -365,24 +363,14 @@ fun cleanupModelRun(
     context: Context,
     coroutineScope: CoroutineScope,
     pagerState: androidx.compose.foundation.pager.PagerState,
-    backendService: BackendService,
 ) {
     try {
         state.currentBitmap = null; state.generationParams = null
 
-        // Only stop the backend if the queue is NOT actively generating.
-        // Otherwise the Worker's SSE stream breaks → PENDING flicker loop.
-        val queueActive = QueueRepository.getInstance(context)
-            .let { it.hasPendingTasks() || it.processingActive.value }
-        val generating = backendService.isGenerating
-
-        if (!queueActive && !generating) {
-            coroutineScope.launch {
-                try { backendService.stop() } catch (e: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", e) }
-            }
-        } else {
-            Log.d("ModelRunScreen", "Skipping backend stop — queue is active (pending=$queueActive, generating=$generating)")
-        }
+        // NEVER stop the backend from cleanup/teardown paths.
+        // Backend lifecycle is exclusively controlled by the model screen
+        // via manual user action (load/unload model buttons).
+        // Killing the backend here would break the queue Worker's SSE stream.
 
         state.isRunning = false; state.progress = 0f; state.errorMessage = null
         state.generationStartTime = null

@@ -281,14 +281,14 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     // ── DisposableEffects ─────────────────────────────────────
 
-    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState, backendService) } }
+    DisposableEffect(Unit) { onDispose { cleanupModelRun(state, context, coroutineScope, pagerState) } }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState, backendService)
+            if (event == Lifecycle.Event.ON_DESTROY) cleanupModelRun(state, context, coroutineScope, pagerState)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState, backendService) }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cleanupModelRun(state, context, coroutineScope, pagerState) }
     }
 
     DisposableEffect(modelId) {
@@ -444,7 +444,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
     fun handleSelectImageClick() { onSelectImageClick(state, context, msgMediaPermissionHint, { photoPickerLauncher.launch(it) }, { contentPickerLauncher.launch("image/*") }, { requestStoragePermissionLauncher.launch(it) }) }
 
-    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState, backendService); navController.navigateUp() }
+    fun handleExit() { cleanupModelRun(state, context, coroutineScope, pagerState); navController.navigateUp() }
 
     // ── BackHandler ───────────────────────────────────────────
 
