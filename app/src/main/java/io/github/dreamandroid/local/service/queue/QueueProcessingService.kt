@@ -196,13 +196,15 @@ class QueueProcessingService : Service() {
                 // Per-step timeout: restarts on each SSE message.
                 // Fires only when a single step exceeds the timeout window.
                 var stepTimeoutJob: Job? = null
+                // Capture coroutineContext before the local non-suspend function
+                val ctx = coroutineContext
 
                 fun resetStepTimeout() {
                     stepTimeoutJob?.cancel()
                     if (queueRepository.generationTimedOut.value) {
                         queueRepository.setGenerationTimedOut(false)
                     }
-                    stepTimeoutJob = CoroutineScope(coroutineContext + Job()).launch {
+                    stepTimeoutJob = CoroutineScope(ctx + Job()).launch {
                         delay(timeoutMs)
                         if (isActive) {
                             Log.w(TAG, "SSE step timed out after ${timeoutSeconds}s for task ${task.id}")

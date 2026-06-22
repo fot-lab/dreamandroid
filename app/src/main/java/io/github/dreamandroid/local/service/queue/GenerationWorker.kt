@@ -152,11 +152,11 @@ class GenerationWorker(
             )
 
             // ── 3. Execute generation via BackendManager (SSE Flow) ──
+            // Read user-configured per-step SSE timeout (accessible in catch blocks too)
+            val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            val timeoutSeconds = prefs.getInt("generation_timeout_s", 60).coerceAtLeast(10)
+            val timeoutMs = timeoutSeconds * 1000L
             try {
-                // Read user-configured per-step SSE timeout
-                val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                val timeoutSeconds = prefs.getInt("generation_timeout_s", 60).coerceAtLeast(10)
-                val timeoutMs = timeoutSeconds * 1000L
 
                 // Per-step timeout: restarts on each SSE message.
                 // Fires only when a single step exceeds the timeout window.
