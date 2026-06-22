@@ -52,9 +52,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- LEGACY: QueueProcessingService retained as historical reference only.
+             disabled=true prevents the system from ever instantiating it.
+             Primary path is GenerationWorker (WorkManager). -->
         <service
             android:name=".service.queue.QueueProcessingService"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

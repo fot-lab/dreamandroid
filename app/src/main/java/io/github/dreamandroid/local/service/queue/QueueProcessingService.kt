@@ -93,27 +93,16 @@ class QueueProcessingService : Service() {
         Log.d(TAG, "Service created")
     }
 
+    /**
+     * NO-OP: This service is disabled in the manifest (enabled=false) and
+     * intentionally never started. The primary queue processing path is
+     * [GenerationWorker] (WorkManager). This onStartCommand returns
+     * immediately to prevent any accidental competition or dual-processing.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_STOP -> {
-                Log.d(TAG, "Stop requested by user")
-                processingJob?.cancel()
-                stopProcessing()
-                stopSelf()
-                return START_NOT_STICKY
-            }
-        }
-
-        startForeground(
-            QueueNotificationHelper.NOTIFICATION_ID,
-            QueueNotificationHelper.createNotification(this, "Idle", 0),
-        )
-
-        // Start processing loop if not already running
-        if (!_isProcessing.value && queueRepository.hasPendingTasks()) {
-            startProcessing()
-        }
-
+        Log.w(TAG, "QueueProcessingService is DISABLED — onStartCommand ignored. " +
+            "Use GenerationWorker (WorkManager) for queue processing.")
+        stopSelf()
         return START_NOT_STICKY
     }
 
