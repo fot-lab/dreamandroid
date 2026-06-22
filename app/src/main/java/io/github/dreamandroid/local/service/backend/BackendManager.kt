@@ -167,6 +167,9 @@ class BackendManager(context: Context) {
             if (model.runOnCpu) {
                 command += "--cpu"
             }
+            if (model.useCpuClip) {
+                command += "--use_cpu_clip"
+            }
             if (model.isSdxl) {
                 command += "--sdxl"
             }
