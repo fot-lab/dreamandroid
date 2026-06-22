@@ -27,6 +27,10 @@ class BackendService(private val backendManager: BackendManager) {
     val state: StateFlow<BackendManager.State>
         get() = backendManager.state
 
+    /** True while the backend is actively serving a generation request. */
+    val isGenerating: Boolean
+        get() = backendManager.isGenerating
+
     // ── Model Lifecycle ────────────────────────────────────────
 
     suspend fun startDiffusion(

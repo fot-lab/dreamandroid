@@ -52,6 +52,16 @@ class GenerationWorker(
 
         /** Interval between health-check polls while waiting for backend. */
         private const val BACKEND_POLL_INTERVAL_MS = 3000L
+
+        /**
+         * Max consecutive retries for the same task before marking it ERROR.
+         * Prevents the PROCESSING → PENDING flicker death-loop when the
+         * backend is temporarily unavailable (e.g. model switch kills process).
+         */
+        private const val MAX_TASK_RETRIES = 3
+
+        /** Backoff delay between retry attempts for the same task. */
+        private const val TASK_RETRY_DELAY_MS = 5000L
     }
 
     private val app: DreamAndroidApplication
@@ -87,12 +97,22 @@ class GenerationWorker(
     }
 
     private suspend fun processLoop(): Result {
+        // Track retries per task to prevent PROCESSING → PENDING flicker death-loop
+        var taskRetryCount = 0
+        var lastTaskId: String? = null
+
         while (!isStopped) {
             val task = queueRepository.getNextPending()
             if (task == null) {
                 Log.d(TAG, "No pending tasks, worker complete")
                 queueRepository.setProcessingActive(false)
                 return Result.success()
+            }
+
+            // Reset retry counter when a genuinely new task is picked up
+            if (task.id != lastTaskId) {
+                taskRetryCount = 0
+                lastTaskId = task.id
             }
 
             // ── 1. Ensure backend is available before processing ──
@@ -276,13 +296,31 @@ class GenerationWorker(
                 queueRepository.resetTaskToPending(task.id)
                 throw e
             } catch (e: Exception) {
-                // Backend may have crashed mid-generation — reset to PENDING for retry.
-                // The queue does NOT mark this as a permanent error because the
-                // task itself is valid; only the infrastructure is temporarily unavailable.
-                Log.e(TAG, "Generation interrupted for task ${task.id} (backend may be down)", e)
+                // Backend may have crashed mid-generation.
+                taskRetryCount++
+                Log.e(TAG, "Generation interrupted for task ${task.id} " +
+                    "(attempt $taskRetryCount/$MAX_TASK_RETRIES, backend may be down)", e)
                 queueRepository.setGenerationTimedOut(false)
-                queueRepository.resetTaskToPending(task.id)
-                // Loop will re-enter waitForBackend() at the top of the next iteration
+
+                if (taskRetryCount >= MAX_TASK_RETRIES) {
+                    // Max retries exhausted — mark as permanent error to break the loop
+                    Log.e(TAG, "Task ${task.id} exceeded max retries ($MAX_TASK_RETRIES), marking ERROR")
+                    queueRepository.markTaskError(
+                        task.id,
+                        io.github.dreamandroid.local.core.error.AppError.Backend(
+                            "Generation failed after $MAX_TASK_RETRIES attempts: ${e.message}",
+                        ),
+                    )
+                    // Reset counter so the next task gets a fresh start
+                    taskRetryCount = 0
+                    lastTaskId = null
+                } else {
+                    // Reset to PENDING with backoff delay to prevent tight flicker loop
+                    queueRepository.resetTaskToPending(task.id)
+                    if (!isStopped) {
+                        delay(TASK_RETRY_DELAY_MS)
+                    }
+                }
             }
         }
 

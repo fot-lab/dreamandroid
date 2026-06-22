@@ -23,6 +23,7 @@ import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.service.backend.BackendService
+import io.github.dreamandroid.local.service.QueueRepository
 
 import io.github.dreamandroid.local.utils.saveImage
 import kotlinx.coroutines.CancellationException
@@ -368,9 +369,21 @@ fun cleanupModelRun(
 ) {
     try {
         state.currentBitmap = null; state.generationParams = null
-        coroutineScope.launch {
-            try { backendService.stop() } catch (e: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", e) }
+
+        // Only stop the backend if the queue is NOT actively generating.
+        // Otherwise the Worker's SSE stream breaks → PENDING flicker loop.
+        val queueActive = QueueRepository.getInstance(context)
+            .let { it.hasPendingTasks() || it.processingActive.value }
+        val generating = backendService.isGenerating
+
+        if (!queueActive && !generating) {
+            coroutineScope.launch {
+                try { backendService.stop() } catch (e: Exception) { Log.e("ModelRunScreen", "Failed to stop backend", e) }
+            }
+        } else {
+            Log.d("ModelRunScreen", "Skipping backend stop — queue is active (pending=$queueActive, generating=$generating)")
         }
+
         state.isRunning = false; state.progress = 0f; state.errorMessage = null
         state.generationStartTime = null
         coroutineScope.launch { pagerState.scrollToPage(0) }

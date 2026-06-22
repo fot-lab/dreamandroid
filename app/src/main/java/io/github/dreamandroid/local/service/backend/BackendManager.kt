@@ -97,6 +97,15 @@ class BackendManager(context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * True while a [generate] flow is actively consuming the backend (SSE stream open).
+     * Callers that would [stopProcess] (e.g. model switch, cleanup) MUST check this
+     * flag first to avoid killing the C++ process mid-generation.
+     */
+    @Volatile
+    var isGenerating: Boolean = false
+        private set
+
     // ── Public API ──
 
     suspend fun startDiffusion(
@@ -106,6 +115,17 @@ class BackendManager(context: Context) {
         useOpenCL: Boolean
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            // Refuse to kill the process while a generation is in-flight.
+            // Otherwise the Worker's SSE stream breaks → PENDING flicker loop.
+            if (isGenerating) {
+                return@withContext Result.failure(
+                    AppError.BackendBusy(
+                        "Cannot restart backend — a generation is currently in progress",
+                        0L,
+                    ),
+                )
+            }
+
             stopProcess()
             _state.value = State.Starting(Mode.Diffusion, modelId)
 
@@ -183,6 +203,12 @@ class BackendManager(context: Context) {
 
     suspend fun startUpscaler(upscalerId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            if (isGenerating) {
+                return@withContext Result.failure(
+                    AppError.BackendBusy("Cannot restart backend — a generation is currently in progress", 0L),
+                )
+            }
+
             stopProcess()
             _state.value = State.Starting(Mode.Upscaler, upscalerId)
 
@@ -264,57 +290,68 @@ class BackendManager(context: Context) {
     // ── Business Endpoints ──
 
     fun generate(params: GenerateParams): Flow<SseStreamParser.SseEvent> = flow {
-        val jsonBody = JSONObject().apply {
-            put("prompt", params.prompt)
-            put("negative_prompt", params.negativePrompt)
-            put("steps", params.steps)
-            put("samples", 1)  // batch generation: only 1 supported
-            put("cfg_scale", params.cfgScale.toDouble())
-            put("use_cfg", params.useCfg)
-            put("width", params.width)
-            put("height", params.height)
-            put("denoising_strength", params.denoisingStrength.toDouble())
-            put("use_opencl", params.useOpenCL)
-            put("sampler", params.sampler)
-            put("scheduler", params.denoiseCurve)
-            put("show_diffusion_process", params.showDiffusionProcess)
-            put("show_diffusion_stride", params.showDiffusionStride)
-            put("aspect_ratio", params.aspectRatio)
-            params.seed?.let { put("seed", it) }
-            params.imageBase64?.let { put("image", it) }
-            params.maskBase64?.let { put("mask", it) }
+        if (isGenerating) {
+            // The C++ server rejects concurrent /generate requests (503).
+            // Defensive: if somehow a second caller enters, let the server reject it
+            // rather than silently hanging.
+            throw AppError.BackendBusy("A generation is already in progress", 0L)
         }
+        isGenerating = true
+        try {
+            val jsonBody = JSONObject().apply {
+                put("prompt", params.prompt)
+                put("negative_prompt", params.negativePrompt)
+                put("steps", params.steps)
+                put("samples", 1)  // batch generation: only 1 supported
+                put("cfg_scale", params.cfgScale.toDouble())
+                put("use_cfg", params.useCfg)
+                put("width", params.width)
+                put("height", params.height)
+                put("denoising_strength", params.denoisingStrength.toDouble())
+                put("use_opencl", params.useOpenCL)
+                put("sampler", params.sampler)
+                put("scheduler", params.denoiseCurve)
+                put("show_diffusion_process", params.showDiffusionProcess)
+                put("show_diffusion_stride", params.showDiffusionStride)
+                put("aspect_ratio", params.aspectRatio)
+                params.seed?.let { put("seed", it) }
+                params.imageBase64?.let { put("image", it) }
+                params.maskBase64?.let { put("mask", it) }
+            }
 
-        val requestBody = jsonBody.toString()
-            .toRequestBody("application/json".toMediaType())
+            val requestBody = jsonBody.toString()
+                .toRequestBody("application/json".toMediaType())
 
-        val request = Request.Builder()
-            .url("${DreamHubConstants.BASE_URL}/v1/generate")
-            .post(requestBody)
-            .build()
+            val request = Request.Builder()
+                .url("${DreamHubConstants.BASE_URL}/v1/generate")
+                .post(requestBody)
+                .build()
 
-        val response = withContext(Dispatchers.IO) {
-            httpClient.newCall(request).execute()
+            val response = withContext(Dispatchers.IO) {
+                httpClient.newCall(request).execute()
+            }
+
+            // BKND-PROC-0008: Handle backend busy (503 Service Unavailable) —
+            // the C++ server rejects concurrent /generate requests following
+            // Stability AI / Ollama conventions with a standard Retry-After header.
+            if (response.code == 503) {
+                val retryAfterSec = response.header("Retry-After")?.toIntOrNull() ?: 3
+                throw AppError.BackendBusy(
+                    "Server is currently processing another request",
+                    retryAfterSec * 1000L,
+                )
+            }
+
+            if (!response.isSuccessful) {
+                throw AppError.Backend("Generate request failed: ${response.code}")
+            }
+
+            val body = response.body ?: throw AppError.Backend("Empty response body")
+            val parser = SseStreamParser(body.byteStream())
+            parser.events().collect { emit(it) }
+        } finally {
+            isGenerating = false
         }
-
-        // BKND-PROC-0008: Handle backend busy (503 Service Unavailable) —
-        // the C++ server rejects concurrent /generate requests following
-        // Stability AI / Ollama conventions with a standard Retry-After header.
-        if (response.code == 503) {
-            val retryAfterSec = response.header("Retry-After")?.toIntOrNull() ?: 3
-            throw AppError.BackendBusy(
-                "Server is currently processing another request",
-                retryAfterSec * 1000L,
-            )
-        }
-
-        if (!response.isSuccessful) {
-            throw AppError.Backend("Generate request failed: ${response.code}")
-        }
-
-        val body = response.body ?: throw AppError.Backend("Empty response body")
-        val parser = SseStreamParser(body.byteStream())
-        parser.events().collect { emit(it) }
     }
 
     /**
