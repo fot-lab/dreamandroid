@@ -129,7 +129,7 @@ data class GenerateParameterRecord(
         height = height,
         denoiseStrength = null,
         useOpenCL = false,
-        scheduler = sampler,
+        sampler = sampler,
         timestamp = timestamp,
         tags = """{"source":"${source.name}"}""",
     )

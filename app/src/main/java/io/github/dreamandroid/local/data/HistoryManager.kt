@@ -37,7 +37,7 @@ data class HistoryItem(
                 upscalerId = e.upscalerId,
                 params = GenerationParameters(
                     steps = e.steps,
-                    cfg = e.cfg,
+                    cfgScale = e.cfg,
                     seed = e.seed,
                     prompt = e.prompt,
                     negativePrompt = e.negativePrompt,
@@ -45,7 +45,7 @@ data class HistoryItem(
                     width = e.width,
                     height = e.height,
                     runOnCpu = e.runOnCpu ?: false,
-                    denoiseStrength = e.denoiseStrength ?: 0.6f,
+                    denoisingStrength = e.denoiseStrength ?: 0.6f,
                     useOpenCL = e.useOpenCL,
                     sampler = e.sampler,
                     mode = mode,
