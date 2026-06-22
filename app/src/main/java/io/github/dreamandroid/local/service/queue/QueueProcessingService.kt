@@ -194,6 +194,8 @@ class QueueProcessingService : Service() {
             )
 
             // 3. Execute generation via BackendManager (dual-path: SSE + polling)
+            // Moved outside try so catch blocks can access it
+            var wasBackendProgressing = false
             try {
                 // Read user-configured per-step SSE timeout
                 val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -222,7 +224,6 @@ class QueueProcessingService : Service() {
                 // ── Parallel progress poller (non-SSE side-channel) ──
                 // Aligned with GenerationWorker.  Uses GET /v1/progress for
                 // liveness detection and progress display independent of SSE.
-                var wasBackendProgressing = false
                 val lastPolledStep = java.util.concurrent.atomic.AtomicInteger(0)
 
                 val progressPollerJob = CoroutineScope(ctx + Job()).launch {

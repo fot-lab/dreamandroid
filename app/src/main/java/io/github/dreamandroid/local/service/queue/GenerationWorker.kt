@@ -20,7 +20,6 @@ import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
 import java.io.IOException
 import io.github.dreamandroid.local.core.model.GenerateParams
-import java.io.IOException
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.HistoryManager
@@ -165,6 +164,8 @@ class GenerationWorker(
             val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             val timeoutSeconds = prefs.getInt("generation_timeout_s", 60).coerceAtLeast(10)
             val timeoutMs = timeoutSeconds * 1000L
+            // Moved outside try so catch blocks can access it
+            var wasBackendProgressing = false
             try {
                 // ── Per-step timeout: restarts on each SSE message ──
                 // Fires only when a single step exceeds the timeout window.
@@ -190,7 +191,6 @@ class GenerationWorker(
                 //   1. UI progress updates even if SSE is slow/laggy
                 //   2. Liveness detection: if SSE breaks but poller saw progress,
                 //      we know the backend is still working.
-                var wasBackendProgressing = false
                 val lastPolledStep = java.util.concurrent.atomic.AtomicInteger(0)
 
                 val progressPollerJob = CoroutineScope(coroutineContext + Job()).launch {
