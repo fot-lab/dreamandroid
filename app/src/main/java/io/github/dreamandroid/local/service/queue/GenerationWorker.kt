@@ -182,37 +182,25 @@ class GenerationWorker(
                     }
                 }
 
-                // ── Parallel progress poller (non-SSE side-channel) ──
+                // ── Parallel liveness poller (non-SSE side-channel) ──
                 // GET /v1/progress provides backend-reported progress independently
-                // of the SSE stream.  This serves two purposes:
-                //   1. UI progress updates even if SSE is slow/laggy
-                //   2. Liveness detection: if SSE breaks but poller saw progress,
-                //      we know the backend is still working.
-                val lastPolledStep = java.util.concurrent.atomic.AtomicInteger(0)
-
-                val progressPollerJob = CoroutineScope(coroutineContext + Job()).launch {
+                // of the SSE stream.  Matching the pre-migration
+                // BackgroundGenerationService pattern, the poller serves purely as
+                // a liveness signal: if the backend reports any step progress (> 0),
+                // it is alive and we reset the per-step timeout.
+                //
+                // Progress percentage is authoritatively provided by the SSE stream
+                // (event.step / event.totalSteps), exactly as in the old BGS.
+                // The poller does NOT override SSE progress — it only ensures the
+                // timeout watchdog does not fire while the backend is actively working.
+                val livenessPollerJob = CoroutineScope(coroutineContext + Job()).launch {
                     while (isActive) {
                         delay(PROGRESS_POLL_INTERVAL_MS)
                         try {
                             val p = backendManager.queryProgress()
+                            // Backend is reporting step progress → it is alive
                             if (p != null && p.second > 0 && p.first > 0) {
-                                val pollProgress = p.first.toFloat() / p.second.toFloat()
-                                // Only update if polled progress is ahead of last known step
-                                val lastStep = lastPolledStep.get()
-                                if (p.first > lastStep && lastPolledStep.compareAndSet(lastStep, p.first)) {
-                                    queueRepository.updateTaskProgress(task.id, pollProgress)
-                                    setProgress(workDataOf(
-                                        KEY_PROGRESS to (pollProgress * 100).toInt(),
-                                        KEY_TASK_ID to task.id,
-                                        KEY_PROMPT to task.prompt.take(30),
-                                    ))
-                                    setForeground(createForegroundInfo(
-                                        "Generating: ${task.prompt.take(30)}...",
-                                        (pollProgress * 100).toInt(),
-                                    ))
-                                    // Progress via polling → backend is alive, reset step timeout
-                                    resetStepTimeout()
-                                }
+                                resetStepTimeout()
                             }
                         } catch (_: Exception) {
                             // Poll may fail transiently; keep polling
@@ -227,8 +215,13 @@ class GenerationWorker(
 
                         when (event) {
                             is SseStreamParser.SseEvent.Progress -> {
+                                // SSE progress is the authoritative source (matching
+                                // old BackgroundGenerationService).  Fall back to
+                                // task.steps if the backend omits totalSteps (lenient).
+                                val effectiveTotalSteps =
+                                    if (event.totalSteps > 0) event.totalSteps else task.steps
+                                val progress = event.step.toFloat() / effectiveTotalSteps
                                 resetStepTimeout()
-                                val progress = event.step.toFloat() / event.totalSteps
                                 queueRepository.updateTaskProgress(task.id, progress)
                                 setProgress(workDataOf(
                                     KEY_PROGRESS to (progress * 100).toInt(),
@@ -332,7 +325,7 @@ class GenerationWorker(
                     }
                 } finally {
                     stepTimeoutJob?.cancel()
-                    progressPollerJob.cancel()
+                    livenessPollerJob.cancel()
                 }
             } catch (e: CancellationException) {
                 Log.d(TAG, "Worker cancelled during generation")

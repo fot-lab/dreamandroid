@@ -218,28 +218,24 @@ class QueueProcessingService : Service() {
                     }
                 }
 
-                // ── Parallel progress poller (non-SSE side-channel) ──
-                // Aligned with GenerationWorker.  Uses GET /v1/progress for
-                // liveness detection and progress display independent of SSE.
-                val lastPolledStep = java.util.concurrent.atomic.AtomicInteger(0)
-
-                val progressPollerJob = CoroutineScope(ctx + Job()).launch {
+                // ── Parallel liveness poller (non-SSE side-channel) ──
+                // GET /v1/progress provides backend-reported progress independently
+                // of the SSE stream.  Matching the pre-migration
+                // BackgroundGenerationService pattern, the poller serves purely as
+                // a liveness signal: if the backend reports any step progress (> 0),
+                // it is alive and we reset the per-step timeout.
+                //
+                // Progress percentage is authoritatively provided by the SSE stream
+                // (event.step / event.totalSteps), exactly as in the old BGS.
+                // The poller does NOT override SSE progress — it only ensures the
+                // timeout watchdog does not fire while the backend is actively working.
+                val livenessPollerJob = CoroutineScope(ctx + Job()).launch {
                     while (isActive) {
                         delay(PROGRESS_POLL_INTERVAL_MS)
                         try {
                             val p = backendManager.queryProgress()
                             if (p != null && p.second > 0 && p.first > 0) {
-                                val pollProgress = p.first.toFloat() / p.second.toFloat()
-                                val lastStep = lastPolledStep.get()
-                                if (p.first > lastStep && lastPolledStep.compareAndSet(lastStep, p.first)) {
-                                    _currentProgress.value = pollProgress
-                                    queueRepository.updateTaskProgress(task.id, pollProgress)
-                                    updateNotification(
-                                        "Generating: ${task.prompt.take(30)}...",
-                                        (pollProgress * 100).toInt(),
-                                    )
-                                    resetStepTimeout()
-                                }
+                                resetStepTimeout()
                             }
                         } catch (_: Exception) { }
                     }
@@ -252,8 +248,12 @@ class QueueProcessingService : Service() {
 
                         when (event) {
                             is SseStreamParser.SseEvent.Progress -> {
+                                // SSE progress is the authoritative source.
+                                // Fall back to task.steps if backend omits totalSteps.
+                                val effectiveTotalSteps =
+                                    if (event.totalSteps > 0) event.totalSteps else task.steps
+                                val progress = event.step.toFloat() / effectiveTotalSteps
                                 resetStepTimeout()
-                                val progress = event.step.toFloat() / event.totalSteps
                                 _currentProgress.value = progress
                                 queueRepository.updateTaskProgress(task.id, progress)
                                 updateNotification(
@@ -337,7 +337,7 @@ class QueueProcessingService : Service() {
                     }
                 } finally {
                     stepTimeoutJob?.cancel()
-                    progressPollerJob.cancel()
+                    livenessPollerJob.cancel()
                 }
             } catch (e: CancellationException) {
                 Log.d(TAG, "Service cancelled during generation — resetting task ${task.id}")
