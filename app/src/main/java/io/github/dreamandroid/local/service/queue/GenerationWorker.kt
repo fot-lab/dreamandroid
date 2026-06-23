@@ -2,7 +2,6 @@ package io.github.dreamandroid.local.service.queue
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.util.Base64
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -18,12 +17,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
+import io.github.dreamandroid.local.core.functional.rgbBytesToBitmap
 import io.github.dreamandroid.local.core.model.GenerateParams
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.service.QueueRepository
 import java.io.File
+import java.util.Base64
 
 /**
  * WorkManager [CoroutineWorker] that processes the generation queue sequentially.
@@ -412,24 +413,14 @@ class GenerationWorker(
 
     // ── Helpers ──
 
-    private fun base64ToBitmap(base64: String, width: Int, height: Int): android.graphics.Bitmap? {
+    private fun base64ToBitmap(base64: String, width: Int, height: Int): Bitmap? {
         return try {
-            val bytes = Base64.decode(base64, Base64.DEFAULT)
-            val bitmap = android.graphics.Bitmap.createBitmap(
-                width, height, android.graphics.Bitmap.Config.ARGB_8888,
-            )
-            val pixels = IntArray(width * height)
-            for (i in 0 until width * height) {
-                val idx = i * 3
-                if (idx + 2 < bytes.size) {
-                    val r = bytes[idx].toInt() and 0xFF
-                    val g = bytes[idx + 1].toInt() and 0xFF
-                    val b = bytes[idx + 2].toInt() and 0xFF
-                    pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-                }
+            val imageBytes = Base64.getDecoder().decode(base64)
+            if (imageBytes.size < width * height * 3) {
+                Log.e(TAG, "Decoded base64 too small: ${imageBytes.size} < ${width * height * 3}")
+                return null
             }
-            bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-            bitmap
+            rgbBytesToBitmap(imageBytes, width, height)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode base64 bitmap", e)
             null

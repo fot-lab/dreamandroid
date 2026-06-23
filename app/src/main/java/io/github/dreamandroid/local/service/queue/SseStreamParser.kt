@@ -56,7 +56,10 @@ class SseStreamParser(
                 val line = currentLine ?: continue
                 if (!line.startsWith("data: ")) continue
 
-                val json = line.removePrefix("data: ")
+                // .trim() matches the pre-migration BackgroundGenerationService
+                // behaviour: line.substring(6).trim().  Strips trailing \r
+                // that may survive BufferedReader.readLine() on some platforms.
+                val json = line.removePrefix("data: ").trim()
                 if (json == "[DONE]") break
 
                 // Parse JSON on Default dispatcher to keep IO thread free for reads.
