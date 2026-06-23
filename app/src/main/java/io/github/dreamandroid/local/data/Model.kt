@@ -112,8 +112,8 @@ data class Model(
     val useCpuClip: Boolean = false,
 
 ) {
-    // Backend --type value; each type implies the full model file layout.
-    @Deprecated("Use individual --cpu/--sdxl flags + file paths instead")
+    // Backend --type value; each type implies the full model file layout under
+    // --model_dir (see ServerCli.cpp for the per-type file map).
     val backendType: String
         get() = when {
             isSdxl -> "sdxl"
@@ -121,7 +121,7 @@ data class Model(
             else -> "sd15npu"
         }
 
-    // Text embedding size passed to --text_embedding_size CLI arg.
+    // Text embedding size (compile-time constant in Config.hpp).
     // SD1.5 / SDXL CLIP-L: 768; SD2.1: 1024.
     val textEmbeddingSize: Int
         get() = 768

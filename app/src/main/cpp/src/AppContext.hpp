@@ -51,9 +51,9 @@ struct AppContext {
 
   struct Config {
     // ── Pipeline type ──
-    bool use_mnn    = false;   // --cpu: whole pipeline on MNN
-    bool sdxl_mode  = false;   // --sdxl
-    bool use_mnn_clip = false; // --use_cpu_clip: force CLIP on MNN (now default)
+    bool use_mnn    = false;   // --type sd15cpu: whole pipeline on MNN
+    bool sdxl_mode  = false;   // --type sdxl
+    bool use_mnn_clip = false; // CLIP on MNN (always true in practice, default)
     bool use_v_pred = false;   // --use_v_pred
     bool use_safety_checker = false;
     bool upscaler_mode = false;
