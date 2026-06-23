@@ -58,10 +58,34 @@ class QueueRepository private constructor(private val db: AppDatabase) {
 
     // ── Init: restore from Room ──
 
+    /**
+     * Restores queue tasks from Room on process start.
+     *
+     * PROCESSING tasks are reset to PENDING because the worker that owned
+     * them died with the previous process. Without this reset they would be
+     * permanently invisible to [getNextPending] and stuck forever.
+     */
     private fun restoreFromDb() {
         scope.launch {
             val entities = db.taskDao().getRestorableQueueTasks()
-            _tasks.value = entities.map { it.toDomain() }
+            val staleProcessing = entities.filter { it.status == TaskStatus.PROCESSING.name }
+            if (staleProcessing.isNotEmpty()) {
+                // Reset stale PROCESSING → PENDING (worker died with the process)
+                val reset = staleProcessing.map {
+                    it.copy(status = TaskStatus.PENDING.name, progress = 0f)
+                }
+                db.taskDao().insertAll(reset)
+                val resetIds = reset.map { it.id }.toSet()
+                _tasks.value = entities.map { entity ->
+                    if (entity.id in resetIds) {
+                        reset.first { it.id == entity.id }.toDomain()
+                    } else {
+                        entity.toDomain()
+                    }
+                }
+            } else {
+                _tasks.value = entities.map { it.toDomain() }
+            }
         }
     }
 
