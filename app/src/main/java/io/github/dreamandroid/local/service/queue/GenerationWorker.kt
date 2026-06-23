@@ -18,7 +18,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
-import java.io.IOException
 import io.github.dreamandroid.local.core.model.GenerateParams
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
@@ -164,8 +163,6 @@ class GenerationWorker(
             val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             val timeoutSeconds = prefs.getInt("generation_timeout_s", 60).coerceAtLeast(10)
             val timeoutMs = timeoutSeconds * 1000L
-            // Moved outside try so catch blocks can access it
-            var wasBackendProgressing = false
             try {
                 // ── Per-step timeout: restarts on each SSE message ──
                 // Fires only when a single step exceeds the timeout window.
@@ -199,7 +196,6 @@ class GenerationWorker(
                         try {
                             val p = backendManager.queryProgress()
                             if (p != null && p.second > 0 && p.first > 0) {
-                                wasBackendProgressing = true
                                 val pollProgress = p.first.toFloat() / p.second.toFloat()
                                 // Only update if polled progress is ahead of last known step
                                 val lastStep = lastPolledStep.get()
@@ -346,57 +342,27 @@ class GenerationWorker(
                 throw e
             } catch (e: Exception) {
                 // ── Generation interrupted ──
-                // The SSE stream may have disconnected (IOException), the backend
-                // may have returned 503 (BackendBusy), or the backend process may
-                // have crashed.  BEFORE counting this as a retry, use the parallel
-                // progress poller's data to determine whether the backend was
-                // actually processing the request successfully.
+                // Lenient handling matching the pre-migration GenerationWorker:
+                // on any exception, simply reset and retry with a max-retry guard.
+                // The SseStreamParser now silently skips unparseable events, so
+                // an exception here means a genuine transport error (SSE disconnect,
+                // backend crash, etc.) rather than a parsing glitch.
                 Log.e(TAG, "Generation interrupted for task ${task.id}: ${e.message}", e)
                 queueRepository.setGenerationTimedOut(false)
 
-                // ── Case 1: BackendBusy (503) — backend IS processing, do NOT consume retry ──
+                // ── BackendBusy (503): backend IS processing, do NOT consume retry ──
                 if (e is AppError.BackendBusy) {
-                    Log.d(TAG, "Backend busy — original generation still running server-side, waiting for idle")
-                    waitForBackendIdle(timeoutSeconds)
-                    // Backend now idle (or wait timed out). Reset for while-loop retry.
+                    Log.d(TAG, "Backend busy — waiting then retrying (no retry consumed)")
                     queueRepository.resetTaskToPending(task.id)
                     if (!isStopped) delay(TASK_RETRY_DELAY_MS)
-                    // retryCount NOT incremented — this was not a real failure
                     continue  // jump to next while-loop iteration
                 }
 
-                // ── Case 2: SSE stream broke but backend is/was actively generating ──
-                // The parallel progress poller detected non-zero progress via
-                // GET /v1/progress.  This means the C++ backend IS running the
-                // UNET denoising loop — the SSE disconnect is a client-side issue.
-                // Wait for the backend to finish, then retry WITHOUT consuming
-                // a retry count (the generation was proceeding normally server-side).
-                if ((e is IOException || e is AppError.Network) && backendManager.healthCheck() && wasBackendProgressing) {
-                    Log.d(TAG, "SSE disconnected but backend was actively generating — " +
-                        "waiting for backend to finish, then retrying (no retry consumed)")
-                    waitForBackendIdle(timeoutSeconds)
-                    queueRepository.resetTaskToPending(task.id)
-                    if (!isStopped) delay(TASK_RETRY_DELAY_MS)
-                    // retryCount NOT incremented — backend was progressing, SSE loss is transient
-                    continue  // jump to next while-loop iteration
-                }
-
-                // ── Case 3: SSE broke AND backend never made progress ──
-                // The progress poller never saw backend progress > 0.  This means
-                // the backend likely crashed at startup or never began processing.
-                // Only in this case do we count it as a real retry.
-                if ((e is IOException || e is AppError.Network) && backendManager.healthCheck()) {
-                    Log.d(TAG, "SSE disconnected, backend alive but never produced progress — " +
-                        "backend may have crashed during init; counting as retry")
-                    // Fall through to normal retry below
-                }
-
-                // ── Case 4: Normal retry path (backend crashed or dead) ──
+                // ── All other errors: retry with count guard ──
                 taskRetryCount++
                 Log.e(TAG, "Generation retry $taskRetryCount/$MAX_TASK_RETRIES for task ${task.id}")
 
                 if (taskRetryCount >= MAX_TASK_RETRIES) {
-                    // Max retries exhausted — mark as permanent error to break the loop
                     Log.e(TAG, "Task ${task.id} exceeded max retries ($MAX_TASK_RETRIES), marking ERROR")
                     queueRepository.markTaskError(
                         task.id,
@@ -404,15 +370,11 @@ class GenerationWorker(
                             "Generation failed after $MAX_TASK_RETRIES attempts: ${e.message}",
                         ),
                     )
-                    // Reset counter so the next task gets a fresh start
                     taskRetryCount = 0
                     lastTaskId = null
                 } else {
-                    // Reset to PENDING with backoff delay to prevent tight flicker loop
                     queueRepository.resetTaskToPending(task.id)
-                    if (!isStopped) {
-                        delay(TASK_RETRY_DELAY_MS)
-                    }
+                    if (!isStopped) delay(TASK_RETRY_DELAY_MS)
                 }
             }
         }
@@ -453,62 +415,6 @@ class GenerationWorker(
         }
 
         return false // Worker cancelled
-    }
-
-    /**
-     * Waits for the backend to complete any in-progress generation.
-     *
-     * Uses [BackendManager.queryProgress] to detect an active generation on
-     * the server side.  Polls every 3 seconds until the backend reports idle
-     * (progress == null or step 0/0 or step >= total), the worker is stopped,
-     * or the max wait time is exceeded.
-     *
-     * Max wait is capped at [maxWaitSeconds] * 5 (up to 10 minutes).
-     * Requires two consecutive idle polls to avoid transient 0/0 states.
-     *
-     * @param maxWaitSeconds per-step timeout from user prefs, used to derive max wait cap
-     * @return true if backend is confirmed idle; false if worker stopped or backend crashed
-     */
-    private suspend fun waitForBackendIdle(maxWaitSeconds: Int): Boolean {
-        val pollIntervalMs = 3000L
-        // Cap waiting at 5x per-step timeout, max 10 minutes (600s)
-        val maxWaitSec = (maxWaitSeconds * 5).coerceAtMost(600)
-        val maxWaitMs = maxWaitSec * 1000L
-        val deadline = System.currentTimeMillis() + maxWaitMs
-
-        Log.d(TAG, "Waiting for backend idle (max ${maxWaitMs / 1000}s)...")
-
-        var consecutiveIdle = 0
-        while (!isStopped && System.currentTimeMillis() < deadline) {
-            delay(pollIntervalMs)
-
-            if (!backendManager.healthCheck()) {
-                Log.d(TAG, "Backend went down while waiting for idle")
-                return false
-            }
-
-            val progress = backendManager.queryProgress()
-            // queryProgress() returns null when backend is busy with a
-            // non-step-tracked operation (e.g. upscale) — keep waiting.
-            val isIdle = progress != null && (
-                (progress.first == 0 && progress.second == 0) ||
-                progress.first >= progress.second
-            )
-
-            if (isIdle) {
-                consecutiveIdle++
-                if (consecutiveIdle >= 2) {
-                    Log.d(TAG, "Backend confirmed idle — safe to retry")
-                    return true
-                }
-            } else {
-                consecutiveIdle = 0
-                Log.d(TAG, "Backend still processing (step ${progress?.first}/${progress?.second})")
-            }
-        }
-
-        Log.w(TAG, "Backend idle wait ended (stopped=${isStopped}, timeout=${System.currentTimeMillis() >= deadline})")
-        return !isStopped // true = timeout (still alive), false = worker stopped
     }
 
     // ── Helpers ──

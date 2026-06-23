@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.service.queue
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -58,10 +59,13 @@ class SseStreamParser(
                 val json = line.removePrefix("data: ")
                 if (json == "[DONE]") break
 
-                // Parse JSON on Default dispatcher to keep IO thread free for reads
+                // Parse JSON on Default dispatcher to keep IO thread free for reads.
+                // Skip unrecognised / malformed events silently — lenient parsing
+                // prevents false failure detection when the backend sends
+                // non-standard content.
                 val event = withContext(Dispatchers.Default) {
                     parseEvent(json)
-                }
+                } ?: continue
                 send(event)
             }
         } finally {
@@ -74,33 +78,50 @@ class SseStreamParser(
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun parseEvent(json: String): SseEvent {
-        val obj = JSONObject(json)
-        return when (obj.getString("type")) {
-            "progress" -> SseEvent.Progress(
-                step = obj.getInt("step"),
-                totalSteps = obj.getInt("total_steps"),
-                progress = obj.optDouble("progress", 0.0).toFloat(),
-                imageBase64 = obj.getString("image")
-            )
-            "complete" -> SseEvent.Complete(
-                imageBase64 = obj.getString("image"),
-                seed = obj.optLong("seed"),
-                width = obj.getInt("width"),
-                height = obj.getInt("height"),
-                finishReason = obj.optString("finish_reason", "SUCCESS")
-            )
-            "error" -> {
-                // Stability-AI error format: has "errors" array
-                val msg = if (obj.has("errors")) {
-                    val arr = obj.getJSONArray("errors")
-                    if (arr.length() > 0) arr.getString(0) else "Unknown error"
-                } else {
-                    obj.optString("message", "Unknown error")
+    /**
+     * Parse a single SSE data line into an [SseEvent].
+     *
+     * Uses [JSONObject.optString]/[JSONObject.optInt] throughout so that
+     * missing or unexpected fields do NOT crash the SSE stream.  Returns
+     * `null` for unrecognised event types or unparseable JSON, which the
+     * caller silently skips.  This matches the lenient behaviour of the
+     * original [io.github.dreamandroid.local.service.BackgroundGenerationService]
+     * (pre-migration) that simply ignored lines it could not parse.
+     */
+    private fun parseEvent(json: String): SseEvent? {
+        return try {
+            val obj = JSONObject(json)
+            when (obj.optString("type", "")) {
+                "progress" -> SseEvent.Progress(
+                    step = obj.optInt("step", 0),
+                    totalSteps = obj.optInt("total_steps", 0),
+                    progress = obj.optDouble("progress", 0.0).toFloat(),
+                    imageBase64 = obj.optString("image", "")
+                )
+                "complete" -> SseEvent.Complete(
+                    imageBase64 = obj.optString("image", ""),
+                    seed = obj.optLong("seed", -1L),
+                    width = obj.optInt("width", 512),
+                    height = obj.optInt("height", 512),
+                    finishReason = obj.optString("finish_reason", "SUCCESS")
+                )
+                "error" -> {
+                    // Stability-AI error format: has "errors" array
+                    val msg = if (obj.has("errors")) {
+                        val arr = obj.getJSONArray("errors")
+                        if (arr.length() > 0) arr.getString(0) else "Unknown error"
+                    } else {
+                        obj.optString("message", "Unknown error")
+                    }
+                    SseEvent.Error(msg)
                 }
-                SseEvent.Error(msg)
+                // Unrecognised type → skip silently (don't crash the SSE stream)
+                else -> null
             }
-            else -> SseEvent.Error("Unknown event type: ${obj.getString("type")}")
+        } catch (e: Exception) {
+            // Malformed JSON → skip silently
+            Log.w("SseStreamParser", "Skipping unparseable SSE event: ${json.take(120)}", e)
+            null
         }
     }
 }

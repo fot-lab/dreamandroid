@@ -10,7 +10,6 @@ import android.util.Base64
 import android.util.Log
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
-import java.io.IOException
 import io.github.dreamandroid.local.core.model.GenerateParams
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.data.HistoryManager
@@ -194,8 +193,6 @@ class QueueProcessingService : Service() {
             )
 
             // 3. Execute generation via BackendManager (dual-path: SSE + polling)
-            // Moved outside try so catch blocks can access it
-            var wasBackendProgressing = false
             try {
                 // Read user-configured per-step SSE timeout
                 val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -232,7 +229,6 @@ class QueueProcessingService : Service() {
                         try {
                             val p = backendManager.queryProgress()
                             if (p != null && p.second > 0 && p.first > 0) {
-                                wasBackendProgressing = true
                                 val pollProgress = p.first.toFloat() / p.second.toFloat()
                                 val lastStep = lastPolledStep.get()
                                 if (p.first > lastStep && lastPolledStep.compareAndSet(lastStep, p.first)) {
@@ -349,37 +345,14 @@ class QueueProcessingService : Service() {
                 queueRepository.resetTaskToPending(task.id)
                 throw e
             } catch (e: Exception) {
+                // Lenient handling: on any exception, simply reset and retry.
+                // SseStreamParser now skips unparseable events silently, so
+                // exceptions here are genuine transport errors.
                 Log.e(TAG, "Generation interrupted for task ${task.id}: ${e.message}", e)
                 queueRepository.setGenerationTimedOut(false)
 
-                // If backend was actively progressing (detected via /v1/progress poller),
-                // the SSE disconnect is a transient client-side issue — do not consume retry.
-                // Aligned with GenerationWorker Case 2.
-                if ((e is IOException || e is AppError.Network) && backendManager.healthCheck() && wasBackendProgressing) {
-                    Log.d(TAG, "SSE disconnected but backend was actively generating — " +
-                        "waiting for backend to finish, then retrying (no retry consumed)")
-                    // Poll for idle — backend is still working on the original request
-                    val pollIntervalMs = 3000L
-                    var waitCount = 0
-                    while (coroutineContext.isActive && waitCount < 40) {
-                        delay(pollIntervalMs)
-                        val progress = backendManager.queryProgress()
-                        val isIdle = progress != null && (
-                            (progress.first == 0 && progress.second == 0) ||
-                            progress.first >= progress.second
-                        )
-                        if (isIdle) break
-                        waitCount++
-                    }
-                    queueRepository.resetTaskToPending(task.id)
-                    if (coroutineContext.isActive) { delay(TASK_RETRY_DELAY_MS) }
-                    continue
-                }
-
-                // Normal retry path (backend crashed or never made progress)
                 taskRetryCount++
-                Log.e(TAG, "Generation interrupted for task ${task.id} " +
-                    "(attempt $taskRetryCount/$MAX_TASK_RETRIES)", e)
+                Log.e(TAG, "Generation retry $taskRetryCount/$MAX_TASK_RETRIES for task ${task.id}")
 
                 if (taskRetryCount >= MAX_TASK_RETRIES) {
                     Log.e(TAG, "Task ${task.id} exceeded max retries ($MAX_TASK_RETRIES), marking ERROR")
