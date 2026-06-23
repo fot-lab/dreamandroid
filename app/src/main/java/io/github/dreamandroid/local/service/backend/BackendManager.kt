@@ -147,16 +147,9 @@ class BackendManager(context: Context) {
             val useImg2img = prefs.getBoolean("use_img2img", true)
             val listenOnAll = prefs.getBoolean("listen_on_all_addresses", false)
 
-            // Determine --type from model characteristics
-            val typeStr = when {
-                model.runOnCpu -> "sd15cpu"
-                model.isSdxl -> "sdxl"
-                else -> "sd15npu"
-            }
-
             val command = mutableListOf(
                 executableFile.absolutePath,
-                "--type", typeStr,
+                "--type", model.backendType,
                 "--model_dir", modelsDir.absolutePath,
                 "--port", DreamHubConstants.BACKEND_PORT.toString()
             )
@@ -174,7 +167,7 @@ class BackendManager(context: Context) {
             }
 
             // SD1.5 NPU non-512x512 patch
-            if (!model.isSdxl && !model.runOnCpu && (width != 512 || height != 512)) {
+            if (model.backendType == "sd15npu" && (width != 512 || height != 512)) {
                 val patchFile = if (width == height) {
                     val squarePatch = File(modelsDir, "$width.patch")
                     if (squarePatch.exists()) squarePatch
