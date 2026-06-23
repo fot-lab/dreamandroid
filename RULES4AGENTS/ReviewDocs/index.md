@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 17.0
-> 更新日期: 2026-06-16
-> Phase A~F+startup 审计 (64 总数, 56 Fixed/Won'tFix, 8 剩余)
+> 版本: 18.0
+> 更新日期: 2026-06-23
+> Phase A~F+startup 审计 (65 总数, 57 Fixed/Won'tFix, 8 剩余)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -71,6 +71,7 @@
 | DFLW-INTG-0013 | P2 | 生成参数双重加载 | Fully Fixed | [detail/DFLW-INTG-0013.md](detail/DFLW-INTG-0013.md) |
 | DFLW-INTG-0014 | P3 | Add to Queue 静默失败 | Fully Fixed | [detail/DFLW-INTG-0014.md](detail/DFLW-INTG-0014.md) |
 | DFLW-INTG-0015 | P3 | 无效 Seed 静默忽略 | Fully Fixed | [detail/DFLW-INTG-0015.md](detail/DFLW-INTG-0015.md) |
+| DFLW-INTG-0016 | P1 | SSE 流前后端字段对齐与兼容性修正 | Fully Fixed | [detail/DFLW-INTG-0016.md](detail/DFLW-INTG-0016.md) |
 | LCLE-MEMO-0001 | P0 | App 生命周期&内存安全完整审计 (13 findings) | Fully Fixed | [detail/LCLE-MEMO-0001.md](detail/LCLE-MEMO-0001.md) |
 | LCLE-MEMO-0002 | P1 | 惰性初始化依赖未就绪时的空降处理完整审计 (6 种模式, 5 个问题) | Newly Discovered | [detail/LCLE-MEMO-0002.md](detail/LCLE-MEMO-0002.md) |
 
