@@ -76,7 +76,8 @@ inline bool sseWrite(httplib::DataSink &sink,
 inline bool sseErrorDone(httplib::DataSink &sink,
                          const std::string &message) {
     nlohmann::json err = errorJson("generation_error", message);
-    err["message"] = message;  // dual-compat: Stability envelope + simple accessor
+    err["type"]    = "error";   // MUST: SseStreamParser discriminates on "type"
+    err["message"] = message;   // dual-compat: Stability envelope + simple accessor
     sseWrite(sink, "error", err);
     sink.done();
     return false;

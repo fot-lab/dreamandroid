@@ -91,28 +91,38 @@ class SseStreamParser(
     private fun parseEvent(json: String): SseEvent? {
         return try {
             val obj = JSONObject(json)
-            when (obj.optString("type", "")) {
-                "progress" -> SseEvent.Progress(
+            val eventType = obj.optString("type", "")
+            when {
+                eventType == "progress" -> SseEvent.Progress(
                     step = obj.optInt("step", 0),
                     totalSteps = obj.optInt("total_steps", 0),
                     progress = obj.optDouble("progress", 0.0).toFloat(),
                     imageBase64 = obj.optString("image", "")
                 )
-                "complete" -> SseEvent.Complete(
+                eventType == "complete" -> SseEvent.Complete(
                     imageBase64 = obj.optString("image", ""),
                     seed = obj.optLong("seed", -1L),
                     width = obj.optInt("width", 512),
                     height = obj.optInt("height", 512),
                     finishReason = obj.optString("finish_reason", "SUCCESS")
                 )
-                "error" -> {
-                    // Stability-AI error format: has "errors" array
-                    val msg = if (obj.has("errors")) {
-                        val arr = obj.getJSONArray("errors")
-                        if (arr.length() > 0) arr.getString(0) else "Unknown error"
-                    } else {
-                        obj.optString("message", "Unknown error")
-                    }
+                eventType == "error" -> {
+                    val msg = obj.optString("message",
+                        if (obj.has("errors")) {
+                            val arr = obj.getJSONArray("errors")
+                            if (arr.length() > 0) arr.getString(0) else "Unknown error"
+                        } else "Unknown error"
+                    )
+                    SseEvent.Error(msg)
+                }
+                // ── Fallback: Stability-AI error envelope without "type" field ──
+                // BKND-PROC-0008 refactoring changed sseErrorDone to produce
+                // {"id":"...","name":"...","errors":[...]} without "type":"error".
+                // Parsing "errors" as a fallback ensures these errors are surfaced
+                // even if the C++ side omits the type discriminator.
+                obj.has("errors") -> {
+                    val arr = obj.getJSONArray("errors")
+                    val msg = if (arr.length() > 0) arr.getString(0) else "Unknown error"
                     SseEvent.Error(msg)
                 }
                 // Unrecognised type → skip silently (don't crash the SSE stream)
