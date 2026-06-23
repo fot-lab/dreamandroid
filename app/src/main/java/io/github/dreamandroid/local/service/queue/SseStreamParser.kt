@@ -120,7 +120,13 @@ class SseStreamParser(
                 // {"id":"...","name":"...","errors":[...]} without "type":"error".
                 // Parsing "errors" as a fallback ensures these errors are surfaced
                 // even if the C++ side omits the type discriminator.
-                obj.has("errors") -> {
+                //
+                // GUARD: Do NOT match if eventType is "progress" or "complete".
+                // Those branches are above (when{} short-circuits on first match),
+                // but this guard is an explicit safety measure against accidental
+                // branch reordering — a progress/complete event with a spurious
+                // "errors" key must never be misclassified as an error.
+                eventType != "progress" && eventType != "complete" && obj.has("errors") -> {
                     val arr = obj.getJSONArray("errors")
                     val msg = if (arr.length() > 0) arr.getString(0) else "Unknown error"
                     SseEvent.Error(msg)
