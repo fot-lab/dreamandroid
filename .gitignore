@@ -21,4 +21,5 @@ build-log.txt
 build-logs/
 .codebuddy/
 scripts/
-$null
+_jobs.json
+_relocate_tags.sh
