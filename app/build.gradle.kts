@@ -29,10 +29,12 @@ detekt {
 
 // Read app version from VERSION_NAME file at project root.
 // Format validated by CI (build.yml Validate VERSION_NAME step)
-val appVersionName = file("${rootProject.projectDir}/VERSION_NAME").readText().trim()
+val versionFile = file("${rootProject.projectDir}/VERSION_NAME")
+val appVersionName = versionFile.readText().trim()
 
 // versionCode = build number read from VERSION_CODE file (commit count based)
-val appVersionCode = file("${rootProject.projectDir}/VERSION_CODE").readText().trim().toInt()
+val versionCodeFile = file("${rootProject.projectDir}/VERSION_CODE")
+val appVersionCode = versionCodeFile.readText().trim().toInt()
 
 android {
     namespace = "io.github.dreamandroid.local"
