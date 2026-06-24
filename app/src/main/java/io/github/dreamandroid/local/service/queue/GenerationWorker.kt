@@ -435,7 +435,9 @@ class GenerationWorker(
             val imageBytes = Base64.getDecoder().decode(base64)
             val expected = width * height * 3
             // ── Diagnostic: verify decoded raw bytes match C++ output (gated by debug_model pref) ──
-            val debugModel = prefs.getBoolean("debug_model", false)
+            val debugModel = applicationContext
+                .getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                .getBoolean("debug_model", false)
             if (debugModel) {
                 Log.d(TAG, "[DIAG] base64 decoded: ${imageBytes.size} bytes " +
                         "(expect $expected for ${width}x${height}x3)")
