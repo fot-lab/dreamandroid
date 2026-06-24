@@ -261,32 +261,36 @@ class GenerationWorker(
                                         sampler = task.sampler,
                                         mode = GenerationMode.TXT2IMG,
                                     )
-                                    // Check save result — do NOT mark COMPLETED if save failed
+                                    // Save to history (best-effort, consistent with old QueueProcessingService
+                                    // which never blocked task completion on history save failure)
                                     val historyItem = historyManager.saveGeneratedImage(
                                         modelId = task.modelId,
                                         bitmap = bitmap,
                                         params = genParams,
                                         mode = GenerationMode.TXT2IMG,
                                     )
-                                    if (historyItem != null) {
-                                        // Save bitmap to queue cache file (not memory)
-                                        // HistoryManager already saved a copy to history storage
-                                        var cachePath: String? = null
-                                        try {
-                                            val cacheFile = File(
-                                                applicationContext.cacheDir,
-                                                "queue_result_${task.id}.jpg",
-                                            )
-                                            cacheFile.outputStream().use { out ->
-                                                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                                            }
-                                            cachePath = cacheFile.absolutePath
-                                        } catch (e: Exception) {
-                                            Log.w(TAG, "Failed to cache result bitmap", e)
-                                        }
-                                        // Recycle in-memory bitmap immediately (stored on disk)
-                                        bitmap.recycle()
+                                    if (historyItem == null) {
+                                        Log.w(TAG, "Failed to save to history, continuing with cache only")
+                                    }
 
+                                    // Save bitmap to queue cache file (not memory)
+                                    var cachePath: String? = null
+                                    try {
+                                        val cacheFile = File(
+                                            applicationContext.cacheDir,
+                                            "queue_result_${task.id}.jpg",
+                                        )
+                                        cacheFile.outputStream().use { out ->
+                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                                        }
+                                        cachePath = cacheFile.absolutePath
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Failed to cache result bitmap", e)
+                                    }
+                                    // Recycle in-memory bitmap immediately (stored on disk)
+                                    bitmap.recycle()
+
+                                    if (cachePath != null) {
                                         queueRepository.markTaskComplete(task.id, cachePath, event.seed)
                                         setProgress(workDataOf(
                                             KEY_PROGRESS to 100,
@@ -300,10 +304,8 @@ class GenerationWorker(
                                     } else {
                                         queueRepository.markTaskError(
                                             task.id,
-                                            AppError.Storage("Failed to save generated image to history"),
+                                            AppError.Storage("Failed to cache generated image to disk"),
                                         )
-                                        // Recycle bitmap since save failed and it won't be displayed
-                                        bitmap.recycle()
                                     }
                                 } else {
                                     queueRepository.markTaskError(
@@ -417,8 +419,7 @@ class GenerationWorker(
         return try {
             val imageBytes = Base64.getDecoder().decode(base64)
             if (imageBytes.size < width * height * 3) {
-                Log.e(TAG, "Decoded base64 too small: ${imageBytes.size} < ${width * height * 3}")
-                return null
+                Log.w(TAG, "Decoded base64 smaller than expected: ${imageBytes.size} < ${width * height * 3}, continuing with partial data")
             }
             rgbBytesToBitmap(imageBytes, width, height)
         } catch (e: Exception) {

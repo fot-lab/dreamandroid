@@ -100,6 +100,7 @@ fun rgbBytesToBitmap(rgb: ByteArray, width: Int, height: Int): Bitmap {
     val pixels = IntArray(width * height)
     for (i in pixels.indices) {
         val off = i * 3
+        if (off + 2 >= rgb.size) break  // silently skip incomplete pixels (consistent with old QueueProcessingService)
         val r = rgb[off].toInt() and 0xFF
         val g = rgb[off + 1].toInt() and 0xFF
         val b = rgb[off + 2].toInt() and 0xFF
