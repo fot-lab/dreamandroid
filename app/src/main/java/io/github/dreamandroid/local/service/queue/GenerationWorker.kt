@@ -244,6 +244,21 @@ class GenerationWorker(
                                     event.width,
                                     event.height,
                                 )
+                                // ── Diagnostic: verify Bitmap pixels (gated by debug_model pref) ──
+                                val debugModel = prefs.getBoolean("debug_model", false)
+                                if (debugModel && bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
+                                    val sampleW = bitmap.width
+                                    val sampleH = bitmap.height
+                                    val pixTL = bitmap.getPixel(0, 0)
+                                    val pixCC = bitmap.getPixel(sampleW / 2, sampleH / 2)
+                                    val pixBR = bitmap.getPixel(sampleW - 1, sampleH - 1)
+                                    Log.d(TAG, "[DIAG] Bitmap top-left ARGB=${
+                                        pixTL.toUInt().toString(16)} R=${(pixTL shr 16) and 0xFF} G=${(pixTL shr 8) and 0xFF} B=${pixTL and 0xFF}")
+                                    Log.d(TAG, "[DIAG] Bitmap center ARGB=${
+                                        pixCC.toUInt().toString(16)} R=${(pixCC shr 16) and 0xFF} G=${(pixCC shr 8) and 0xFF} B=${pixCC and 0xFF}")
+                                    Log.d(TAG, "[DIAG] Bitmap bottom-right ARGB=${
+                                        pixBR.toUInt().toString(16)} R=${(pixBR shr 16) and 0xFF} G=${(pixBR shr 8) and 0xFF} B=${pixBR and 0xFF}")
+                                }
                                 if (bitmap != null) {
                                     // Save to history via HistoryManager
                                     val genParams = GenerationParameters(
@@ -418,8 +433,29 @@ class GenerationWorker(
     private fun base64ToBitmap(base64: String, width: Int, height: Int): Bitmap? {
         return try {
             val imageBytes = Base64.getDecoder().decode(base64)
-            if (imageBytes.size < width * height * 3) {
-                Log.w(TAG, "Decoded base64 smaller than expected: ${imageBytes.size} < ${width * height * 3}, continuing with partial data")
+            val expected = width * height * 3
+            // ── Diagnostic: verify decoded raw bytes match C++ output (gated by debug_model pref) ──
+            val debugModel = prefs.getBoolean("debug_model", false)
+            if (debugModel) {
+                Log.d(TAG, "[DIAG] base64 decoded: ${imageBytes.size} bytes " +
+                        "(expect $expected for ${width}x${height}x3)")
+                if (imageBytes.size >= 9) {
+                    fun samplePixel(y: Int, x: Int, label: String) {
+                        val off = (y * width + x) * 3
+                        if (off + 2 < imageBytes.size) {
+                            val r = imageBytes[off].toInt() and 0xFF
+                            val g = imageBytes[off + 1].toInt() and 0xFF
+                            val b = imageBytes[off + 2].toInt() and 0xFF
+                            Log.d(TAG, "[DIAG] decoded $label ($x,$y): R=$r G=$g B=$b")
+                        }
+                    }
+                    samplePixel(0, 0, "top-left")
+                    samplePixel(height / 2, width / 2, "center")
+                    samplePixel(height - 1, width - 1, "bottom-right")
+                }
+            }
+            if (imageBytes.size < expected) {
+                Log.w(TAG, "Decoded base64 smaller than expected: ${imageBytes.size} < $expected, continuing with partial data")
             }
             rgbBytesToBitmap(imageBytes, width, height)
         } catch (e: Exception) {

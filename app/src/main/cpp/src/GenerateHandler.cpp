@@ -996,6 +996,32 @@ GenerationResult generateImage(
         if (sdxl_lowram) releaseSdxlQnnVaeDecoder(ctx);
       }
 
+      // ── Diagnostic: dump raw VAE decoder output stats (gated by QNN_DEBUG) ──
+      float vmin = vae_dec_out_pixels[0], vmax = vae_dec_out_pixels[0];
+      for (auto v : vae_dec_out_pixels) {
+        if (v < vmin) vmin = v;
+        if (v > vmax) vmax = v;
+      }
+      size_t total = vae_dec_out_pixels.size();
+      size_t expected = (size_t)1 * 3 * cur_out_w * cur_out_h;
+      QNN_DEBUG("[DIAG] VAE dec raw output: %zu floats (expect %zu for %dx%d), range [%.4f, %.4f]",
+                total, expected, cur_out_w, cur_out_h, vmin, vmax);
+      // Sample first pixel (R,G,B interleaved if NCHW)
+      float r0 = vae_dec_out_pixels[0];                          // ch0, pix0
+      float g0 = vae_dec_out_pixels[cur_out_h * cur_out_w];       // ch1, pix0
+      float b0 = vae_dec_out_pixels[2 * cur_out_h * cur_out_w];   // ch2, pix0
+      QNN_DEBUG("[DIAG] VAE dec pixel(0,0) NCHW: R=%.4f G=%.4f B=%.4f", r0, g0, b0);
+      // Also sample as if NHWC (offset 0,1,2)
+      QNN_DEBUG("[DIAG] VAE dec pixel(0,0) NHWC: R=%.4f G=%.4f B=%.4f",
+                vae_dec_out_pixels[0], vae_dec_out_pixels[1], vae_dec_out_pixels[2]);
+      // Sample last pixel to verify dimensions
+      int dx = cur_out_w - 1, dy = cur_out_h - 1;
+      QNN_DEBUG("[DIAG] VAE dec pixel(%d,%d) NCHW: R=%.4f G=%.4f B=%.4f",
+                dy, dx,
+                vae_dec_out_pixels[dy * cur_out_w + dx],
+                vae_dec_out_pixels[cur_out_h * cur_out_w + dy * cur_out_w + dx],
+                vae_dec_out_pixels[2 * cur_out_h * cur_out_w + dy * cur_out_w + dx]);
+
       std::vector<int> pixel_shape = {1, 3, cur_out_h, cur_out_w};
       pixels = xt::adapt(vae_dec_out_pixels, pixel_shape);
 
@@ -1118,6 +1144,23 @@ GenerationResult generateImage(
     auto norm = xt::clip(((transp + 1.0) / 2.0) * 255.0, 0.0, 255.0);
     xt::xarray<uint8_t> u8_img = xt::cast<uint8_t>(norm);
     std::vector<uint8_t> out_data(u8_img.begin(), u8_img.end());
+
+    // ── Diagnostic: verify post-processed pixel bytes (gated by QNN_DEBUG) ──
+    QNN_DEBUG("[DIAG] out_data size: %zu bytes (expect %d for %dx%dx3)",
+              out_data.size(), cur_out_w * cur_out_h * 3, cur_out_w, cur_out_h);
+    {
+      size_t off_tl = 0;  // (0,0)
+      QNN_DEBUG("[DIAG] out_data top-left (0,0): R=%d G=%d B=%d",
+                (int)out_data[off_tl], (int)out_data[off_tl+1], (int)out_data[off_tl+2]);
+      size_t off_cc = ((size_t)(cur_out_h/2) * cur_out_w + (cur_out_w/2)) * 3;
+      QNN_DEBUG("[DIAG] out_data center (%d,%d): R=%d G=%d B=%d",
+                cur_out_w/2, cur_out_h/2,
+                (int)out_data[off_cc], (int)out_data[off_cc+1], (int)out_data[off_cc+2]);
+      size_t off_br = ((size_t)(cur_out_h-1) * cur_out_w + (cur_out_w-1)) * 3;
+      QNN_DEBUG("[DIAG] out_data bottom-right (%d,%d): R=%d G=%d B=%d",
+                cur_out_w-1, cur_out_h-1,
+                (int)out_data[off_br], (int)out_data[off_br+1], (int)out_data[off_br+2]);
+    }
 
     int final_width = cur_out_w;
     int final_height = cur_out_h;
