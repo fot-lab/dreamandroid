@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
+import kotlin.random.Random
 
 /**
  * Queue state management with Room persistence, shared between UI and Worker.
@@ -119,7 +120,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         count: Int,
     ): String {
         val batchGroupId = UUID.randomUUID().toString()
-        val seedLong = seed.toLongOrNull()
+        val seedLong = seed.toLongOrNull() ?: Random.nextLong()
         val now = System.currentTimeMillis()
         val newTasks = (0 until count).map { i ->
             GenerationTask(
