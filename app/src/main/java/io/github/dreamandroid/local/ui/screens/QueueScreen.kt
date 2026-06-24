@@ -414,28 +414,44 @@ private fun BatchGroupCard(
                 }
 
                 // Status summary
+                val pending = group.tasks.count { it.status == TaskStatus.PENDING }
                 val completed = group.tasks.count { it.status == TaskStatus.COMPLETED }
                 val processing = group.tasks.count { it.status == TaskStatus.PROCESSING }
                 val errors = group.tasks.count { it.status == TaskStatus.ERROR }
-                if (completed > 0 || processing > 0 || errors > 0) {
-                    Spacer(Modifier.height(2.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (completed > 0) Text(
-                            "$completed done",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        if (processing > 0) Text(
-                            "$processing running",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = statusColor(TaskStatus.PROCESSING, processingActive),
-                        )
-                        if (errors > 0) Text(
-                            "$errors failed",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
+
+                // Total progress = average of subtask progress
+                val totalProgress = group.tasks.map { it.progress }.average().toFloat()
+                if (totalProgress > 0f) {
+                    Spacer(Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { totalProgress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = statusColor(TaskStatus.PROCESSING, processingActive),
+                    )
+                }
+
+                Spacer(Modifier.height(2.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (pending > 0) Text(
+                        "$pending pending",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    )
+                    if (completed > 0) Text(
+                        "$completed done",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (processing > 0) Text(
+                        "$processing running",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColor(TaskStatus.PROCESSING, processingActive),
+                    )
+                    if (errors > 0) Text(
+                        "$errors failed",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
 
                 // Expanded child tasks
