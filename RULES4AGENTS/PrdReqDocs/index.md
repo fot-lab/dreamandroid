@@ -23,6 +23,7 @@
 | ARCH-TARG-0001 | §10 | 目标架构设计 | [detail/ARCH-TARG-0001.md](detail/ARCH-TARG-0001.md) |
 | MODU-IFCE-0001 | §11 | 核心模块接口标准 | [detail/MODU-IFCE-0001.md](detail/MODU-IFCE-0001.md) |
 | TECH-SPEC-0001 | §12 | 技术规范 | [detail/TECH-SPEC-0001.md](detail/TECH-SPEC-0001.md) |
+| TECH-SPEC-0002 | §15 | C++ 后端 Generate Pipeline 审计 | [detail/TECH-SPEC-0002.md](detail/TECH-SPEC-0002.md) |
 | FILE-TARG-0001 | §13 | 目标文件结构 | [detail/FILE-TARG-0001.md](detail/FILE-TARG-0001.md) |
 | STAT-REVW-0001 | §14 | 静态审查发现 | [detail/STAT-REVW-0001.md](detail/STAT-REVW-0001.md) |
 | FIXP-PLAN-0001 | §16 | 架构修复方案设计 | [detail/FIXP-PLAN-0001.md](detail/FIXP-PLAN-0001.md) |

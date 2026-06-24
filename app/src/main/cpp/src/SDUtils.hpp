@@ -84,8 +84,8 @@ inline std::string base64_encode(const std::string &in) {
   static const auto lookup =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   std::string out;
-  out.reserve(in.size());
-  auto val = 0;
+  out.reserve(in.size() * 4 / 3 + 4);
+  unsigned int val = 0;
   auto valb = -6;
   for (auto c : in) {
     val = (val << 8) + static_cast<uint8_t>(c);
@@ -129,7 +129,8 @@ inline std::string base64_decode(const std::string &in) {
   std::string out;
   out.reserve(out_len);
 
-  int val = 0, valb = -8;
+  unsigned int val = 0;
+  int valb = -8;
   for (char c : in) {
     if (c == '=') {
       continue;

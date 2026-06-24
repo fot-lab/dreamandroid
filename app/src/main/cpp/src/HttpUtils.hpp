@@ -140,7 +140,9 @@ inline void onGenerateProgress(httplib::DataSink &sink,
         {"progress", progress}
     };
     if (!imgBase64.empty()) p["image"] = imgBase64;
-    sseWrite(sink, "progress", p);
+    if (!sseWrite(sink, "progress", p)) {
+        std::cerr << "WARNING: progress SSE write failed (sink disconnected)\n";
+    }
 }
 
 } // namespace http_detail

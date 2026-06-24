@@ -200,7 +200,11 @@ int main(int argc, char **argv) {
                     };
 
                     auto sendStart = std::chrono::high_resolution_clock::now();
-                    http_detail::sseWrite(sink, "complete", complete);
+                    if (!http_detail::sseWrite(sink, "complete", complete)) {
+                        std::cerr << "ERROR: failed to send complete SSE event (sink disconnected)\n";
+                        appCtx.serverState.release();
+                        return false;
+                    }
                     auto sendEnd = std::chrono::high_resolution_clock::now();
                     std::cout << "Image send time: "
                               << std::chrono::duration_cast<
