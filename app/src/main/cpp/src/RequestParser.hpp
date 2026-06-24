@@ -5,10 +5,7 @@
 //  Extracted from main.cpp.  Three helpers:
 //    • decodeAndSetImage()   — base64 image → float [C,H,W]
 //    • decodeAndSetMask()    — base64 mask  → latent(4ch) + full(3ch)
-//    • parseGenerateRequest()— full JSON parse, writes g_req
-//
-//  Depends on the global RequestContext `g_req` (declared extern here,
-//  defined in main.cpp).
+//    • parseGenerateRequest()— full JSON parse, writes RequestContext&
 // ════════════════════════════════════════════════════════════════════════════
 
 #include <algorithm>
@@ -31,8 +28,6 @@
 #include <xtensor/xmath.hpp>
 #include <xtensor/xoperation.hpp>
 #include <xtensor/xview.hpp>
-
-extern RequestContext g_req;
 
 namespace request_detail {
 
@@ -113,7 +108,7 @@ inline void decodeAndSetMask(const std::string &maskB64,
 // ══════════════════════════════════════════════════════════════════════
 
 /**
- * Parse the /generate JSON body into g_req and compute derived paint-rect
+ * Parse the /generate JSON body into RequestContext& and compute derived paint-rect
  * values.  Handles:
  *   1. Core fields (prompt, steps, cfg_scale, seed, scheduler, size …)
  *   2. SDXL aspect_ratio → sets req.{target_crop_w/h, aspect_pad_inpaint}
@@ -125,18 +120,19 @@ inline void decodeAndSetMask(const std::string &maskB64,
  */
 inline void parseGenerateRequest(
     const nlohmann::json &json,
-    AppContext &appCtx)
+    AppContext &appCtx,
+    RequestContext &req_)
 {
     // ── Core fields ──────────────────────────────────────────────────
     if (!json.contains("prompt"))
         throw std::invalid_argument("Missing 'prompt'");
 
-    g_req.prompt               = json["prompt"].get<std::string>();
-    g_req.negative_prompt      = json.value("negative_prompt", "");
-    g_req.steps                = json.value("steps", 20);
-    g_req.samples              = json.value("samples", 1);
-    g_req.cfg_scale            = json.value("cfg_scale", 7.5f);
-    g_req.sampler_type         = json.value("sampler", "dpm");
+    req_.prompt               = json["prompt"].get<std::string>();
+    req_.negative_prompt      = json.value("negative_prompt", "");
+    req_.steps                = json.value("steps", 20);
+    req_.samples              = json.value("samples", 1);
+    req_.cfg_scale            = json.value("cfg_scale", 7.5f);
+    req_.sampler_type         = json.value("sampler", "dpm");
 
     // -- Scheduler (denoise curve) with validation --
     if (json.contains("scheduler")) {
@@ -154,19 +150,19 @@ inline void parseGenerateRequest(
                 "Unsupported scheduler '" + sched_val +
                 "'. Supported: scaled_linear, linear, karras");
         }
-        g_req.denoise_curve = sched_val;
+        req_.denoise_curve = sched_val;
     } else {
         // HuggingFace diffusers default: scaled_linear
-        g_req.denoise_curve = "scaled_linear";
+        req_.denoise_curve = "scaled_linear";
     }
 
-    g_req.use_opencl           = json.value("use_opencl", false);
-    g_req.show_diffusion_process = json.value("show_diffusion_process", false);
-    g_req.show_diffusion_stride  = json.value("show_diffusion_stride", 1);
-    g_req.seed                 = json.value("seed", 0u);  // 0 = random (Stability-AI)
-    g_req.denoising_strength   = json.value("denoising_strength", 0.6f);  // A1111 name
+    req_.use_opencl           = json.value("use_opencl", false);
+    req_.show_diffusion_process = json.value("show_diffusion_process", false);
+    req_.show_diffusion_stride  = json.value("show_diffusion_stride", 1);
+    req_.seed                 = json.value("seed", 0u);  // 0 = random (Stability-AI)
+    req_.denoising_strength   = json.value("denoising_strength", 0.6f);  // A1111 name
 
-    if (g_req.samples != 1)
+    if (req_.samples != 1)
         throw std::invalid_argument("samples must be 1 (batch>1 not supported)");
 
     int reqW = json.value("width", 512);
@@ -178,23 +174,23 @@ inline void parseGenerateRequest(
     if (appCtx.conf.sdxl_mode) { reqW = 1024; reqH = 1024; }
 
     // Zero-init img2img / mask fields
-    g_req.request_img2img       = false;
-    g_req.request_has_mask     = false;
-    g_req.aspect_pad_inpaint   = false;
-    g_req.aspect_pad_synthetic_base = false;
-    g_req.user_supplied_mask   = false;
-    g_req.target_crop_width    = 0;
-    g_req.target_crop_height   = 0;
+    req_.request_img2img       = false;
+    req_.request_has_mask     = false;
+    req_.aspect_pad_inpaint   = false;
+    req_.aspect_pad_synthetic_base = false;
+    req_.user_supplied_mask   = false;
+    req_.target_crop_width    = 0;
+    req_.target_crop_height   = 0;
 
     // Release previous request vector capacity
-    g_req.img_data.clear();       g_req.img_data.shrink_to_fit();
-    g_req.mask_data.clear();      g_req.mask_data.shrink_to_fit();
-    g_req.mask_data_full.clear(); g_req.mask_data_full.shrink_to_fit();
+    req_.img_data.clear();       req_.img_data.shrink_to_fit();
+    req_.mask_data.clear();      req_.mask_data.shrink_to_fit();
+    req_.mask_data_full.clear(); req_.mask_data_full.shrink_to_fit();
 
-    g_req.output_width  = reqW;
-    g_req.output_height = reqH;
-    g_req.sample_width  = reqW / 8;
-    g_req.sample_height = reqH / 8;
+    req_.output_width  = reqW;
+    req_.output_height = reqH;
+    req_.sample_width  = reqW / 8;
+    req_.sample_height = reqH / 8;
 
     // ── SDXL aspect ratio ────────────────────────────────────────────
     if (appCtx.conf.sdxl_mode && json.contains("aspect_ratio") &&
@@ -218,9 +214,9 @@ inline void parseGenerateRequest(
                         tw = (tw / 8) * 8;
                         if (tw < 8) tw = 8;
                     }
-                    g_req.target_crop_width  = tw;
-                    g_req.target_crop_height = th;
-                    g_req.aspect_pad_inpaint = true;
+                    req_.target_crop_width  = tw;
+                    req_.target_crop_height = th;
+                    req_.aspect_pad_inpaint = true;
                 }
             } catch (...) {
                 // Bad aspect_ratio string — proceed with 1:1.
@@ -229,135 +225,135 @@ inline void parseGenerateRequest(
     }
 
     // ── Compute paint rectangle ──────────────────────────────────────
-    int paint_w  = g_req.target_crop_width;
-    int paint_h  = g_req.target_crop_height;
+    int paint_w  = req_.target_crop_width;
+    int paint_h  = req_.target_crop_height;
     int paint_x0 = 0;
     int paint_y0 = 0;
-    if (g_req.aspect_pad_inpaint) {
-        if (g_req.target_crop_width < g_req.output_width)
-            paint_w = std::min(g_req.output_width,
-                               g_req.target_crop_width + 2 * kAspectPadPx);
-        if (g_req.target_crop_height < g_req.output_height)
-            paint_h = std::min(g_req.output_height,
-                               g_req.target_crop_height + 2 * kAspectPadPx);
-        paint_x0 = (g_req.output_width  - paint_w) / 2;
-        paint_y0 = (g_req.output_height - paint_h) / 2;
+    if (req_.aspect_pad_inpaint) {
+        if (req_.target_crop_width < req_.output_width)
+            paint_w = std::min(req_.output_width,
+                               req_.target_crop_width + 2 * kAspectPadPx);
+        if (req_.target_crop_height < req_.output_height)
+            paint_h = std::min(req_.output_height,
+                               req_.target_crop_height + 2 * kAspectPadPx);
+        paint_x0 = (req_.output_width  - paint_w) / 2;
+        paint_y0 = (req_.output_height - paint_h) / 2;
     }
 
     // ── Image (user-supplied or synthetic base) ──────────────────────
     if (json.contains("image")) {
-        g_req.request_img2img = true;
-        decodeAndSetImage(json["image"].get<std::string>(), g_req);
-    } else if (g_req.aspect_pad_inpaint) {
+        req_.request_img2img = true;
+        decodeAndSetImage(json["image"].get<std::string>(), req_);
+    } else if (req_.aspect_pad_inpaint) {
         // Synthetic white-on-black canvas: black border (-1) with white
         // paint region (+1) extended kAspectPadPx past the crop along the
         // short axis so the mask boundary never coincides with the latent's
         // black→white transition.
-        g_req.aspect_pad_synthetic_base = true;
-        size_t imgTotal = 3ull * g_req.output_width * g_req.output_height;
-        g_req.img_data.assign(imgTotal, -1.0f);
+        req_.aspect_pad_synthetic_base = true;
+        size_t imgTotal = 3ull * req_.output_width * req_.output_height;
+        req_.img_data.assign(imgTotal, -1.0f);
         for (int c = 0; c < 3; ++c) {
             for (int y = paint_y0; y < paint_y0 + paint_h; ++y) {
-                float *row = g_req.img_data.data() +
-                             (static_cast<size_t>(c) * g_req.output_height + y) *
-                                 g_req.output_width;
+                float *row = req_.img_data.data() +
+                             (static_cast<size_t>(c) * req_.output_height + y) *
+                                 req_.output_width;
                 for (int x = paint_x0; x < paint_x0 + paint_w; ++x)
                     row[x] = 1.0f;
             }
         }
-        g_req.request_img2img     = true;
-        g_req.denoising_strength  = 1.0f;  // fully renoise
+        req_.request_img2img     = true;
+        req_.denoising_strength  = 1.0f;  // fully renoise
     }
 
     // ── Mask ─────────────────────────────────────────────────────────
     if (json.contains("mask")) {
-        if (!g_req.request_img2img)
+        if (!req_.request_img2img)
             throw std::runtime_error("mask requires image");
-        g_req.request_has_mask  = true;
-        g_req.user_supplied_mask = true;
-        decodeAndSetMask(json["mask"].get<std::string>(), g_req);
+        req_.request_has_mask  = true;
+        req_.user_supplied_mask = true;
+        decodeAndSetMask(json["mask"].get<std::string>(), req_);
     }
 
     // ── Aspect padding mask (intersect or install) ───────────────────
-    if (g_req.aspect_pad_inpaint) {
+    if (req_.aspect_pad_inpaint) {
         int lx0 = paint_x0 / 8;
         int ly0 = paint_y0 / 8;
-        int lx1 = std::min(g_req.sample_width,
+        int lx1 = std::min(req_.sample_width,
                            (paint_x0 + paint_w + 7) / 8);
-        int ly1 = std::min(g_req.sample_height,
+        int ly1 = std::min(req_.sample_height,
                            (paint_y0 + paint_h + 7) / 8);
 
-        if (g_req.request_has_mask) {
+        if (req_.request_has_mask) {
             // Intersect: zero out everything outside the paint rectangle
             for (int c = 0; c < 4; ++c) {
-                for (int y = 0; y < g_req.sample_height; ++y) {
-                    float *row = g_req.mask_data.data() +
-                                 (static_cast<size_t>(c) * g_req.sample_height + y) *
-                                     g_req.sample_width;
+                for (int y = 0; y < req_.sample_height; ++y) {
+                    float *row = req_.mask_data.data() +
+                                 (static_cast<size_t>(c) * req_.sample_height + y) *
+                                     req_.sample_width;
                     if (y < ly0 || y >= ly1) {
-                        std::fill(row, row + g_req.sample_width, 0.0f);
+                        std::fill(row, row + req_.sample_width, 0.0f);
                     } else {
                         std::fill(row, row + lx0, 0.0f);
-                        std::fill(row + lx1, row + g_req.sample_width, 0.0f);
+                        std::fill(row + lx1, row + req_.sample_width, 0.0f);
                     }
                 }
             }
             for (int c = 0; c < 3; ++c) {
-                for (int y = 0; y < g_req.output_height; ++y) {
-                    float *row = g_req.mask_data_full.data() +
-                                 (static_cast<size_t>(c) * g_req.output_height + y) *
-                                     g_req.output_width;
+                for (int y = 0; y < req_.output_height; ++y) {
+                    float *row = req_.mask_data_full.data() +
+                                 (static_cast<size_t>(c) * req_.output_height + y) *
+                                     req_.output_width;
                     if (y < paint_y0 || y >= paint_y0 + paint_h) {
-                        std::fill(row, row + g_req.output_width, 0.0f);
+                        std::fill(row, row + req_.output_width, 0.0f);
                     } else {
                         std::fill(row, row + paint_x0, 0.0f);
                         std::fill(row + paint_x0 + paint_w,
-                                  row + g_req.output_width, 0.0f);
+                                  row + req_.output_width, 0.0f);
                     }
                 }
             }
         } else {
             // Install full-opacity paint-rect mask
-            g_req.mask_data.assign(
-                4ull * g_req.sample_width * g_req.sample_height, 0.0f);
+            req_.mask_data.assign(
+                4ull * req_.sample_width * req_.sample_height, 0.0f);
             for (int c = 0; c < 4; ++c) {
                 for (int y = ly0; y < ly1; ++y) {
-                    float *row = g_req.mask_data.data() +
-                                 (static_cast<size_t>(c) * g_req.sample_height + y) *
-                                     g_req.sample_width;
+                    float *row = req_.mask_data.data() +
+                                 (static_cast<size_t>(c) * req_.sample_height + y) *
+                                     req_.sample_width;
                     for (int x = lx0; x < lx1; ++x) row[x] = 1.0f;
                 }
             }
-            g_req.mask_data_full.assign(
-                3ull * g_req.output_width * g_req.output_height, 0.0f);
+            req_.mask_data_full.assign(
+                3ull * req_.output_width * req_.output_height, 0.0f);
             for (int c = 0; c < 3; ++c) {
                 for (int y = paint_y0; y < paint_y0 + paint_h; ++y) {
-                    float *row = g_req.mask_data_full.data() +
-                                 (static_cast<size_t>(c) * g_req.output_height + y) *
-                                     g_req.output_width;
+                    float *row = req_.mask_data_full.data() +
+                                 (static_cast<size_t>(c) * req_.output_height + y) *
+                                     req_.output_width;
                     for (int x = paint_x0; x < paint_x0 + paint_w; ++x)
                         row[x] = 1.0f;
                 }
             }
-            g_req.request_has_mask = true;
+            req_.request_has_mask = true;
         }
     }
 
     // ── Log parsed request ───────────────────────────────────────────
-    std::cout << "Req Rcvd: P:" << g_req.prompt
-              << " NP:" << g_req.negative_prompt
-              << " S:" << g_req.steps
-              << " CFG:" << g_req.cfg_scale
-              << " Seed:" << g_req.seed
-              << " Size:" << g_req.output_width << "x" << g_req.output_height
-              << " Img2Img:" << g_req.request_img2img
-              << " Mask:" << g_req.request_has_mask
-              << " Denoise:" << g_req.denoising_strength
-              << " Sampler:" << g_req.sampler_type
-              << " DenoiseCurve:" << g_req.denoise_curve
-              << " Samples:" << g_req.samples
-              << " ShowProcess:" << g_req.show_diffusion_process
-              << " Stride:" << g_req.show_diffusion_stride << std::endl;
+    std::cout << "Req Rcvd: P:" << req_.prompt
+              << " NP:" << req_.negative_prompt
+              << " S:" << req_.steps
+              << " CFG:" << req_.cfg_scale
+              << " Seed:" << req_.seed
+              << " Size:" << req_.output_width << "x" << req_.output_height
+              << " Img2Img:" << req_.request_img2img
+              << " Mask:" << req_.request_has_mask
+              << " Denoise:" << req_.denoising_strength
+              << " Sampler:" << req_.sampler_type
+              << " DenoiseCurve:" << req_.denoise_curve
+              << " Samples:" << req_.samples
+              << " ShowProcess:" << req_.show_diffusion_process
+              << " Stride:" << req_.show_diffusion_stride << std::endl;
 }
 
 } // namespace request_detail

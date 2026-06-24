@@ -69,8 +69,6 @@
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xview.hpp>
 
-RequestContext g_req;
-
 namespace {
 constexpr int kUpscaleMinEdge = 192;   // minimum edge before upscale pre-resize
 } // anonymous namespace
@@ -141,9 +139,10 @@ int main(int argc, char **argv) {
         http_detail::BusyGuard busyGuard(appCtx.serverState);
 
         // ── Phase 1: parse request (sync) ────────────────────────────
+        RequestContext reqCtx;
         try {
             request_detail::parseGenerateRequest(
-                nlohmann::json::parse(req.body), appCtx);
+                nlohmann::json::parse(req.body), appCtx, reqCtx);
         } catch (const nlohmann::json::parse_error &e) {
             http_detail::setHttpError(res, 400, "invalid_json", e.what());
             return;
@@ -163,7 +162,7 @@ int main(int argc, char **argv) {
         res.set_header("Connection", "keep-alive");
         res.set_chunked_content_provider(
             "text/event-stream",
-            [&appCtx, acquireTime](intptr_t, httplib::DataSink &sink) -> bool {
+            [&appCtx, acquireTime, reqCtx](intptr_t, httplib::DataSink &sink) mutable -> bool {
                 // Watchdog: check for hung generation
                 if (appCtx.serverState.checkAndReleaseTimeout(acquireTime))
                     return http_detail::sseErrorDone(sink,
@@ -173,7 +172,7 @@ int main(int argc, char **argv) {
 
                 try {
                     auto result = generateImage(
-                        g_req, appCtx,
+                        reqCtx, appCtx,
                         [&sink, &appCtx](int s, int t,
                                          const std::string &img) {
                             http_detail::onGenerateProgress(sink, appCtx.serverState, s, t,
@@ -190,7 +189,7 @@ int main(int argc, char **argv) {
                     nlohmann::json complete = {
                         {"type", "complete"},
                         {"image", encImg},
-                        {"seed", g_req.seed},
+                        {"seed", reqCtx.seed},
                         {"width", result.width},
                         {"height", result.height},
                         {"channels", result.channels},

@@ -77,6 +77,15 @@ GenerationResult generateImage(
   int cur_samp_w = req.sample_width;
   int cur_samp_h = req.sample_height;
 
+  // ── BKND-PROC-0008 P0: Sync Config.hpp inline globals with per-request
+  //     dimensions so that QnnModel methods (which read sample_width/
+  //     sample_height / output_width / output_height directly from
+  //     Config.hpp) use the correct sizes for this request.
+  sample_width  = cur_samp_w;
+  sample_height = cur_samp_h;
+  output_width  = cur_out_w;
+  output_height = cur_out_h;
+
   // ── Precondition checks ──
   if (req.prompt.empty()) throw std::invalid_argument("Prompt empty");
   if (conf.use_safety_checker && !models.safetyCheckerInterpreter)
@@ -582,6 +591,11 @@ GenerationResult generateImage(
         cur_out_h = vae_enc_tile_size;
         cur_samp_w = vae_enc_latent_tile_size;
         cur_samp_h = vae_enc_latent_tile_size;
+        // Sync Config.hpp globals so QnnModel methods see tile sizes
+        output_width  = cur_out_w;
+        output_height = cur_out_h;
+        sample_width  = cur_samp_w;
+        sample_height = cur_samp_h;
 
         std::vector<std::pair<xt::xarray<float>, xt::xarray<float>>>
             encoded_tiles_mean_std;
@@ -622,6 +636,11 @@ GenerationResult generateImage(
         cur_out_h = original_output_height;
         cur_samp_w = original_sample_width;
         cur_samp_h = original_sample_height;
+        // Restore Config.hpp globals to original request dimensions
+        output_width  = cur_out_w;
+        output_height = cur_out_h;
+        sample_width  = cur_samp_w;
+        sample_height = cur_samp_h;
 
         xt::xarray<float> img_lat = blendVaeEncoderTiles(
             encoded_tiles_mean_std, latent_positions, cur_samp_h,
@@ -1003,6 +1022,11 @@ GenerationResult generateImage(
       cur_out_h = vae_tile_size;
       cur_samp_w = vae_latent_tile_size;
       cur_samp_h = vae_latent_tile_size;
+      // Sync Config.hpp globals so QnnModel methods see tile sizes
+      output_width  = cur_out_w;
+      output_height = cur_out_h;
+      sample_width  = cur_samp_w;
+      sample_height = cur_samp_h;
 
       std::vector<xt::xarray<float>> decoded_tiles;
       decoded_tiles.reserve(latent_positions.size());
@@ -1037,6 +1061,11 @@ GenerationResult generateImage(
       cur_out_h = original_output_height;
       cur_samp_w = original_sample_width;
       cur_samp_h = original_sample_height;
+      // Restore Config.hpp globals to original request dimensions
+      output_width  = cur_out_w;
+      output_height = cur_out_h;
+      sample_width  = cur_samp_w;
+      sample_height = cur_samp_h;
 
       pixels = blendVaeOutputTiles(decoded_tiles, output_positions,
                                       cur_out_h, cur_out_w,
