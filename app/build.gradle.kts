@@ -31,7 +31,8 @@ detekt {
 // Format: YYYY.MM.DD.HH.mm  (zero-padded, UTC)
 // versionName = content of VERSION_NAME as-is
 val versionFile = file("${rootProject.projectDir}/VERSION_NAME")
-val appVersionName = versionFile.readText().trim()
+// Strip any suffix (e.g. -rc, -beta) for clean numeric parsing
+val appVersionName = versionFile.readText().trim().substringBefore("-")
 val versionParts = appVersionName.split(".").map { it.toInt() }
 require(versionParts.size == 5) { "VERSION_NAME must contain exactly 5 parts: YYYY.MM.DD.HH.mm, got: $appVersionName" }
 
