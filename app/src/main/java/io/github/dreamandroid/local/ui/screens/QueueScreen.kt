@@ -78,34 +78,20 @@ fun QueueScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(batchGroups, key = { it.batchGroupId }) { group ->
-            val isExpanded = expandedGroups[group.batchGroupId] ?: false
-            val hasSingle = group.tasks.size == 1
+            val isExpanded = expandedGroups[group.batchGroupId] ?: (group.tasks.size == 1)
 
-            if (hasSingle) {
-                // Single task in batch — show flat entry
-                val task = group.tasks.first()
-                TaskCard(
-                    task = task,
-                    processingActive = processingActive,
-                    onRemove = { onRemoveTask(task.id) },
-                    onSaveInfo = { onSaveInfo(task) },
-                    onToggleExpand = null,
-                    isExpanded = false,
-                )
-            } else {
-                // Multi-task batch — collapsible group
-                BatchGroupCard(
-                    group = group,
-                    isExpanded = isExpanded,
-                    processingActive = processingActive,
-                    onToggleExpand = {
-                        expandedGroups[group.batchGroupId] = !isExpanded
-                    },
-                    onRemoveTask = onRemoveTask,
-                    onRemoveBatch = onRemoveBatch,
-                    onSaveInfo = onSaveInfo,
-                )
-            }
+            // All batches render as a unified collapsible group (single-task groups auto-expanded)
+            BatchGroupCard(
+                group = group,
+                isExpanded = isExpanded,
+                processingActive = processingActive,
+                onToggleExpand = {
+                    expandedGroups[group.batchGroupId] = !isExpanded
+                },
+                onRemoveTask = onRemoveTask,
+                onRemoveBatch = onRemoveBatch,
+                onSaveInfo = onSaveInfo,
+            )
         }
 
         item { Spacer(Modifier.height(80.dp)) }

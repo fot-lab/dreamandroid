@@ -120,9 +120,10 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         count: Int,
     ): String {
         val batchGroupId = UUID.randomUUID().toString()
-        val seedLong = seed.toLongOrNull() ?: Random.nextLong()
+        val userSeed = seed.toLongOrNull()
         val now = System.currentTimeMillis()
         val newTasks = (0 until count).map { i ->
+            val seedLong = userSeed ?: Random.nextLong()
             GenerationTask(
                 id = UUID.randomUUID().toString(),
                 batchGroupId = batchGroupId,
@@ -163,12 +164,17 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     }
 
     fun removeBatch(batchGroupId: String) {
-        _tasks.value.filter { it.batchGroupId == batchGroupId }
-            .forEach { task ->
-                task.resultBitmapPath?.let { path ->
-                    try { java.io.File(path).delete() } catch (_: Exception) {}
-                }
+        val batchTasks = _tasks.value.filter { it.batchGroupId == batchGroupId }
+        if (batchTasks.isEmpty() && batchGroupId.isNotEmpty()) {
+            // Synthetic group key for an orphan task (batchGroupId was empty, keyed by task id)
+            removeTask(batchGroupId)
+            return
+        }
+        batchTasks.forEach { task ->
+            task.resultBitmapPath?.let { path ->
+                try { java.io.File(path).delete() } catch (_: Exception) {}
             }
+        }
         _tasks.update { it.filterNot { t -> t.batchGroupId == batchGroupId } }
         scope.launch { db.taskDao().deleteQueueByBatch(batchGroupId) }
     }
@@ -252,16 +258,18 @@ class QueueRepository private constructor(private val db: AppDatabase) {
 
     /** Build collapsed batch groups for display */
     fun getBatchGroups(): List<BatchGroupDisplay> {
-        val grouped = _tasks.value.groupBy { it.batchGroupId }
-        return grouped.map { (groupId, tasks) ->
-            val sorted = tasks.sortedBy { it.batchIndex }
-            BatchGroupDisplay(
-                batchGroupId = groupId,
-                tasks = sorted,
-                prompt = sorted.firstOrNull()?.prompt ?: "",
-                count = tasks.size,
-            )
-        }
+        val tasks = _tasks.value
+        // Tasks without batchGroupId (orphans from pre-batch era) get their own group keyed by task id
+        return tasks.groupBy { it.batchGroupId.ifEmpty { it.id } }
+            .map { (groupId, groupedTasks) ->
+                val sorted = groupedTasks.sortedBy { it.batchIndex }
+                BatchGroupDisplay(
+                    batchGroupId = groupId,
+                    tasks = sorted,
+                    prompt = sorted.firstOrNull()?.prompt ?: "",
+                    count = groupedTasks.size,
+                )
+            }
     }
 
     fun clearCompleted() {
