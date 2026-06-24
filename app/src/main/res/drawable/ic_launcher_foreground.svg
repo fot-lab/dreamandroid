@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="512" height="512">
+  <defs>
+    <!-- Moon gradient: pink-purple -->
+    <linearGradient id="moonGrad" x1="292" y1="512" x2="732" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E0C3FC"/>
+      <stop offset="0.5" stop-color="#FBC2EB"/>
+      <stop offset="1" stop-color="#A18CD1"/>
+    </linearGradient>
+
+    <!-- Ring gradient: silver-purple -->
+    <linearGradient id="ringGrad" x1="172" y1="512" x2="852" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B8A0D4"/>
+      <stop offset="0.25" stop-color="#E8D5F0"/>
+      <stop offset="0.5" stop-color="#FFFFFF"/>
+      <stop offset="0.75" stop-color="#E8D5F0"/>
+      <stop offset="1" stop-color="#B8A0D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#F8F4FF"/>
+
+  <!-- Ring: back half (behind moon, upper arc) -->
+  <g transform="rotate(-18, 512, 512)">
+    <path d="M 167,512 A 345,95 0 0,1 857,512"
+          stroke="url(#ringGrad)" stroke-width="24" fill="none"/>
+  </g>
+
+  <!-- Full Moon -->
+  <circle cx="512" cy="512" r="220" fill="url(#moonGrad)"/>
+
+  <!-- Craters -->
+  <!-- Large craters (double-ring) -->
+  <circle cx="448" cy="440" r="38" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="3.5"/>
+  <circle cx="450" cy="438" r="34" fill="#F6F0FC" stroke="#3D1F6E" stroke-width="1.5"/>
+
+  <circle cx="432" cy="575" r="28" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="3"/>
+  <circle cx="433" cy="574" r="24" fill="#F6F0FC" stroke="#3D1F6E" stroke-width="1.5"/>
+
+  <circle cx="580" cy="418" r="26" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="3"/>
+  <circle cx="581" cy="417" r="22" fill="#F6F0FC" stroke="#3D1F6E" stroke-width="1.5"/>
+
+  <!-- Medium craters -->
+  <circle cx="510" cy="378" r="20" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+  <circle cx="518" cy="675" r="17" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+  <circle cx="590" cy="375" r="14" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+  <circle cx="352" cy="528" r="14" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+  <circle cx="410" cy="388" r="12" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+
+  <!-- Small craters -->
+  <circle cx="562" cy="558" r="15" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+  <circle cx="608" cy="492" r="12" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+  <circle cx="600" cy="565" r="11" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2.5"/>
+  <circle cx="385" cy="602" r="10" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+  <circle cx="468" cy="602" r="9" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+
+  <!-- Tiny craters -->
+  <circle cx="398" cy="508" r="9" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+  <circle cx="492" cy="468" r="7" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+  <circle cx="545" cy="625" r="8" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+  <circle cx="535" cy="318" r="6" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+  <circle cx="555" cy="498" r="6" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+  <circle cx="480" cy="410" r="6" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="2"/>
+  <circle cx="530" cy="530" r="5" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+  <circle cx="420" cy="620" r="7" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+  <circle cx="610" cy="440" r="5" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+  <circle cx="380" cy="420" r="6" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+  <circle cx="625" cy="515" r="6" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+  <circle cx="365" cy="475" r="5" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+  <circle cx="495" cy="535" r="4" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+  <circle cx="455" cy="498" r="4" fill="#FFFFFF" stroke="#3D1F6E" stroke-width="1.5"/>
+
+  <!-- Ring: front half (in front of moon, lower arc) -->
+  <g transform="rotate(-18, 512, 512)">
+    <path d="M 167,512 A 345,95 0 0,0 857,512"
+          stroke="url(#ringGrad)" stroke-width="24" fill="none"/>
+  </g>
+</svg>

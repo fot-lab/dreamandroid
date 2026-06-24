@@ -4,55 +4,94 @@
     android:height="108dp"
     android:viewportWidth="1024"
     android:viewportHeight="1024">
-  <group android:scaleX="0.5"
-      android:scaleY="0.5"
-      android:translateX="256"
-      android:translateY="256">
+
+    <!-- Ring: back half (behind moon) -->
+    <group android:pivotX="512" android:pivotY="512" android:rotation="-18">
+        <path
+            android:pathData="M167,512 A345,95 0 0,1 857,512"
+            android:strokeWidth="24"
+            android:fillColor="#00000000">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:startX="172" android:startY="512" android:endX="852" android:endY="512" android:type="linear">
+                    <item android:offset="0" android:color="#FFB8A0D4"/>
+                    <item android:offset="0.25" android:color="#FFE8D5F0"/>
+                    <item android:offset="0.5" android:color="#FFFFFFFF"/>
+                    <item android:offset="0.75" android:color="#FFE8D5F0"/>
+                    <item android:offset="1" android:color="#FFB8A0D4"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+
+    <!-- Full Moon -->
     <path
-        android:pathData="M178.3,830.8A128,384 80,0 1,934.6 697.4A128,384 80,0 1,178.3 830.8Z"
-        android:strokeWidth="72"
-        android:fillColor="#00000000">
-      <aapt:attr name="android:strokeColor">
-        <gradient
-            android:startX="177.8"
-            android:startY="622.5"
-            android:endX="934.6"
-            android:endY="622.5"
-            android:type="linear">
-          <item android:offset="0" android:color="#FFA18CD1"/>
-          <item android:offset="1" android:color="#FFFBC2EB"/>
-        </gradient>
-      </aapt:attr>
+        android:pathData="M292,512 A220,220 0 1,1 732,512 A220,220 0 1,1 292,512 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:startX="292" android:startY="512" android:endX="732" android:endY="512" android:type="linear">
+                <item android:offset="0" android:color="#FFE0C3FC"/>
+                <item android:offset="0.5" android:color="#FFFBC2EB"/>
+                <item android:offset="1" android:color="#FFA18CD1"/>
+            </gradient>
+        </aapt:attr>
     </path>
-    <path
-        android:pathData="M455.5,41.1c-22.9,-41.2 -47.1,-36.9 -54.5,9.6l-40.1,261.8c-6.9,46.4 -46.8,102.9 -87.5,125.7L42.5,565.1c-41.2,22.9 -36.9,47.1 9.6,54.5l259,41.7c46.5,7.4 103,47.4 125.7,88l128.9,232.5c22.9,41.2 47.1,36.9 54.5,-9.6l39.8,-260.7c6.9,-46.4 46.3,-102.8 87.5,-125.7l234.1,-129.1c41.2,-22.9 36.9,-47.1 -9.5,-54l-259.6,-39.5c-46.4,-6.9 -102.8,-46.3 -125.7,-87.5 -1.6,-0.2 -131.3,-234.7 -131.3,-234.7z">
-      <aapt:attr name="android:fillColor">
-        <gradient 
-            android:startX="14.2"
-            android:startY="12.8"
-            android:endX="1009.9"
-            android:endY="1010.1"
-            android:type="linear">
-          <item android:offset="0" android:color="#FFE0C3FC"/>
-          <item android:offset="1" android:color="#FF8EC5FC"/>
-        </gradient>
-      </aapt:attr>
-    </path>
-    <path
-        android:pathData="M934.6,697.4A128,384 80,0 1,178.3 830.8"
-        android:strokeWidth="72"
-        android:fillColor="#00000000">
-      <aapt:attr name="android:strokeColor">
-        <gradient 
-            android:startX="178.3"
-            android:startY="697.4"
-            android:endX="935.1"
-            android:endY="697.4"
-            android:type="linear">
-          <item android:offset="0" android:color="#FFA18CD1"/>
-          <item android:offset="1" android:color="#FFFBC2EB"/>
-        </gradient>
-      </aapt:attr>
-    </path>
-  </group>
+
+    <!-- Large craters (double-ring) -->
+    <path android:pathData="M410,440 A38,38 0 1,1 486,440 A38,38 0 1,1 410,440 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="3.5"/>
+    <path android:pathData="M416,438 A34,34 0 1,1 484,438 A34,34 0 1,1 416,438 Z" android:fillColor="#FFF6F0FC" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+
+    <path android:pathData="M404,575 A28,28 0 1,1 460,575 A28,28 0 1,1 404,575 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="3"/>
+    <path android:pathData="M409,574 A24,24 0 1,1 457,574 A24,24 0 1,1 409,574 Z" android:fillColor="#FFF6F0FC" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+
+    <path android:pathData="M554,418 A26,26 0 1,1 606,418 A26,26 0 1,1 554,418 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="3"/>
+    <path android:pathData="M559,417 A22,22 0 1,1 603,417 A22,22 0 1,1 559,417 Z" android:fillColor="#FFF6F0FC" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+
+    <!-- Medium craters -->
+    <path android:pathData="M490,378 A20,20 0 1,1 530,378 A20,20 0 1,1 490,378 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+    <path android:pathData="M501,675 A17,17 0 1,1 535,675 A17,17 0 1,1 501,675 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+    <path android:pathData="M576,375 A14,14 0 1,1 604,375 A14,14 0 1,1 576,375 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+    <path android:pathData="M338,528 A14,14 0 1,1 366,528 A14,14 0 1,1 338,528 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+    <path android:pathData="M398,388 A12,12 0 1,1 422,388 A12,12 0 1,1 398,388 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+
+    <!-- Small craters -->
+    <path android:pathData="M547,558 A15,15 0 1,1 577,558 A15,15 0 1,1 547,558 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+    <path android:pathData="M596,492 A12,12 0 1,1 620,492 A12,12 0 1,1 596,492 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+    <path android:pathData="M589,565 A11,11 0 1,1 611,565 A11,11 0 1,1 589,565 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2.5"/>
+    <path android:pathData="M375,602 A10,10 0 1,1 395,602 A10,10 0 1,1 375,602 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M459,602 A9,9 0 1,1 477,602 A9,9 0 1,1 459,602 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+
+    <!-- Tiny craters -->
+    <path android:pathData="M389,508 A9,9 0 1,1 407,508 A9,9 0 1,1 389,508 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M485,468 A7,7 0 1,1 499,468 A7,7 0 1,1 485,468 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M537,625 A8,8 0 1,1 553,625 A8,8 0 1,1 537,625 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M529,318 A6,6 0 1,1 541,318 A6,6 0 1,1 529,318 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M549,498 A6,6 0 1,1 561,498 A6,6 0 1,1 549,498 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M474,410 A6,6 0 1,1 486,410 A6,6 0 1,1 474,410 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M525,530 A5,5 0 1,1 535,530 A5,5 0 1,1 525,530 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M413,620 A7,7 0 1,1 427,620 A7,7 0 1,1 413,620 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M605,440 A5,5 0 1,1 615,440 A5,5 0 1,1 605,440 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M374,420 A6,6 0 1,1 386,420 A6,6 0 1,1 374,420 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M619,515 A6,6 0 1,1 631,515 A6,6 0 1,1 619,515 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M360,475 A5,5 0 1,1 370,475 A5,5 0 1,1 360,475 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M491,535 A4,4 0 1,1 499,535 A4,4 0 1,1 491,535 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M451,498 A4,4 0 1,1 459,498 A4,4 0 1,1 451,498 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+    <path android:pathData="M468,648 A5,5 0 1,1 478,648 A5,5 0 1,1 468,648 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="2"/>
+    <path android:pathData="M568,352 A5,5 0 1,1 578,352 A5,5 0 1,1 568,352 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FF3D1F6E" android:strokeWidth="1.5"/>
+
+    <!-- Ring: front half (in front of moon) -->
+    <group android:pivotX="512" android:pivotY="512" android:rotation="-18">
+        <path
+            android:pathData="M167,512 A345,95 0 0,0 857,512"
+            android:strokeWidth="24"
+            android:fillColor="#00000000">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:startX="172" android:startY="512" android:endX="852" android:endY="512" android:type="linear">
+                    <item android:offset="0" android:color="#FFB8A0D4"/>
+                    <item android:offset="0.25" android:color="#FFE8D5F0"/>
+                    <item android:offset="0.5" android:color="#FFFFFFFF"/>
+                    <item android:offset="0.75" android:color="#FFE8D5F0"/>
+                    <item android:offset="1" android:color="#FFB8A0D4"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
 </vector>

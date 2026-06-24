@@ -3,21 +3,37 @@
     android:height="108dp"
     android:viewportWidth="1024"
     android:viewportHeight="1024">
-    <group android:scaleX="0.5"
-        android:scaleY="0.5"
-        android:translateX="256"
-        android:translateY="256">
+
+    <!-- Ring: back half (behind moon) -->
+    <group android:pivotX="512" android:pivotY="512" android:rotation="-18">
         <path
-            android:pathData="M178.3,830.8A128,384 80,0 1,934.6 697.4A128,384 80,0 1,178.3 830.8Z"
-            android:strokeWidth="72"
+            android:pathData="M167,512 A345,95 0 0,1 857,512"
+            android:strokeWidth="24"
             android:strokeColor="@android:color/white"
             android:fillColor="#00000000"/>
+    </group>
+
+    <!-- Full Moon -->
+    <path
+        android:pathData="M292,512 A220,220 0 1,1 732,512 A220,220 0 1,1 292,512 Z"
+        android:fillColor="@android:color/white"/>
+
+    <!-- Simplified craters (cut-out effect, fewer) -->
+    <path android:pathData="M410,440 A38,38 0 1,1 486,440 A38,38 0 1,1 410,440 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M404,575 A28,28 0 1,1 460,575 A28,28 0 1,1 404,575 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M554,418 A26,26 0 1,1 606,418 A26,26 0 1,1 554,418 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M490,378 A20,20 0 1,1 530,378 A20,20 0 1,1 490,378 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M501,675 A17,17 0 1,1 535,675 A17,17 0 1,1 501,675 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M547,558 A15,15 0 1,1 577,558 A15,15 0 1,1 547,558 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M576,375 A14,14 0 1,1 604,375 A14,14 0 1,1 576,375 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M389,508 A9,9 0 1,1 407,508 A9,9 0 1,1 389,508 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+    <path android:pathData="M529,318 A6,6 0 1,1 541,318 A6,6 0 1,1 529,318 Z" android:fillColor="#FF000000" android:strokeWidth="0"/>
+
+    <!-- Ring: front half (in front of moon) -->
+    <group android:pivotX="512" android:pivotY="512" android:rotation="-18">
         <path
-            android:pathData="M455.5,41.1c-22.9,-41.2 -47.1,-36.9 -54.5,9.6l-40.1,261.8c-6.9,46.4 -46.8,102.9 -87.5,125.7L42.5,565.1c-41.2,22.9 -36.9,47.1 9.6,54.5l259,41.7c46.5,7.4 103,47.4 125.7,88l128.9,232.5c22.9,41.2 47.1,36.9 54.5,-9.6l39.8,-260.7c6.9,-46.4 46.3,-102.8 87.5,-125.7l234.1,-129.1c41.2,-22.9 36.9,-47.1 -9.5,-54l-259.6,-39.5c-46.4,-6.9 -102.8,-46.3 -125.7,-87.5 -1.6,-0.2 -131.3,-234.7 -131.3,-234.7z"
-            android:fillColor="@android:color/white"/>
-        <path
-            android:pathData="M934.6,697.4A128,384 80,0 1,178.3 830.8"
-            android:strokeWidth="72"
+            android:pathData="M167,512 A345,95 0 0,0 857,512"
+            android:strokeWidth="24"
             android:strokeColor="@android:color/white"
             android:fillColor="#00000000"/>
     </group>
