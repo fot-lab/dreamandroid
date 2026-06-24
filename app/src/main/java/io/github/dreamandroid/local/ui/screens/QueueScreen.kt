@@ -78,9 +78,9 @@ fun QueueScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(batchGroups, key = { it.batchGroupId }) { group ->
-            val isExpanded = expandedGroups[group.batchGroupId] ?: (group.tasks.size == 1)
+            val isExpanded = expandedGroups[group.batchGroupId] ?: false
 
-            // All batches render as a unified collapsible group (single-task groups auto-expanded)
+            // All batches render as a unified collapsible group
             BatchGroupCard(
                 group = group,
                 isExpanded = isExpanded,
