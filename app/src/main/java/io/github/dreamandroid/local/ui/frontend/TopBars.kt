@@ -24,7 +24,7 @@ fun ModelsTopBar(
     modelViewSelectedCount: Int,
     isModelLoaded: Boolean,
     isModelLoading: Boolean,
-    onLoadModel: (String) -> Unit,
+    onLoadModel: () -> Unit,
     onUnloadModel: () -> Unit,
     onImportModel: () -> Unit = {},
     onImportNpuModel: () -> Unit = {},

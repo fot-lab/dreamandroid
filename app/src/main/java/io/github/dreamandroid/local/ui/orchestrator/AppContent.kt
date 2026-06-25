@@ -279,7 +279,7 @@ fun AppContent() {
                     isModelLoaded = isModelLoaded,
                     isModelLoading = isModelLoading,
                     isUpscaleModelLoaded = isUpscaleModelLoaded,
-                    selectedUpscalerId = selectedUpscalerId,
+                    loadedUpscalerId = loadedUpscalerId,
                     persistedUpscalerId = persistedUpscalerId,
                 )
                 BottomTab.Queue -> AppContentTabQueue(
