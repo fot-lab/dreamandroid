@@ -19,10 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
-    # ── Emulator options that affect snapshot compatibility ──
+    # ── All parameters that affect snapshot compatibility ──
     # Changing any value here triggers a cache miss via the hash in the cache key.
     env:
       EMU_OPTIONS: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x1920
+      EMU_DISK_SIZE: 2G
+      EMU_HEAP_SIZE: 1G
 
     strategy:
       fail-fast: false
@@ -79,11 +81,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # ── Hash emulator options → cache key ingredient ──
-      # Any emulator option change produces a different hash → cache miss → rebuild.
-      - name: Compute emulator options hash
+      # ── Hash all snapshot-relevant params → cache key ingredient ──
+      # Concatenates emulator-options, disk-size, and heap-size. Changing any
+      # of these produces a different full-length SHA256 → cache miss → rebuild.
+      - name: Compute emulator params hash
         id: emu-hash
-        run: echo "hash=$(echo '${{ env.EMU_OPTIONS }}' | sha256sum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "hash=$(echo '${{ env.EMU_OPTIONS }} ${{ env.EMU_DISK_SIZE }} ${{ env.EMU_HEAP_SIZE }}' | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       # ── AVD cache ──
       # Strategy: cache a CLEAN emulator snapshot (no app installed).
@@ -111,6 +115,8 @@ jobs:
           arch: ${{ matrix.arch }}
           target: ${{ matrix.target }}
           force-avd-creation: false
+          disk-size: ${{ env.EMU_DISK_SIZE }}
+          heap-size: ${{ env.EMU_HEAP_SIZE }}
           emulator-options: ${{ env.EMU_OPTIONS }}
           disable-animations: false
           script: echo "AVD snapshot generated for caching."
@@ -206,8 +212,8 @@ jobs:
           arch: ${{ matrix.arch }}
           target: ${{ matrix.target }}
           force-avd-creation: false
-          disk-size: 2G
-          heap-size: 1G
+          disk-size: ${{ env.EMU_DISK_SIZE }}
+          heap-size: ${{ env.EMU_HEAP_SIZE }}
           emulator-options: -no-snapshot-save ${{ env.EMU_OPTIONS }}
           disable-animations: true
           script: sh ./test-script.sh
