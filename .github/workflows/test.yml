@@ -19,6 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
+    # ── Emulator options that affect snapshot compatibility ──
+    # Changing any value here triggers a cache miss via the hash in the cache key.
+    env:
+      EMU_OPTIONS: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x1920
+
     strategy:
       fail-fast: false
       matrix:
@@ -74,7 +79,20 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # ── AVD cache (snapshot enables fast < 30s boot on cache hit) ──
+      # ── Hash emulator options → cache key ingredient ──
+      # Any emulator option change produces a different hash → cache miss → rebuild.
+      - name: Compute emulator options hash
+        id: emu-hash
+        run: echo "hash=$(echo '${{ env.EMU_OPTIONS }}' | sha256sum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      # ── AVD cache ──
+      # Strategy: cache a CLEAN emulator snapshot (no app installed).
+      # The Create step below only runs on cache miss and produces a pristine
+      # snapshot. The Run step uses -no-snapshot-save to never overwrite it,
+      # keeping the cache reusable across every build → 100% hit rate after
+      # the first run.
+      # Cache key includes the emulator-options hash → changing any emulator
+      # parameter (GPU, skin, camera, etc.) forces a cache miss and snapshot rebuild.
       - name: AVD cache
         uses: actions/cache@v4
         id: avd-cache
@@ -82,9 +100,9 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-1080x1920-v5
+          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-${{ steps.emu-hash.outputs.hash }}-v1
 
-      # ── Create AVD + seed snapshot (only on cache miss) ──
+      # ── Create clean AVD + snapshot (only on cache miss) ──
       - name: Create AVD and generate snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
@@ -93,7 +111,7 @@ jobs:
           arch: ${{ matrix.arch }}
           target: ${{ matrix.target }}
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x1920
+          emulator-options: ${{ env.EMU_OPTIONS }}
           disable-animations: false
           script: echo "AVD snapshot generated for caching."
 
@@ -178,7 +196,9 @@ jobs:
           SCRIPT_EOF
           chmod +x test-script.sh
 
-      # ── Run tests (load cached snapshot, save updated snapshot) ──
+      # ── Run tests ──
+      # Boots from cached clean snapshot (< 30s). -no-snapshot-save leaves
+      # the snapshot untouched so the cache stays valid for next build.
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -188,7 +208,7 @@ jobs:
           force-avd-creation: false
           disk-size: 2G
           heap-size: 1G
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x1920
+          emulator-options: -no-snapshot-save ${{ env.EMU_OPTIONS }}
           disable-animations: true
           script: sh ./test-script.sh
 
