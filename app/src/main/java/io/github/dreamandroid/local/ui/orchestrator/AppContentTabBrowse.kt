@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +37,11 @@ fun AppContentTabBrowse(
     val scope = rememberCoroutineScope()
     val knownModelIds by browseViewModel.knownModelIds.collectAsState()
     val filterModelIds = browseViewModel.filterModelIds
+
+    // ── BackHandler: close drawer on system back press ──
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,

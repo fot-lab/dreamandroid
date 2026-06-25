@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -107,6 +108,11 @@ fun AppContentTabQueue(
                 }
             },
         )
+    }
+
+    // ── BackHandler: close drawer on system back press ──
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
     }
 
     ModalNavigationDrawer(
