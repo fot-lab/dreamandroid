@@ -9,13 +9,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.R
@@ -23,9 +21,6 @@ import io.github.dreamandroid.local.data.*
 import io.github.dreamandroid.local.navigation.BottomTab
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.ui.backend.*
-import io.github.dreamandroid.local.ui.frontend.*
-import io.github.dreamandroid.local.ui.queue.TabQueueScreen
-import io.github.dreamandroid.local.ui.screens.*
 import io.github.dreamandroid.local.ui.screens.model.CustomModelDialog
 import io.github.dreamandroid.local.ui.screens.model.CustomNpuModelDialog
 import io.github.dreamandroid.local.ui.screens.model.CustomUpscaleModelDialog
@@ -37,15 +32,15 @@ import io.github.dreamandroid.local.ui.viewmodel.QueueViewModel
 import kotlinx.coroutines.launch
 
 /**
- * Thin orchestrator Composable — state and business logic has been extracted to ViewModels
- * (Phase D: UILA-COMP-0001 God Object refactoring).
+ * Thin orchestrator Composable — state and business logic extracted to ViewModels;
+ * per-tab drawer + scaffold + topBar moved to AppContentTab* composables.
  *
  * AppContent now only handles:
  * - ViewModel instantiation
- * - UI feedback (snackbar) orchestration
- * - Drawer + Scaffold structure
- * - Top/Navigation bar wiring
- * - Content routing to screen Composables
+ * - Application-level state & dependency wiring
+ * - Cross-cutting dialogs (import, rename, delete)
+ * - Bottom NavigationBar
+ * - Content routing to per-tab Composable
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,43 +103,6 @@ fun AppContent() {
     val msgNpuModelAddFailed = stringResource(R.string.npu_model_add_failed)
     val msgModelConversionSuccess = stringResource(R.string.model_conversion_success)
     val msgModelConversionFailed = stringResource(R.string.model_conversion_failed)
-
-    // ── Model load/unload callbacks (ViewModel + UI feedback) ──
-    fun loadModel(mId: String) {
-        scope.launch {
-            val result = modelsViewModel.loadModel(
-                mId, generateViewModel.genWidth, generateViewModel.genHeight, generateViewModel.genUseOpenCL,
-            )
-            result.onSuccess {
-                snackbarHostState.showSnackbar(context.getString(R.string.loading_model_label))
-            }.onFailure { error ->
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.model_load_failed, error.message ?: "unknown")
-                )
-            }
-        }
-    }
-
-    fun unloadModel() {
-        scope.launch {
-            modelsViewModel.unloadModel()
-            snackbarHostState.showSnackbar(context.getString(R.string.model_unloaded))
-        }
-    }
-
-    fun loadUpscaleModel(upscalerId: String) {
-        scope.launch {
-            modelsViewModel.loadUpscaleModel(upscalerId).onFailure { error ->
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.model_load_failed, error.message ?: "unknown")
-                )
-            }
-        }
-    }
-
-    fun unloadUpscaleModel() {
-        scope.launch { modelsViewModel.unloadUpscaleModel() }
-    }
 
     // ── Dialogs ──
 
@@ -212,9 +170,6 @@ fun AppContent() {
 
     // Rename model dialog
     if (modelsViewModel.showRenameDialog) {
-        val renameModel = remember(modelsViewModel.selectedModelId) {
-            modelsViewModel.modelRepository.models.find { it.id == modelsViewModel.selectedModelId }
-        }
         AlertDialog(
             onDismissRequest = { modelsViewModel.showRenameDialog = false },
             title = { Text(stringResource(R.string.rename_model)) },
@@ -277,254 +232,89 @@ fun AppContent() {
         )
     }
 
-    // ── Drawer + Scaffold ──
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 28.dp, top = 16.dp, end = 4.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings),
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.weight(1f),
+    // ── Scaffold with bottom bar ──
+    // Each tab manages its own drawer + topBar + content via AppContentTab* composables.
+    Scaffold(
+        bottomBar = {
+            // Red flash animation for Models tab when generation timed out
+            val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
+                initialValue = 1f,
+                targetValue = 0.3f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(500, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "flashAlpha",
+            )
+            NavigationBar {
+                BottomTab.entries.forEach { tab ->
+                    val isModelsTab = tab == BottomTab.Models
+                    val shouldFlash = isModelsTab && generationTimedOut
+                    NavigationBarItem(
+                        selected = mainViewModel.selectedTab == tab,
+                        onClick = { mainViewModel.selectedTab = tab },
+                        icon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = stringResource(tab.labelResId),
+                                tint = if (shouldFlash)
+                                    MaterialTheme.colorScheme.error.copy(alpha = flashAlpha)
+                                else
+                                    LocalContentColor.current,
+                            )
+                        },
+                        label = { Text(stringResource(tab.labelResId)) },
                     )
-                    IconButton(onClick = { scope.launch { drawerState.close() } }) {
-                        Icon(Icons.Default.Close, stringResource(R.string.close))
-                    }
                 }
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
-                AppSettingsDrawerContent(
-                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
-                )
             }
         },
-    ) {
-        Scaffold(
-            topBar = {
-                when (mainViewModel.selectedTab) {
-                    BottomTab.Models -> ModelsTopBar(
-                        drawerState = drawerState,
-                        selectedModelId = modelsViewModel.selectedModelId,
-                        isModelLoaded = isModelLoaded,
-                        isModelLoading = isModelLoading,
-                        onLoadModel = { loadModel(it) },
-                        onUnloadModel = { unloadModel() },
-                        onImportModel = { modelsViewModel.showCustomModelDialog = true },
-                        onImportNpuModel = { modelsViewModel.showCustomNpuModelDialog = true },
-                        onImportUpscaleModel = { modelsViewModel.showCustomUpscaleModelDialog = true },
-                        onRenameModel = { modelsViewModel.prepareRename() },
-                        onDeleteModel = { modelsViewModel.showDeleteConfirm = true },
-                    )
-                    BottomTab.Queue -> QueueTopBar(
-                        drawerState = drawerState,
-                        processingActive = queueProcessing,
-                        queuePaused = queuePaused,
-                        hasPendingTasks = queueHasPending,
-                        onStop = { queueViewModel.stop(context) },
-                        onResume = { queueViewModel.resume(context) },
-                    )
-                    BottomTab.Generate -> GenerateTopBar(
-                        drawerState = drawerState,
-                        modelId = modelsViewModel.selectedModelId,
-                        isModelLoaded = isModelLoaded,
-                        onGenTaskParamReset = {
-                            generateViewModel.genSteps = 20f
-                            generateViewModel.genCfg = 7f
-                            generateViewModel.genSeed = ""
-                            generateViewModel.genBatchCounts = 1
-                            generateViewModel.genSampler = "dpm"
-                            generateViewModel.genDenoiseCurve = "scaled_linear"
-                            generateViewModel.genDenoiseStrength = 0.6f
-                            val repo = ModelRepository(context)
-                            val m = modelsViewModel.selectedModelId?.let { id -> repo.models.find { it.id == id } }
-                            generateViewModel.genPrompt = m?.defaultPrompt ?: ""
-                            generateViewModel.genNegativePrompt = m?.defaultNegativePrompt ?: ""
-                            // Persist via GenerationPreferences
-                            val prefs = GenerationPreferences(context)
-                            kotlinx.coroutines.MainScope().launch(kotlinx.coroutines.Dispatchers.IO) {
-                                prefs.saveGlobalFields(
-                                    prompt = generateViewModel.genPrompt,
-                                    negativePrompt = generateViewModel.genNegativePrompt,
-                                    batchCounts = generateViewModel.genBatchCounts,
-                                    width = generateViewModel.genWidth,
-                                    height = generateViewModel.genHeight,
-                                )
-                                modelsViewModel.selectedModelId?.let { modelId ->
-                                    prefs.saveAllFields(
-                                        modelId = modelId,
-                                        prompt = generateViewModel.genPrompt,
-                                        negativePrompt = generateViewModel.genNegativePrompt,
-                                        steps = generateViewModel.genSteps,
-                                        cfgScale = generateViewModel.genCfg,
-                                        seed = generateViewModel.genSeed,
-                                        width = generateViewModel.genWidth,
-                                        height = generateViewModel.genHeight,
-                                        denoisingStrength = generateViewModel.genDenoiseStrength,
-                                        useOpenCL = generateViewModel.genUseOpenCL,
-                                        batchCounts = generateViewModel.genBatchCounts,
-                                        sampler = generateViewModel.genSampler,
-                                        aspectRatio = io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString(
-                                            generateViewModel.genWidth,
-                                            generateViewModel.genHeight,
-                                        ),
-                                    )
-                                }
-                            }
-                        },
-                        onGenTaskAddToQueue = {
-                            val mid = modelsViewModel.selectedModelId ?: return@GenerateTopBar
-                            val count = if (generateViewModel.genSeed.isNotBlank()) 1
-                            else generateViewModel.genBatchCounts.coerceAtLeast(1)
-                            generateViewModel.addToQueue(mid, count, queueViewModel.queueRepository)
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    context.getString(R.string.added_to_queue, count)
-                                )
-                            }
-                        },
-                    )
-                    BottomTab.Upscale -> UpscaleTopBar(
-                        drawerState = drawerState,
-                        isUpscaleModelLoaded = isUpscaleModelLoaded,
-                        upscalerId = selectedUpscalerId,
-                    )
-                    BottomTab.Browse -> BrowseTopBar(
-                        drawerState = drawerState,
-                        onToggleLayout = { browseLayoutMode = browseLayoutMode.next() },
-                        isGalleryBrowseSelectionMode = browseViewModel.isSelectionMode,
-                        galleryBrowseSelectedCount = browseViewModel.selectedItems.size,
-                        onGalleryBrowseBatchSaveInfo = { browseViewModel.showBatchSaveInfoDialog = true },
-                        onGalleryBrowseBatchSave = { browseViewModel.showBatchSaveDialog = true },
-                        onGalleryBrowseBatchDelete = { browseViewModel.showBatchDeleteDialog = true },
-                        onGalleryBrowseExitSelection = { browseViewModel.exitSelection() },
-                        onGalleryBrowseSelectAll = { browseViewModel.galleryBrowseSelectAll() },
-                        onGalleryBrowseInvertSelection = { browseViewModel.galleryBrowseInvertSelection() },
-                        onGalleryBrowseDeselectAll = { browseViewModel.galleryBrowseDeselectAll() },
-                    )
-                }
-            },
-            bottomBar = {
-                // Red flash animation for Models tab when generation timed out
-                val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
-                    initialValue = 1f,
-                    targetValue = 0.3f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(500, easing = LinearEasing),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "flashAlpha",
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            when (mainViewModel.selectedTab) {
+                BottomTab.Models -> AppContentTabModels(
+                    drawerState = drawerState,
+                    snackbarHostState = snackbarHostState,
+                    modelsViewModel = modelsViewModel,
+                    isModelLoaded = isModelLoaded,
+                    isModelLoading = isModelLoading,
+                    isUpscaleModelLoaded = isUpscaleModelLoaded,
+                    selectedUpscalerId = selectedUpscalerId,
+                    persistedUpscalerId = persistedUpscalerId,
                 )
-                NavigationBar {
-                    BottomTab.entries.forEach { tab ->
-                        val isModelsTab = tab == BottomTab.Models
-                        val shouldFlash = isModelsTab && generationTimedOut
-                        NavigationBarItem(
-                            selected = mainViewModel.selectedTab == tab,
-                            onClick = { mainViewModel.selectedTab = tab },
-                            icon = {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = stringResource(tab.labelResId),
-                                    tint = if (shouldFlash)
-                                        MaterialTheme.colorScheme.error.copy(alpha = flashAlpha)
-                                    else
-                                        LocalContentColor.current,
-                                )
-                            },
-                            label = { Text(stringResource(tab.labelResId)) },
-                        )
-                    }
-                }
-            },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-            ) {
-                when (mainViewModel.selectedTab) {
-                    BottomTab.Models -> ModelListTab(
-                        selectedModelId = modelsViewModel.selectedModelId,
-                        isModelLoaded = isModelLoaded,
-                        onSelectModel = { modelsViewModel.selectedModelId = it },
-                        onLoadModel = { loadModel(it) },
-                        modelRepository = modelsViewModel.modelRepository,
-                        refreshVersion = modelsViewModel.modelRefreshVersion,
-                        importingModels = modelsViewModel.importingModels,
-                        isUpscaleModelLoaded = isUpscaleModelLoaded,
-                        onLoadUpscaleModel = { loadUpscaleModel(it) },
-                        onUnloadUpscaleModel = { unloadUpscaleModel() },
-                        persistedUpscalerId = persistedUpscalerId,
-                        selectedUpscalerId = selectedUpscalerId,
-                    )
-                    BottomTab.Queue -> TabQueueScreen(
-                        tasks = queueTasks,
-                        batchGroups = queueBatchGroups,
-                        processingActive = queueProcessing,
-                        onRemoveTask = { queueViewModel.removeTask(it) },
-                        onRemoveBatch = { queueViewModel.removeBatch(it) },
-                        recordRepository = recordRepository,
-                    )
-                    BottomTab.Generate -> TabGenerateScreen(
-                        modelId = if (isModelLoaded) modelsViewModel.selectedModelId else null,
-                        prompt = generateViewModel.genPrompt,
-                        onPromptChange = { generateViewModel.genPrompt = it },
-                        negativePrompt = generateViewModel.genNegativePrompt,
-                        onNegativePromptChange = { generateViewModel.genNegativePrompt = it },
-                        steps = generateViewModel.genSteps,
-                        onStepsChange = { generateViewModel.genSteps = it },
-                        cfg = generateViewModel.genCfg,
-                        onCfgChange = { generateViewModel.genCfg = it },
-                        seed = generateViewModel.genSeed,
-                        onSeedChange = { generateViewModel.genSeed = it },
-                        batchCounts = generateViewModel.genBatchCounts,
-                        onBatchCountsChange = { generateViewModel.genBatchCounts = it },
-                        sampler = generateViewModel.genSampler,
-                        onSamplerChange = { generateViewModel.genSampler = it },
-                        denoiseCurve = generateViewModel.genDenoiseCurve,
-                        onDenoiseCurveChange = { generateViewModel.genDenoiseCurve = it },
-                        denoiseStrength = generateViewModel.genDenoiseStrength,
-                        onDenoiseStrengthChange = { generateViewModel.genDenoiseStrength = it },
-                        useOpenCL = generateViewModel.genUseOpenCL,
-                        onUseOpenCLChange = { generateViewModel.genUseOpenCL = it },
-                        width = generateViewModel.genWidth,
-                        onWidthChange = { generateViewModel.genWidth = it },
-                        height = generateViewModel.genHeight,
-                        onHeightChange = { generateViewModel.genHeight = it },
-                        recordRepository = recordRepository,
-                        // Tokenize via ViewModel → BackendService (HTTP middleware, no direct BackendManager)
-                        onTokenizePrompt = { prompt ->
-                            generateViewModel.tokenizePrompt(prompt)
-                        },
-                        onTokenizeNegativePrompt = { negativePrompt ->
-                            generateViewModel.tokenizeNegativePrompt(negativePrompt)
-                        },
-                        promptTokenCount = generateViewModel.promptTokenCount,
-                        promptTokenMax = generateViewModel.promptTokenMax,
-                        promptOverflowOffset = generateViewModel.promptOverflowOffset,
-                        negativePromptTokenCount = generateViewModel.negativePromptTokenCount,
-                        negativePromptTokenMax = generateViewModel.negativePromptTokenMax,
-                        negativePromptOverflowOffset = generateViewModel.negativePromptOverflowOffset,
-                        onAddToQueue = { count ->
-                            val modelId = modelsViewModel.selectedModelId ?: return@TabGenerateScreen
-                            generateViewModel.addToQueue(modelId, count, queueViewModel.queueRepository)
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    context.getString(R.string.added_to_queue, count)
-                                )
-                            }
-                        },
-                    )
-                    BottomTab.Upscale -> UpscaleScreen()
-                    BottomTab.Browse -> BrowseScreen(
-                        recordRepository = recordRepository,
-                        browseViewModel = browseViewModel,
-                        layoutMode = browseLayoutMode,
-                    )
-                }
+                BottomTab.Queue -> AppContentTabQueue(
+                    drawerState = drawerState,
+                    snackbarHostState = snackbarHostState,
+                    queueViewModel = queueViewModel,
+                    tasks = queueTasks,
+                    batchGroups = queueBatchGroups,
+                    processingActive = queueProcessing,
+                    queuePaused = queuePaused,
+                    hasPendingTasks = queueHasPending,
+                    recordRepository = recordRepository,
+                )
+                BottomTab.Generate -> AppContentTabGenerate(
+                    drawerState = drawerState,
+                    snackbarHostState = snackbarHostState,
+                    modelsViewModel = modelsViewModel,
+                    generateViewModel = generateViewModel,
+                    queueRepository = queueViewModel.queueRepository,
+                    isModelLoaded = isModelLoaded,
+                    recordRepository = recordRepository,
+                )
+                BottomTab.Upscale -> AppContentTabUpscale(
+                    drawerState = drawerState,
+                    snackbarHostState = snackbarHostState,
+                    isUpscaleModelLoaded = isUpscaleModelLoaded,
+                    selectedUpscalerId = selectedUpscalerId,
+                )
+                BottomTab.Browse -> AppContentTabBrowse(
+                    drawerState = drawerState,
+                    snackbarHostState = snackbarHostState,
+                    browseViewModel = browseViewModel,
+                    recordRepository = recordRepository,
+                    browseLayoutMode = browseLayoutMode,
+                    onToggleLayout = { browseLayoutMode = browseLayoutMode.next() },
+                )
             }
         }
     }
