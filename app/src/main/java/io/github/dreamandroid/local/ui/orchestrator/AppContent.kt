@@ -49,7 +49,7 @@ fun AppContent() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val snackbarHostState = remember { SnackbarHostState() }
     val recordRepository = remember { RecordRepository(context) }
-    var browseLayoutMode by remember { mutableStateOf(BrowseLayoutMode.SINGLE_COLUMN) }
+    var browseLayoutMode by remember { mutableStateOf(BrowseLayoutMode.THREE_COLUMNS) }
 
     // ── ViewModels (Activity-scoped, shared across tabs) ──
     val mainViewModel: MainViewModel = viewModel()
@@ -67,6 +67,17 @@ fun AppContent() {
     val isModelLoading = backendState.isDiffusionLoading()
     val isUpscaleModelLoaded = backendState.isUpscalerLoaded()
     val generationPreferences = remember { GenerationPreferences(context) }
+
+    // Load persisted browse layout mode
+    LaunchedEffect(Unit) {
+        generationPreferences.observeBrowseLayoutMode().collect { persisted ->
+            try {
+                browseLayoutMode = BrowseLayoutMode.valueOf(persisted)
+            } catch (_: IllegalArgumentException) {
+                // fallback to default THREE_COLUMNS
+            }
+        }
+    }
 
     // ── Queue state (from QueueViewModel) ──
     val queueTasks by queueViewModel.queueRepository.tasks.collectAsState()
@@ -216,7 +227,11 @@ fun AppContent() {
                     browseViewModel = browseViewModel,
                     recordRepository = recordRepository,
                     browseLayoutMode = browseLayoutMode,
-                    onToggleLayout = { browseLayoutMode = browseLayoutMode.next() },
+                    onToggleLayout = {
+                        val next = browseLayoutMode.next()
+                        browseLayoutMode = next
+                        scope.launch { generationPreferences.setBrowseLayoutMode(next.name) }
+                    },
                 )
             }
         }

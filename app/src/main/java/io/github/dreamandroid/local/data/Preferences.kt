@@ -36,6 +36,7 @@ class GenerationPreferences(private val context: Context) {
     private val SHARE_USE_BASE64_KEY = booleanPreferencesKey("share_use_base64")
     private val SHARE_CLEAR_CLIPBOARD_KEY =
         booleanPreferencesKey("share_clear_clipboard_on_import")
+    private val BROWSE_LAYOUT_MODE_KEY = stringPreferencesKey("browse_layout_mode")
 
     // Screen-level (global) keys — persist across model switches
     private val GLOBAL_PROMPT_KEY = stringPreferencesKey("global_prompt")
@@ -62,6 +63,16 @@ class GenerationPreferences(private val context: Context) {
 
     suspend fun setShareClearClipboardOnImport(value: Boolean) {
         context.dataStore.edit { it[SHARE_CLEAR_CLIPBOARD_KEY] = value }
+    }
+
+    fun observeBrowseLayoutMode(): Flow<String> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { it[BROWSE_LAYOUT_MODE_KEY] ?: "THREE_COLUMNS" }
+
+    suspend fun setBrowseLayoutMode(value: String) {
+        context.dataStore.edit { it[BROWSE_LAYOUT_MODE_KEY] = value }
     }
 
     suspend fun saveBaseUrl(url: String) {
