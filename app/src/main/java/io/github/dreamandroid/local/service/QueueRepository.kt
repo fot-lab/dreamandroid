@@ -165,7 +165,10 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     }
 
     fun removeTask(id: String) {
-        _tasks.value.firstOrNull { it.id == id }?.resultBitmapPath?.let { path ->
+        val task = _tasks.value.firstOrNull { it.id == id }
+        // PROCESSING tasks are owned by the worker and cannot be removed
+        if (task == null || task.status == TaskStatus.PROCESSING) return
+        task.resultBitmapPath?.let { path ->
             try { java.io.File(path).delete() } catch (_: Exception) {}
         }
         _tasks.update { it.filterNot { t -> t.id == id } }
@@ -179,13 +182,19 @@ class QueueRepository private constructor(private val db: AppDatabase) {
             removeTask(batchGroupId)
             return
         }
-        batchTasks.forEach { task ->
+        // Only remove non-PROCESSING tasks; worker owns PROCESSING tasks
+        val removable = batchTasks.filter { it.status != TaskStatus.PROCESSING }
+        if (removable.isEmpty()) return
+        removable.forEach { task ->
             task.resultBitmapPath?.let { path ->
                 try { java.io.File(path).delete() } catch (_: Exception) {}
             }
         }
-        _tasks.update { it.filterNot { t -> t.batchGroupId == batchGroupId } }
-        scope.launch { db.taskDao().deleteQueueByBatch(batchGroupId) }
+        val removableIds = removable.map { it.id }.toSet()
+        _tasks.update { it.filterNot { t -> t.id in removableIds } }
+        removable.forEach { task ->
+            scope.launch { db.taskDao().deleteQueueById(task.id) }
+        }
     }
 
     fun updateTask(id: String, transform: (GenerationTask) -> GenerationTask) {
