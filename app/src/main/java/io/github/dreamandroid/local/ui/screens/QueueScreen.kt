@@ -130,30 +130,35 @@ private fun TaskCard(
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            val target = dismissState.targetValue
-            // EndToStart = left-swipe delete (red)
-            // StartToEnd = right-swipe save (green)
+            // Use real-time offset instead of targetValue so the background
+            // appears immediately on drag, not just near the dismiss threshold.
+            val currentOffset = dismissState.requireOffset()
+            val direction = when {
+                currentOffset < -1f -> SwipeToDismissBoxValue.EndToStart  // swiping left → delete (red)
+                currentOffset > 1f  -> SwipeToDismissBoxValue.StartToEnd  // swiping right → save (blue)
+                else                -> SwipeToDismissBoxValue.Settled
+            }
             val bgColor by animateColorAsState(
-                targetValue = when (target) {
+                targetValue = when (direction) {
                     SwipeToDismissBoxValue.EndToStart ->
                         MaterialTheme.colorScheme.errorContainer
                     SwipeToDismissBoxValue.StartToEnd ->
                         MaterialTheme.colorScheme.primaryContainer
                     else -> Color.Transparent
                 },
-                animationSpec = tween(300),
+                animationSpec = tween(200),
                 label = "swipeBg",
             )
             val iconTint by animateColorAsState(
-                targetValue = when (target) {
+                targetValue = when (direction) {
                     SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
                     SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.onPrimaryContainer
                     else -> Color.Transparent
                 },
-                animationSpec = tween(300),
+                animationSpec = tween(200),
                 label = "swipeIcon",
             )
-            val alignment = when (target) {
+            val alignment = when (direction) {
                 SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
                 SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
                 else -> Alignment.CenterEnd
@@ -167,11 +172,11 @@ private fun TaskCard(
                 contentAlignment = alignment,
             ) {
                 Icon(
-                    imageVector = when (target) {
+                    imageVector = when (direction) {
                         SwipeToDismissBoxValue.StartToEnd -> Icons.Default.SaveAlt
                         else -> Icons.Default.Delete
                     },
-                    contentDescription = when (target) {
+                    contentDescription = when (direction) {
                         SwipeToDismissBoxValue.StartToEnd -> "Save"
                         else -> "Delete"
                     },
@@ -319,28 +324,35 @@ private fun BatchGroupCard(
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            val target = dismissState.targetValue
+            // Use real-time offset instead of targetValue so the background
+            // appears immediately on drag, not just near the dismiss threshold.
+            val currentOffset = dismissState.requireOffset()
+            val direction = when {
+                currentOffset < -1f -> SwipeToDismissBoxValue.EndToStart  // swiping left → delete (red)
+                currentOffset > 1f  -> SwipeToDismissBoxValue.StartToEnd  // swiping right → save (blue)
+                else                -> SwipeToDismissBoxValue.Settled
+            }
             val bgColor by animateColorAsState(
-                targetValue = when (target) {
+                targetValue = when (direction) {
                     SwipeToDismissBoxValue.EndToStart ->
                         MaterialTheme.colorScheme.errorContainer
                     SwipeToDismissBoxValue.StartToEnd ->
                         MaterialTheme.colorScheme.primaryContainer
                     else -> Color.Transparent
                 },
-                animationSpec = tween(300),
+                animationSpec = tween(200),
                 label = "swipeBg",
             )
             val iconTint by animateColorAsState(
-                targetValue = when (target) {
+                targetValue = when (direction) {
                     SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
                     SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.onPrimaryContainer
                     else -> Color.Transparent
                 },
-                animationSpec = tween(300),
+                animationSpec = tween(200),
                 label = "swipeIcon",
             )
-            val alignment = when (target) {
+            val alignment = when (direction) {
                 SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
                 SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
                 else -> Alignment.CenterEnd
@@ -354,11 +366,11 @@ private fun BatchGroupCard(
                 contentAlignment = alignment,
             ) {
                 Icon(
-                    imageVector = when (target) {
+                    imageVector = when (direction) {
                         SwipeToDismissBoxValue.StartToEnd -> Icons.Default.SaveAlt
                         else -> Icons.Default.Delete
                     },
-                    contentDescription = when (target) {
+                    contentDescription = when (direction) {
                         SwipeToDismissBoxValue.StartToEnd -> "Save batch"
                         else -> "Delete batch"
                     },
