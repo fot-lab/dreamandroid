@@ -171,23 +171,35 @@ fun AppContent() {
 
     // Rename model dialog
     if (modelsViewModel.showRenameDialog) {
+        val newName = modelsViewModel.renameText.trim()
+        val isDuplicate = newName.isNotEmpty() && modelsViewModel.isRenameDuplicate(newName)
         AlertDialog(
             onDismissRequest = { modelsViewModel.showRenameDialog = false },
             title = { Text(stringResource(R.string.rename_model)) },
             text = {
-                OutlinedTextField(
-                    value = modelsViewModel.renameText,
-                    onValueChange = { modelsViewModel.renameText = it },
-                    label = { Text(stringResource(R.string.custom_model_name)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = modelsViewModel.renameText,
+                        onValueChange = { modelsViewModel.renameText = it },
+                        label = { Text(stringResource(R.string.custom_model_name)) },
+                        singleLine = true,
+                        isError = isDuplicate,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (isDuplicate) {
+                        Text(
+                            text = stringResource(R.string.rename_duplicate_error),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         scope.launch {
-                            val newName = modelsViewModel.renameText.trim()
                             val success = modelsViewModel.renameModel(context, newName)
                             snackbarHostState.showSnackbar(
                                 if (success) context.getString(R.string.rename_success)
@@ -195,7 +207,7 @@ fun AppContent() {
                             )
                         }
                     },
-                    enabled = modelsViewModel.renameText.trim().isNotEmpty(),
+                    enabled = newName.isNotEmpty() && !isDuplicate,
                 ) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {

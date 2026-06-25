@@ -267,10 +267,17 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
         showRenameDialog = true
     }
 
+    fun isRenameDuplicate(newName: String): Boolean {
+        val targetId = modelViewSelectedModelIds.firstOrNull() ?: return false
+        val newId = newName.replace(" ", "")
+        return modelRepository.models.any { it.id == newId && it.id != targetId }
+    }
+
     suspend fun renameModel(context: Context, newName: String): Boolean {
         val targetId = modelViewSelectedModelIds.firstOrNull()
         val renameModel = modelRepository.models.find { it.id == targetId }
         if (newName.isEmpty() || renameModel == null) return false
+        if (isRenameDuplicate(newName)) return false
         val success = renameModel.renameModel(context, newName)
         if (success) {
             refreshModels()
