@@ -104,7 +104,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-${{ steps.emu-hash.outputs.hash }}-v1
+          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{ matrix.target }}-${{ steps.emu-hash.outputs.hash }}-v1
 
       # ── Create clean AVD + snapshot (only on cache miss) ──
       - name: Create AVD and generate snapshot
