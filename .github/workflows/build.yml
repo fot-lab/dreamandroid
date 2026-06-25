@@ -134,6 +134,13 @@ jobs:
           key: ${{ runner.os }}-ndk-${{ env.ANDROID_NDK_VERSION }}
           max-size: 2G
 
+      - name: Cache CMake build tree
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/cpp/build/android
+          key: cmake-build-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', 'app/src/main/cpp/CMakePresets.json', 'app/src/main/cpp/src/**') }}
+          restore-keys: cmake-build-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-
+
       # -------- cmake configure & build --------
       - name: CMake configure & build
         id: cmake-build
