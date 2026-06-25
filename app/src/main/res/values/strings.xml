@@ -392,6 +392,7 @@
     <string name="history_filter_sort_desc">Newest first</string>
     <string name="history_filter_sort_asc">Oldest first</string>
     <string name="history_view_filter">Filter</string>
+    <string name="history_filter_by_model">Filter by Model</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_models">Models</string>

@@ -10,14 +10,12 @@ import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -66,19 +64,9 @@ fun BrowseScreen(
 
     // Observe ViewModel state
     val historyItems by browseViewModel.historyItems.collectAsState()
-    val knownModelIds by browseViewModel.knownModelIds.collectAsState()
 
     val isSelectionMode = browseViewModel.isSelectionMode
-    val filterModelId = browseViewModel.filterModelId
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    // Observe ViewModel state
-    val historyItems by browseViewModel.historyItems.collectAsState()
-    val knownModelIds by browseViewModel.knownModelIds.collectAsState()
-
-    val isSelectionMode = browseViewModel.isSelectionMode
-    val filterModelId = browseViewModel.filterModelId
+    val filterModelIds = browseViewModel.filterModelIds
 
     // ── Batch Delete Dialog ──
     if (browseViewModel.showBatchDeleteDialog && browseViewModel.selectedItems.isNotEmpty()) {
@@ -338,33 +326,10 @@ fun BrowseScreen(
 
     // ── Main Content ──
     Column(modifier = modifier.fillMaxSize()) {
-        // Filter chips
-        if (knownModelIds.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = filterModelId == null,
-                    onClick = { browseViewModel.filterModelId = null },
-                    label = { Text(stringResource(R.string.history_filter_all)) },
-                )
-                knownModelIds.forEach { id ->
-                    FilterChip(
-                        selected = filterModelId == id,
-                        onClick = { browseViewModel.filterModelId = id },
-                        label = { Text(id) },
-                    )
-                }
-            }
-        }
 
-        val displayItems = remember(historyItems, filterModelId) {
+        val displayItems = remember(historyItems, filterModelIds) {
             historyItems.filter { item ->
-                filterModelId == null || item.modelId == filterModelId
+                filterModelIds.isEmpty() || item.modelId in filterModelIds
             }
         }
 

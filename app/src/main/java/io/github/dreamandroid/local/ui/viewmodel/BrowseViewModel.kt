@@ -56,9 +56,28 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     var isPreviewMode by mutableStateOf(false)
 
     // ── Filter ────────────────────────────────────────────────
-    var filterModelId by mutableStateOf<String?>(null)
+    /** Model IDs to filter by. Empty set = show all models. */
+    var filterModelIds by mutableStateOf<Set<String>>(emptySet())
+
+    fun toggleModelFilter(modelId: String) {
+        filterModelIds = if (modelId in filterModelIds) {
+            filterModelIds - modelId
+        } else {
+            filterModelIds + modelId
+        }
+    }
+
+    fun selectAllModelFilters() {
+        filterModelIds = emptySet() // empty = show all
+    }
 
     // ── Selection helpers ─────────────────────────────────────
+
+    /** Returns items that pass the current model filter. */
+    private fun filteredItems(): List<HistoryItem> =
+        historyItems.value.filter { item ->
+            filterModelIds.isEmpty() || item.modelId in filterModelIds
+        }
 
     fun toggleSelection(item: HistoryItem) {
         if (isSelectionMode) {
@@ -86,7 +105,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun galleryBrowseSelectAll() {
-        val items = historyItems.value.filter { filterModelId == null || it.modelId == filterModelId }
+        val items = filteredItems()
         if (items.isEmpty()) return
         isSelectionMode = true
         selectedItems.clear()
@@ -94,7 +113,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun galleryBrowseInvertSelection() {
-        val items = historyItems.value.filter { filterModelId == null || it.modelId == filterModelId }
+        val items = filteredItems()
         if (!isSelectionMode) {
             isSelectionMode = true
             selectedItems.clear()

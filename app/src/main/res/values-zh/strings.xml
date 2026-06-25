@@ -382,6 +382,7 @@
     <string name="history_filter_sort_desc">最新优先</string>
     <string name="history_filter_sort_asc">最旧优先</string>
     <string name="history_view_filter">过滤</string>
+    <string name="history_filter_by_model">按模型筛选</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_models">模型</string>
