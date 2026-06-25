@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
@@ -37,6 +38,76 @@ fun AppContentTabQueue(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    val queueSelectedCount = queueViewModel.queueComputeSelectedCount(batchGroups)
+
+    // ── Batch Delete Confirmation Dialog ──
+    if (queueViewModel.queueShowBatchDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { queueViewModel.queueShowBatchDeleteDialog = false },
+            title = { Text(stringResource(R.string.batch_delete)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.batch_delete_confirm,
+                        queueSelectedCount,
+                        queueSelectedCount,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        queueViewModel.queueBatchDelete(batchGroups)
+                        queueViewModel.queueShowBatchDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { queueViewModel.queueShowBatchDeleteDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    // ── Batch Save Info Confirmation Dialog ──
+    if (queueViewModel.queueShowBatchSaveInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { queueViewModel.queueShowBatchSaveInfoDialog = false },
+            title = { Text(stringResource(R.string.batch_save_params)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.batch_save_params_confirm,
+                        queueSelectedCount,
+                        queueSelectedCount,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    queueViewModel.queueBatchSaveInfo(batchGroups, tasks, recordRepository)
+                    queueViewModel.queueShowBatchSaveInfoDialog = false
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Parameters saved (${queueSelectedCount} tasks)")
+                    }
+                }) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { queueViewModel.queueShowBatchSaveInfoDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -72,6 +143,19 @@ fun AppContentTabQueue(
                     hasPendingTasks = hasPendingTasks,
                     onStop = { queueViewModel.stop(context) },
                     onResume = { queueViewModel.resume(context) },
+                    // Queue selection mode
+                    queueIsSelectionMode = queueViewModel.queueIsSelectionMode,
+                    queueSelectedCount = queueSelectedCount,
+                    queueOnExitSelection = { queueViewModel.queueExitSelection() },
+                    queueOnBatchSaveInfo = {
+                        queueViewModel.queueShowBatchSaveInfoDialog = true
+                    },
+                    queueOnBatchDelete = {
+                        queueViewModel.queueShowBatchDeleteDialog = true
+                    },
+                    queueOnSelectAll = { queueViewModel.queueSelectAll(batchGroups) },
+                    queueOnInvertSelection = { queueViewModel.queueInvertSelection(batchGroups) },
+                    queueOnDeselectAll = { queueViewModel.queueDeselectAll() },
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -84,6 +168,13 @@ fun AppContentTabQueue(
                     onRemoveTask = { queueViewModel.removeTask(it) },
                     onRemoveBatch = { queueViewModel.removeBatch(it) },
                     recordRepository = recordRepository,
+                    // Queue selection
+                    queueIsSelectionMode = queueViewModel.queueIsSelectionMode,
+                    queueSelectedBatchIds = queueViewModel.queueSelectedBatchIds.toSet(),
+                    queueSelectedTaskIds = queueViewModel.queueSelectedTaskIds.toSet(),
+                    queueOnLongPressBatch = { queueViewModel.queueStartSelection(it) },
+                    queueOnToggleBatch = { queueViewModel.queueToggleBatchSelection(it) },
+                    queueOnToggleTask = { queueViewModel.queueToggleTaskSelection(it) },
                 )
             }
         }

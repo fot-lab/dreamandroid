@@ -131,38 +131,116 @@ fun QueueTopBar(
     hasPendingTasks: Boolean = false,
     onStop: () -> Unit = {},
     onResume: () -> Unit = {},
+    // ── Queue selection mode ──────────────────────────────────
+    queueIsSelectionMode: Boolean = false,
+    queueSelectedCount: Int = 0,
+    queueOnExitSelection: () -> Unit = {},
+    queueOnBatchSaveInfo: () -> Unit = {},
+    queueOnBatchDelete: () -> Unit = {},
+    queueOnSelectAll: () -> Unit = {},
+    queueOnInvertSelection: () -> Unit = {},
+    queueOnDeselectAll: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    var showQueueMenu by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
-            Text(
-                text = "Queue",
-                maxLines = 1,
-            )
+            if (queueIsSelectionMode) {
+                Text(
+                    pluralStringResource(R.plurals.selected_items_count, queueSelectedCount, queueSelectedCount),
+                    maxLines = 1,
+                )
+            } else {
+                Text(
+                    text = "Queue",
+                    maxLines = 1,
+                )
+            }
         },
         navigationIcon = {
-            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                Icon(Icons.Default.Menu, stringResource(R.string.settings))
+            if (!queueIsSelectionMode) {
+                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                    Icon(Icons.Default.Menu, stringResource(R.string.settings))
+                }
             }
         },
         actions = {
-            // Show Stop while worker is actively processing
-            if (processingActive && !queuePaused) {
-                IconButton(onClick = onStop) {
-                    Icon(
-                        Icons.Default.Stop,
-                        contentDescription = "Stop queue",
-                        tint = MaterialTheme.colorScheme.error,
-                    )
+            if (queueIsSelectionMode) {
+                // X Close replaces start/stop — exits selection mode
+                IconButton(onClick = queueOnExitSelection) {
+                    Icon(Icons.Default.Close, stringResource(R.string.cancel))
+                }
+                IconButton(onClick = queueOnBatchSaveInfo) {
+                    Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
+                        tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = queueOnBatchDelete) {
+                    Icon(Icons.Default.Delete, stringResource(R.string.delete),
+                        tint = MaterialTheme.colorScheme.error)
+                }
+            } else {
+                // Show Stop while worker is actively processing
+                if (processingActive && !queuePaused) {
+                    IconButton(onClick = onStop) {
+                        Icon(
+                            Icons.Default.Stop,
+                            contentDescription = "Stop queue",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                // Show Play (resume) when queue is paused or has pending tasks but no worker
+                if (queuePaused || (!processingActive && hasPendingTasks)) {
+                    IconButton(onClick = onResume) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = "Resume queue",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
-            // Show Play (resume) when queue is paused or has pending tasks but no worker
-            if (queuePaused || (!processingActive && hasPendingTasks)) {
-                IconButton(onClick = onResume) {
+            // 3-dot dropdown — always visible, provides Select All / Invert / Deselect All
+            Box {
+                IconButton(onClick = { showQueueMenu = true }) {
                     Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = "Resume queue",
-                        tint = MaterialTheme.colorScheme.primary,
+                        Icons.Default.MoreVert,
+                        contentDescription = "Queue menu",
+                    )
+                }
+                DropdownMenu(
+                    expanded = showQueueMenu,
+                    onDismissRequest = { showQueueMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.select_all)) },
+                        onClick = {
+                            showQueueMenu = false
+                            queueOnSelectAll()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.SelectAll, contentDescription = null)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.invert_selection)) },
+                        onClick = {
+                            showQueueMenu = false
+                            queueOnInvertSelection()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.FlipToBack, contentDescription = null)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.deselect_all)) },
+                        onClick = {
+                            showQueueMenu = false
+                            queueOnDeselectAll()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Deselect, contentDescription = null)
+                        },
                     )
                 }
             }

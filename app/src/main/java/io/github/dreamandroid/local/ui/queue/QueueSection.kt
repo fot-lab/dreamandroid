@@ -19,6 +19,13 @@ fun TabQueueScreen(
     onRemoveTask: (String) -> Unit,
     onRemoveBatch: (String) -> Unit,
     recordRepository: RecordRepository? = null,
+    // ── Queue selection mode ──────────────────────────────────
+    queueIsSelectionMode: Boolean = false,
+    queueSelectedBatchIds: Set<String> = emptySet(),
+    queueSelectedTaskIds: Set<String> = emptySet(),
+    queueOnLongPressBatch: (String) -> Unit = {},
+    queueOnToggleBatch: (String) -> Unit = {},
+    queueOnToggleTask: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -52,5 +59,12 @@ fun TabQueueScreen(
         onRemoveTask = onRemoveTask,
         onRemoveBatch = onRemoveBatch,
         onSaveInfo = onSaveInfo,
+        // Queue selection
+        queueIsSelectionMode = queueIsSelectionMode,
+        queueSelectedBatchIds = queueSelectedBatchIds,
+        queueSelectedTaskIds = queueSelectedTaskIds,
+        queueOnLongPressBatch = queueOnLongPressBatch,
+        queueOnToggleBatch = queueOnToggleBatch,
+        queueOnToggleTask = queueOnToggleTask,
     )
 }

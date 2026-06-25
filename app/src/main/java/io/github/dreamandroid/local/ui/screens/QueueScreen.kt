@@ -37,6 +37,13 @@ fun QueueScreen(
     onRemoveTask: (String) -> Unit,
     onRemoveBatch: (String) -> Unit,
     onSaveInfo: (GenerationTask) -> Unit = {},
+    // ── Queue selection mode ──────────────────────────────────
+    queueIsSelectionMode: Boolean = false,
+    queueSelectedBatchIds: Set<String> = emptySet(),
+    queueSelectedTaskIds: Set<String> = emptySet(),
+    queueOnLongPressBatch: (String) -> Unit = {},
+    queueOnToggleBatch: (String) -> Unit = {},
+    queueOnToggleTask: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
@@ -79,6 +86,7 @@ fun QueueScreen(
     ) {
         items(batchGroups, key = { it.batchGroupId }) { group ->
             val isExpanded = expandedGroups[group.batchGroupId] ?: false
+            val isBatchSelected = group.batchGroupId in queueSelectedBatchIds
 
             // All batches render as a unified collapsible group
             BatchGroupCard(
@@ -91,6 +99,13 @@ fun QueueScreen(
                 onRemoveTask = onRemoveTask,
                 onRemoveBatch = onRemoveBatch,
                 onSaveInfo = onSaveInfo,
+                // Queue selection
+                queueIsSelectionMode = queueIsSelectionMode,
+                queueIsBatchSelected = isBatchSelected,
+                queueSelectedTaskIds = queueSelectedTaskIds,
+                queueOnLongPress = { queueOnLongPressBatch(group.batchGroupId) },
+                queueOnToggleBatch = { queueOnToggleBatch(group.batchGroupId) },
+                queueOnToggleTask = queueOnToggleTask,
             )
         }
 
@@ -98,7 +113,7 @@ fun QueueScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun TaskCard(
     task: GenerationTask,
@@ -107,9 +122,13 @@ private fun TaskCard(
     onSaveInfo: () -> Unit = {},
     onToggleExpand: (() -> Unit)?,
     isExpanded: Boolean,
+    // ── Queue selection mode ──────────────────────────────────
+    queueIsSelectionMode: Boolean = false,
+    queueIsTaskSelected: Boolean = false,
+    queueOnToggleTask: () -> Unit = {},
 ) {
     val statusColor = statusColor(task.status, processingActive)
-    val canSwipe = task.status != TaskStatus.PROCESSING
+    val canSwipe = task.status != TaskStatus.PROCESSING && !queueIsSelectionMode
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -188,7 +207,8 @@ private fun TaskCard(
         enableDismissFromEndToStart = canSwipe,
     ) {
         ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -196,6 +216,15 @@ private fun TaskCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Checkbox in selection mode
+                    if (queueIsSelectionMode) {
+                        Checkbox(
+                            checked = queueIsTaskSelected,
+                            onCheckedChange = { queueOnToggleTask() },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
+
                     // Status indicator
                     Box(
                         modifier = Modifier
@@ -302,8 +331,15 @@ private fun BatchGroupCard(
     onRemoveTask: (String) -> Unit,
     onRemoveBatch: (String) -> Unit,
     onSaveInfo: (GenerationTask) -> Unit = {},
+    // ── Queue selection mode ──────────────────────────────────
+    queueIsSelectionMode: Boolean = false,
+    queueIsBatchSelected: Boolean = false,
+    queueSelectedTaskIds: Set<String> = emptySet(),
+    queueOnLongPress: () -> Unit = {},
+    queueOnToggleBatch: () -> Unit = {},
+    queueOnToggleTask: (String) -> Unit = {},
 ) {
-    val canSwipe = group.tasks.none { it.status == TaskStatus.PROCESSING }
+    val canSwipe = group.tasks.none { it.status == TaskStatus.PROCESSING } && !queueIsSelectionMode
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -384,7 +420,20 @@ private fun BatchGroupCard(
         ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(onClick = onToggleExpand),
+                .combinedClickable(
+                    onClick = {
+                        if (queueIsSelectionMode) {
+                            queueOnToggleBatch()
+                        } else {
+                            onToggleExpand()
+                        }
+                    },
+                    onLongClick = {
+                        if (!queueIsSelectionMode) {
+                            queueOnLongPress()
+                        }
+                    },
+                ),
             shape = MaterialTheme.shapes.medium,
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -393,6 +442,15 @@ private fun BatchGroupCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Checkbox in selection mode
+                    if (queueIsSelectionMode) {
+                        Checkbox(
+                            checked = queueIsBatchSelected,
+                            onCheckedChange = { queueOnToggleBatch() },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
+
                     // Batch count badge
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -477,6 +535,8 @@ private fun BatchGroupCard(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         group.tasks.forEach { task ->
+                            val isTaskSelected = queueIsBatchSelected ||
+                                (task.id in queueSelectedTaskIds)
                             TaskCard(
                                 task = task,
                                 processingActive = processingActive,
@@ -484,6 +544,10 @@ private fun BatchGroupCard(
                                 onSaveInfo = { onSaveInfo(task) },
                                 onToggleExpand = null,
                                 isExpanded = false,
+                                // Queue selection
+                                queueIsSelectionMode = queueIsSelectionMode,
+                                queueIsTaskSelected = isTaskSelected,
+                                queueOnToggleTask = { queueOnToggleTask(task.id) },
                             )
                         }
                     }
