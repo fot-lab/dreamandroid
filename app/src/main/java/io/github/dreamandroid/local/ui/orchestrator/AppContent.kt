@@ -54,6 +54,7 @@ fun AppContent() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val snackbarHostState = remember { SnackbarHostState() }
     val recordRepository = remember { RecordRepository(context) }
+    var browseLayoutMode by remember { mutableStateOf(BrowseLayoutMode.SINGLE_COLUMN) }
 
     // ── ViewModels (Activity-scoped, shared across tabs) ──
     val mainViewModel: MainViewModel = viewModel()
@@ -389,7 +390,10 @@ fun AppContent() {
                         isUpscaleModelLoaded = isUpscaleModelLoaded,
                         upscalerId = selectedUpscalerId,
                     )
-                    BottomTab.Browse -> BrowseTopBar(drawerState = drawerState)
+                    BottomTab.Browse -> BrowseTopBar(
+                        drawerState = drawerState,
+                        onToggleLayout = { browseLayoutMode = browseLayoutMode.next() },
+                    )
                 }
             },
             bottomBar = {
@@ -504,7 +508,10 @@ fun AppContent() {
                         },
                     )
                     BottomTab.Upscale -> UpscaleScreen()
-                    BottomTab.Browse -> BrowseScreen(recordRepository = recordRepository)
+                    BottomTab.Browse -> BrowseScreen(
+                        recordRepository = recordRepository,
+                        layoutMode = browseLayoutMode,
+                    )
                 }
             }
         }

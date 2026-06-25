@@ -14,6 +14,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,12 +43,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** Layout modes for the Browse / Gallery screen. */
+enum class BrowseLayoutMode {
+    DETAIL_LIST,
+    SINGLE_COLUMN,
+    TWO_COLUMNS,
+    THREE_COLUMNS;
+
+    fun next(): BrowseLayoutMode = entries[(ordinal + 1) % entries.size]
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BrowseScreen(
     modifier: Modifier = Modifier,
     recordRepository: RecordRepository? = null,
     browseViewModel: BrowseViewModel = viewModel(),
+    layoutMode: BrowseLayoutMode = BrowseLayoutMode.SINGLE_COLUMN,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -405,72 +419,272 @@ fun BrowseScreen(
                 HorizontalDivider()
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(items = displayItems, key = { it.id }) { item ->
-                    ElevatedCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
+            when (layoutMode) {
+                BrowseLayoutMode.TWO_COLUMNS, BrowseLayoutMode.THREE_COLUMNS -> {
+                    val columns = if (layoutMode == BrowseLayoutMode.TWO_COLUMNS) 2 else 3
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columns),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        gridItems(items = displayItems, key = { it.id }) { item ->
+                            GridCard(
+                                item = item,
+                                context = context,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = browseViewModel.selectedItems.contains(item),
                                 onClick = { browseViewModel.toggleSelection(item) },
                                 onLongClick = { browseViewModel.startSelection(item) },
-                            ),
-                    ) {
-                        Column {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(item.imageFile.absolutePath).crossfade(true).build(),
-                                contentDescription = "Generated image",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(
-                                        if (item.params.width > 0 && item.params.height > 0)
-                                            item.params.width.toFloat() / item.params.height
-                                        else 1f,
-                                    ),
-                                contentScale = ContentScale.Fit,
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    if (item.params.prompt.isNotEmpty()) {
-                                        Text(
-                                            text = item.params.prompt,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
+                                onSelectionChange = { checked ->
+                                    if (checked) browseViewModel.selectedItems.add(item)
+                                    else {
+                                        browseViewModel.selectedItems.remove(item)
+                                        if (browseViewModel.selectedItems.isEmpty())
+                                            browseViewModel.exitSelection()
                                     }
-                                    Text(
-                                        text = "${item.modelId} · ${item.params.width}×${item.params.height}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                if (isSelectionMode) {
-                                    Checkbox(
-                                        checked = browseViewModel.selectedItems.contains(item),
-                                        onCheckedChange = { checked ->
-                                            if (checked) browseViewModel.selectedItems.add(item)
-                                            else {
-                                                browseViewModel.selectedItems.remove(item)
-                                                if (browseViewModel.selectedItems.isEmpty()) {
-                                                    browseViewModel.exitSelection()
-                                                }
-                                            }
-                                        },
-                                    )
-                                }
-                            }
+                                },
+                            )
                         }
                     }
                 }
+
+                BrowseLayoutMode.DETAIL_LIST -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(items = displayItems, key = { it.id }) { item ->
+                            DetailListItem(
+                                item = item,
+                                context = context,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = browseViewModel.selectedItems.contains(item),
+                                onClick = { browseViewModel.toggleSelection(item) },
+                                onLongClick = { browseViewModel.startSelection(item) },
+                                onSelectionChange = { checked ->
+                                    if (checked) browseViewModel.selectedItems.add(item)
+                                    else {
+                                        browseViewModel.selectedItems.remove(item)
+                                        if (browseViewModel.selectedItems.isEmpty())
+                                            browseViewModel.exitSelection()
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+
+                BrowseLayoutMode.SINGLE_COLUMN -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(items = displayItems, key = { it.id }) { item ->
+                            SingleColumnCard(
+                                item = item,
+                                context = context,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = browseViewModel.selectedItems.contains(item),
+                                onClick = { browseViewModel.toggleSelection(item) },
+                                onLongClick = { browseViewModel.startSelection(item) },
+                                onSelectionChange = { checked ->
+                                    if (checked) browseViewModel.selectedItems.add(item)
+                                    else {
+                                        browseViewModel.selectedItems.remove(item)
+                                        if (browseViewModel.selectedItems.isEmpty())
+                                            browseViewModel.exitSelection()
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Layout-specific item composables ──
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SingleColumnCard(
+    item: HistoryItem,
+    context: android.content.Context,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onSelectionChange: (Boolean) -> Unit,
+) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        Column {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(item.imageFile.absolutePath).crossfade(true).build(),
+                contentDescription = "Generated image",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(
+                        if (item.params.width > 0 && item.params.height > 0)
+                            item.params.width.toFloat() / item.params.height
+                        else 1f,
+                    ),
+                contentScale = ContentScale.Fit,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    if (item.params.prompt.isNotEmpty()) {
+                        Text(
+                            text = item.params.prompt,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = "${item.modelId} · ${item.params.width}×${item.params.height}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (isSelectionMode) {
+                    Checkbox(checked = isSelected, onCheckedChange = onSelectionChange)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GridCard(
+    item: HistoryItem,
+    context: android.content.Context,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onSelectionChange: (Boolean) -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column {
+            Box {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(item.imageFile.absolutePath).crossfade(true).build(),
+                    contentDescription = "Generated image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(
+                            if (item.params.width > 0 && item.params.height > 0)
+                                item.params.width.toFloat() / item.params.height
+                            else 1f,
+                        ),
+                    contentScale = ContentScale.Fit,
+                )
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = onSelectionChange,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(24.dp),
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                if (item.params.prompt.isNotEmpty()) {
+                    Text(
+                        text = item.params.prompt,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = item.modelId,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DetailListItem(
+    item: HistoryItem,
+    context: android.content.Context,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onSelectionChange: (Boolean) -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(item.imageFile.absolutePath).crossfade(true).build(),
+                contentDescription = "Thumbnail",
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                contentScale = ContentScale.Crop,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                if (item.params.prompt.isNotEmpty()) {
+                    Text(
+                        text = item.params.prompt,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = "${item.modelId} · ${item.params.width}×${item.params.height}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = onSelectionChange,
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
     }

@@ -226,13 +226,24 @@ fun GenerateTopBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BrowseTopBar(drawerState: DrawerState) {
+fun BrowseTopBar(
+    drawerState: DrawerState,
+    onToggleLayout: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     TopAppBar(
         title = {},
         navigationIcon = {
             IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Default.Menu, stringResource(R.string.settings))
+            }
+        },
+        actions = {
+            IconButton(onClick = onToggleLayout) {
+                Icon(
+                    Icons.Default.Apps,
+                    contentDescription = "Toggle layout",
+                )
             }
         },
     )
