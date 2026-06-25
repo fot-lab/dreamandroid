@@ -38,7 +38,7 @@ fun AppContentTabUpscale(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(2f / 3f)) {
+            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 28.dp, top = 16.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,

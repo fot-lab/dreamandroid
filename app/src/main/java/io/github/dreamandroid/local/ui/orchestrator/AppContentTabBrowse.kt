@@ -46,7 +46,7 @@ fun AppContentTabBrowse(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(2f / 3f)) {
+            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
                 BrowseModelFilterDrawer(
                     knownModelIds = knownModelIds,
                     filterModelIds = filterModelIds,
