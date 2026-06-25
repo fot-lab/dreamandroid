@@ -134,6 +134,116 @@ fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(4.dp))
         HorizontalDivider()
 
+        // ────── Downloads ──────
+        SectionHeader(stringResource(R.string.download_settings_section))
+
+        var selectedSource by remember { mutableStateOf("huggingface") }
+        var customUrl by remember { mutableStateOf("") }
+        LaunchedEffect(Unit) {
+            selectedSource = genPrefs.getSelectedSource()
+            customUrl = if (selectedSource == "custom") genPrefs.getBaseUrl() else ""
+        }
+
+        ChipSetting(
+            title = stringResource(R.string.download_from),
+            options = listOf(
+                "huggingface" to stringResource(R.string.source_huggingface),
+                "hf-mirror" to stringResource(R.string.source_hf_mirror),
+                "custom" to stringResource(R.string.source_custom),
+            ),
+            selected = selectedSource,
+            onSelect = { src ->
+                selectedSource = src
+                scope.launch {
+                    genPrefs.saveSelectedSource(src)
+                    when (src) {
+                        "huggingface" -> genPrefs.saveBaseUrl("https://huggingface.co/")
+                        "hf-mirror" -> genPrefs.saveBaseUrl("https://hf-mirror.com/")
+                        "custom" -> { /* keep existing custom URL */ }
+                    }
+                }
+            },
+        )
+
+        if (selectedSource == "custom") {
+            OutlinedTextField(
+                value = customUrl,
+                onValueChange = { customUrl = it },
+                label = { Text("URL") },
+                placeholder = { Text("https://hf-mirror.com/") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextButton(onClick = {
+                scope.launch {
+                    genPrefs.saveBaseUrl(customUrl.trim().ifBlank { "https://hf-mirror.com/" })
+                }
+            }) {
+                Text(stringResource(R.string.save))
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
+
+        // ────── Debug ──────
+        SectionHeader(stringResource(R.string.debug_section))
+
+        var debugQueue by remember { mutableStateOf(appPrefs.getBoolean("debug_queue", false)) }
+        SwitchSetting(
+            title = stringResource(R.string.debug_queue),
+            hint = stringResource(R.string.debug_queue_hint),
+            checked = debugQueue,
+            onCheckedChange = { checked ->
+                debugQueue = checked
+                appPrefs.edit { putBoolean("debug_queue", checked) }
+            },
+        )
+
+        var debugModel by remember { mutableStateOf(appPrefs.getBoolean("debug_model", false)) }
+        SwitchSetting(
+            title = stringResource(R.string.debug_model),
+            hint = stringResource(R.string.debug_model_hint),
+            checked = debugModel,
+            onCheckedChange = { checked ->
+                debugModel = checked
+                appPrefs.edit { putBoolean("debug_model", checked) }
+            },
+        )
+
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
+
+        // ────── About ──────
+        SectionHeader(stringResource(R.string.about_app))
+        Text(
+            stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.must_read),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Spacer(Modifier.height(16.dp))
+}
+
+// =========== Queue Settings Drawer ===========
+
+/**
+ * Queue tab drawer: Generation process + Health check settings.
+ */
+@Composable
+fun ColumnScope.QueueSettingsDrawerContent(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val appPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         // ────── Generation ──────
         SectionHeader(stringResource(R.string.generation_settings))
 
@@ -247,102 +357,6 @@ fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) {
                 appPrefs.edit { putInt("health_check_max_failures", healthCheckMaxFails) }
             },
         ) { healthCheckMaxFails = it }
-
-        Spacer(Modifier.height(4.dp))
-        HorizontalDivider()
-
-        // ────── Downloads ──────
-        SectionHeader(stringResource(R.string.download_settings_section))
-
-        var selectedSource by remember { mutableStateOf("huggingface") }
-        var customUrl by remember { mutableStateOf("") }
-        LaunchedEffect(Unit) {
-            selectedSource = genPrefs.getSelectedSource()
-            customUrl = if (selectedSource == "custom") genPrefs.getBaseUrl() else ""
-        }
-
-        ChipSetting(
-            title = stringResource(R.string.download_from),
-            options = listOf(
-                "huggingface" to stringResource(R.string.source_huggingface),
-                "hf-mirror" to stringResource(R.string.source_hf_mirror),
-                "custom" to stringResource(R.string.source_custom),
-            ),
-            selected = selectedSource,
-            onSelect = { src ->
-                selectedSource = src
-                scope.launch {
-                    genPrefs.saveSelectedSource(src)
-                    when (src) {
-                        "huggingface" -> genPrefs.saveBaseUrl("https://huggingface.co/")
-                        "hf-mirror" -> genPrefs.saveBaseUrl("https://hf-mirror.com/")
-                        "custom" -> { /* keep existing custom URL */ }
-                    }
-                }
-            },
-        )
-
-        if (selectedSource == "custom") {
-            OutlinedTextField(
-                value = customUrl,
-                onValueChange = { customUrl = it },
-                label = { Text("URL") },
-                placeholder = { Text("https://hf-mirror.com/") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            TextButton(onClick = {
-                scope.launch {
-                    genPrefs.saveBaseUrl(customUrl.trim().ifBlank { "https://hf-mirror.com/" })
-                }
-            }) {
-                Text(stringResource(R.string.save))
-            }
-        }
-
-        Spacer(Modifier.height(4.dp))
-        HorizontalDivider()
-
-        // ────── Debug ──────
-        SectionHeader(stringResource(R.string.debug_section))
-
-        var debugQueue by remember { mutableStateOf(appPrefs.getBoolean("debug_queue", false)) }
-        SwitchSetting(
-            title = stringResource(R.string.debug_queue),
-            hint = stringResource(R.string.debug_queue_hint),
-            checked = debugQueue,
-            onCheckedChange = { checked ->
-                debugQueue = checked
-                appPrefs.edit { putBoolean("debug_queue", checked) }
-            },
-        )
-
-        var debugModel by remember { mutableStateOf(appPrefs.getBoolean("debug_model", false)) }
-        SwitchSetting(
-            title = stringResource(R.string.debug_model),
-            hint = stringResource(R.string.debug_model_hint),
-            checked = debugModel,
-            onCheckedChange = { checked ->
-                debugModel = checked
-                appPrefs.edit { putBoolean("debug_model", checked) }
-            },
-        )
-
-        Spacer(Modifier.height(4.dp))
-        HorizontalDivider()
-
-        // ────── About ──────
-        SectionHeader(stringResource(R.string.about_app))
-        Text(
-            stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            stringResource(R.string.must_read),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
     Spacer(Modifier.height(16.dp))
 }
