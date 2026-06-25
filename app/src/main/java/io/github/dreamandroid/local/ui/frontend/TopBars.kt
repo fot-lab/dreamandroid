@@ -161,6 +161,8 @@ fun GenerateTopBar(
     drawerState: DrawerState,
     modelId: String?,
     isModelLoaded: Boolean,
+    onGenTaskParamReset: () -> Unit = {},
+    onGenTaskAddToQueue: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -195,6 +197,14 @@ fun GenerateTopBar(
         navigationIcon = {
             IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Default.Menu, stringResource(R.string.settings))
+            }
+        },
+        actions = {
+            IconButton(onClick = onGenTaskParamReset) {
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.reset))
+            }
+            IconButton(onClick = onGenTaskAddToQueue) {
+                Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.generate_image))
             }
         },
     )

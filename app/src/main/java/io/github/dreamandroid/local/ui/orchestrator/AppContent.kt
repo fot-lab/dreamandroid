@@ -321,6 +321,61 @@ fun AppContent() {
                         drawerState = drawerState,
                         modelId = modelsViewModel.selectedModelId,
                         isModelLoaded = isModelLoaded,
+                        onGenTaskParamReset = {
+                            generateViewModel.genSteps = 20f
+                            generateViewModel.genCfg = 7f
+                            generateViewModel.genSeed = ""
+                            generateViewModel.genBatchCounts = 1
+                            generateViewModel.genSampler = "dpm"
+                            generateViewModel.genDenoiseCurve = "scaled_linear"
+                            generateViewModel.genDenoiseStrength = 0.6f
+                            val repo = ModelRepository(context)
+                            val m = modelsViewModel.selectedModelId?.let { id -> repo.models.find { it.id == id } }
+                            generateViewModel.genPrompt = m?.defaultPrompt ?: ""
+                            generateViewModel.genNegativePrompt = m?.defaultNegativePrompt ?: ""
+                            // Persist via GenerationPreferences
+                            val prefs = GenerationPreferences(context)
+                            kotlinx.coroutines.MainScope().launch(kotlinx.coroutines.Dispatchers.IO) {
+                                prefs.saveGlobalFields(
+                                    prompt = generateViewModel.genPrompt,
+                                    negativePrompt = generateViewModel.genNegativePrompt,
+                                    batchCounts = generateViewModel.genBatchCounts,
+                                    width = generateViewModel.genWidth,
+                                    height = generateViewModel.genHeight,
+                                )
+                                modelsViewModel.selectedModelId?.let { modelId ->
+                                    prefs.saveAllFields(
+                                        modelId = modelId,
+                                        prompt = generateViewModel.genPrompt,
+                                        negativePrompt = generateViewModel.genNegativePrompt,
+                                        steps = generateViewModel.genSteps,
+                                        cfgScale = generateViewModel.genCfg,
+                                        seed = generateViewModel.genSeed,
+                                        width = generateViewModel.genWidth,
+                                        height = generateViewModel.genHeight,
+                                        denoisingStrength = generateViewModel.genDenoiseStrength,
+                                        useOpenCL = generateViewModel.genUseOpenCL,
+                                        batchCounts = generateViewModel.genBatchCounts,
+                                        sampler = generateViewModel.genSampler,
+                                        aspectRatio = io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString(
+                                            generateViewModel.genWidth,
+                                            generateViewModel.genHeight,
+                                        ),
+                                    )
+                                }
+                            }
+                        },
+                        onGenTaskAddToQueue = {
+                            val mid = modelsViewModel.selectedModelId ?: return@GenerateTopBar
+                            val count = if (generateViewModel.genSeed.isNotBlank()) 1
+                            else generateViewModel.genBatchCounts.coerceAtLeast(1)
+                            generateViewModel.addToQueue(mid, count, queueViewModel.queueRepository)
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(R.string.added_to_queue, count)
+                                )
+                            }
+                        },
                     )
                     BottomTab.Upscale -> UpscaleTopBar(
                         drawerState = drawerState,
