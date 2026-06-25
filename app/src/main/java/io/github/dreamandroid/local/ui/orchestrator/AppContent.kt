@@ -29,6 +29,7 @@ import io.github.dreamandroid.local.ui.screens.*
 import io.github.dreamandroid.local.ui.screens.model.CustomModelDialog
 import io.github.dreamandroid.local.ui.screens.model.CustomNpuModelDialog
 import io.github.dreamandroid.local.ui.screens.model.CustomUpscaleModelDialog
+import io.github.dreamandroid.local.ui.viewmodel.BrowseViewModel
 import io.github.dreamandroid.local.ui.viewmodel.GenerateViewModel
 import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel
@@ -61,6 +62,7 @@ fun AppContent() {
     val modelsViewModel: ModelsViewModel = viewModel()
     val generateViewModel: GenerateViewModel = viewModel()
     val queueViewModel: QueueViewModel = viewModel()
+    val browseViewModel: BrowseViewModel = viewModel()
 
     // ── Application-level dependencies ──
     val app = context.applicationContext as DreamAndroidApplication
@@ -393,6 +395,12 @@ fun AppContent() {
                     BottomTab.Browse -> BrowseTopBar(
                         drawerState = drawerState,
                         onToggleLayout = { browseLayoutMode = browseLayoutMode.next() },
+                        isGalleryBrowseSelectionMode = browseViewModel.isSelectionMode,
+                        galleryBrowseSelectedCount = browseViewModel.selectedItems.size,
+                        onGalleryBrowseBatchSaveInfo = { browseViewModel.showBatchSaveInfoDialog = true },
+                        onGalleryBrowseBatchSave = { browseViewModel.showBatchSaveDialog = true },
+                        onGalleryBrowseBatchDelete = { browseViewModel.showBatchDeleteDialog = true },
+                        onGalleryBrowseExitSelection = { browseViewModel.exitSelection() },
                     )
                 }
             },
@@ -510,6 +518,7 @@ fun AppContent() {
                     BottomTab.Upscale -> UpscaleScreen()
                     BottomTab.Browse -> BrowseScreen(
                         recordRepository = recordRepository,
+                        browseViewModel = browseViewModel,
                         layoutMode = browseLayoutMode,
                     )
                 }

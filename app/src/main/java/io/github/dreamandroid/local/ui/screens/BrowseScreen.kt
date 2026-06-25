@@ -70,6 +70,15 @@ fun BrowseScreen(
 
     val isSelectionMode = browseViewModel.isSelectionMode
     val filterModelId = browseViewModel.filterModelId
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Observe ViewModel state
+    val historyItems by browseViewModel.historyItems.collectAsState()
+    val knownModelIds by browseViewModel.knownModelIds.collectAsState()
+
+    val isSelectionMode = browseViewModel.isSelectionMode
+    val filterModelId = browseViewModel.filterModelId
 
     // ── Batch Delete Dialog ──
     if (browseViewModel.showBatchDeleteDialog && browseViewModel.selectedItems.isNotEmpty()) {
@@ -384,41 +393,6 @@ fun BrowseScreen(
                 }
             }
         } else {
-            // Selection mode top bar
-            if (isSelectionMode) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        pluralStringResource(
-                            R.plurals.selected_items_count,
-                            browseViewModel.selectedItems.size,
-                            browseViewModel.selectedItems.size,
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IconButton(onClick = { browseViewModel.showBatchSaveInfoDialog = true }) {
-                            Icon(Icons.Default.NoteAdd, stringResource(R.string.save_info),
-                                tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = { browseViewModel.showBatchSaveDialog = true }) {
-                            Icon(Icons.Default.SaveAlt, stringResource(R.string.save))
-                        }
-                        IconButton(onClick = { browseViewModel.showBatchDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, stringResource(R.string.delete),
-                                tint = MaterialTheme.colorScheme.error)
-                        }
-                        IconButton(onClick = { browseViewModel.exitSelection() }) {
-                            Icon(Icons.Default.Close, stringResource(R.string.cancel))
-                        }
-                    }
-                }
-                HorizontalDivider()
-            }
-
             when (layoutMode) {
                 BrowseLayoutMode.TWO_COLUMNS, BrowseLayoutMode.THREE_COLUMNS -> {
                     val columns = if (layoutMode == BrowseLayoutMode.TWO_COLUMNS) 2 else 3

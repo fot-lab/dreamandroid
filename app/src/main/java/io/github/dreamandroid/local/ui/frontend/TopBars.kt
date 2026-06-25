@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
@@ -229,21 +230,54 @@ fun GenerateTopBar(
 fun BrowseTopBar(
     drawerState: DrawerState,
     onToggleLayout: () -> Unit = {},
+    isGalleryBrowseSelectionMode: Boolean = false,
+    galleryBrowseSelectedCount: Int = 0,
+    onGalleryBrowseBatchSaveInfo: () -> Unit = {},
+    onGalleryBrowseBatchSave: () -> Unit = {},
+    onGalleryBrowseBatchDelete: () -> Unit = {},
+    onGalleryBrowseExitSelection: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     TopAppBar(
-        title = {},
+        title = {
+            if (isGalleryBrowseSelectionMode) {
+                Text(
+                    pluralStringResource(R.plurals.selected_items_count, galleryBrowseSelectedCount, galleryBrowseSelectedCount),
+                    maxLines = 1,
+                )
+            }
+        },
         navigationIcon = {
-            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                Icon(Icons.Default.Menu, stringResource(R.string.settings))
+            if (isGalleryBrowseSelectionMode) {
+                IconButton(onClick = onGalleryBrowseExitSelection) {
+                    Icon(Icons.Default.Close, stringResource(R.string.cancel))
+                }
+            } else {
+                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                    Icon(Icons.Default.Menu, stringResource(R.string.settings))
+                }
             }
         },
         actions = {
-            IconButton(onClick = onToggleLayout) {
-                Icon(
-                    Icons.Default.Apps,
-                    contentDescription = "Toggle layout",
-                )
+            if (isGalleryBrowseSelectionMode) {
+                IconButton(onClick = onGalleryBrowseBatchSaveInfo) {
+                    Icon(Icons.Default.NoteAdd, stringResource(R.string.save_info),
+                        tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onGalleryBrowseBatchSave) {
+                    Icon(Icons.Default.SaveAlt, stringResource(R.string.save))
+                }
+                IconButton(onClick = onGalleryBrowseBatchDelete) {
+                    Icon(Icons.Default.Delete, stringResource(R.string.delete),
+                        tint = MaterialTheme.colorScheme.error)
+                }
+            } else {
+                IconButton(onClick = onToggleLayout) {
+                    Icon(
+                        Icons.Default.Apps,
+                        contentDescription = "Toggle layout",
+                    )
+                }
             }
         },
     )
