@@ -819,12 +819,19 @@ private fun RecordCard(
 
             Spacer(Modifier.height(8.dp))
 
-            // Action buttons
+            // Action buttons + seed
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Seed display
+                Text(
+                    text = record.seed?.let { "Seed: $it" } ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
                 // Load button
                 FilledTonalButton(
                     onClick = onLoad,
