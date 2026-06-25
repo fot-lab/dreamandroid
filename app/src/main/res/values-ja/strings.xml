@@ -170,6 +170,7 @@
     <string name="reproduce_params_title">パラメータを再現</string>
     <string name="reproduce_params_hint">プロンプトページに適用する項目を選択してください。</string>
     <string name="select_all">すべて選択</string>
+    <string name="invert_selection">選択を反転</string>
     <string name="deselect_all">すべて解除</string>
     <string name="result_params">ステップ: %1$s / CFG: %2$.1f / シード: %3$s</string>
     <string name="result_params_2">サイズ: %1$s×%2$s / 処理時間: %3$s / %4$s</string>

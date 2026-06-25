@@ -239,7 +239,7 @@ fun BrowseScreen(
                                 ).show()
                             }
                         }) {
-                            Icon(Icons.Default.NoteAdd, stringResource(R.string.save_info),
+                            Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
                                 tint = MaterialTheme.colorScheme.primary)
                         }
                         IconButton(onClick = {
@@ -252,7 +252,7 @@ fun BrowseScreen(
                                 }
                             }
                         }) {
-                            Icon(Icons.Default.SaveAlt, stringResource(R.string.save))
+                            Icon(Icons.Default.Save, stringResource(R.string.save))
                         }
                         IconButton(onClick = { showDelete = true }) {
                             Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)

@@ -401,6 +401,9 @@ fun AppContent() {
                         onGalleryBrowseBatchSave = { browseViewModel.showBatchSaveDialog = true },
                         onGalleryBrowseBatchDelete = { browseViewModel.showBatchDeleteDialog = true },
                         onGalleryBrowseExitSelection = { browseViewModel.exitSelection() },
+                        onGalleryBrowseSelectAll = { browseViewModel.galleryBrowseSelectAll() },
+                        onGalleryBrowseInvertSelection = { browseViewModel.galleryBrowseInvertSelection() },
+                        onGalleryBrowseDeselectAll = { browseViewModel.galleryBrowseDeselectAll() },
                     )
                 }
             },

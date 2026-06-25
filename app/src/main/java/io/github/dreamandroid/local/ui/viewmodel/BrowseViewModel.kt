@@ -85,6 +85,33 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
         selectedItems.clear()
     }
 
+    fun galleryBrowseSelectAll() {
+        val items = historyItems.value.filter { filterModelId == null || it.modelId == filterModelId }
+        if (items.isEmpty()) return
+        isSelectionMode = true
+        selectedItems.clear()
+        selectedItems.addAll(items)
+    }
+
+    fun galleryBrowseInvertSelection() {
+        val items = historyItems.value.filter { filterModelId == null || it.modelId == filterModelId }
+        if (!isSelectionMode) {
+            isSelectionMode = true
+            selectedItems.clear()
+            selectedItems.addAll(items)
+        } else {
+            items.forEach { item ->
+                if (selectedItems.contains(item)) selectedItems.remove(item)
+                else selectedItems.add(item)
+            }
+            if (selectedItems.isEmpty()) isSelectionMode = false
+        }
+    }
+
+    fun galleryBrowseDeselectAll() {
+        exitSelection()
+    }
+
     // ── Batch Delete ──────────────────────────────────────────
 
     suspend fun batchDelete(): Int {

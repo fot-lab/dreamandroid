@@ -173,7 +173,7 @@ private fun TaskCard(
             ) {
                 Icon(
                     imageVector = when (direction) {
-                        SwipeToDismissBoxValue.StartToEnd -> Icons.Default.SaveAlt
+                        SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Bookmark
                         else -> Icons.Default.Delete
                     },
                     contentDescription = when (direction) {
@@ -367,7 +367,7 @@ private fun BatchGroupCard(
             ) {
                 Icon(
                     imageVector = when (direction) {
-                        SwipeToDismissBoxValue.StartToEnd -> Icons.Default.SaveAlt
+                        SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Bookmark
                         else -> Icons.Default.Delete
                     },
                     contentDescription = when (direction) {

@@ -206,6 +206,7 @@
     <string name="reproduce_params_title">Reproduce Parameters</string>
     <string name="reproduce_params_hint">Pick the fields to apply to the prompt page.</string>
     <string name="select_all">Select all</string>
+    <string name="invert_selection">Invert selection</string>
     <string name="deselect_all">Deselect all</string>
     <string name="result_params">steps: %1$s / CFG: %2$.1f / seed: %3$s</string>
     <string name="result_params_2">size: %1$sx%2$s / time: %3$s / %4$s</string>

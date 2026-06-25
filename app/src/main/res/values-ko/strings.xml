@@ -184,6 +184,7 @@
     <string name="reproduce_params_title">파라미터 재사용</string>
     <string name="reproduce_params_hint">프롬프트 페이지에 적용할 항목을 선택하세요.</string>
     <string name="select_all">모두 선택</string>
+    <string name="invert_selection">선택 반전</string>
     <string name="deselect_all">모두 선택 해제</string>
     <string name="result_params">스텝: %1$s / CFG: %2$.1f / 시드: %3$s</string>
     <string name="result_params_2">크기: %1$sx%2$s / 시간: %3$s / %4$s</string>

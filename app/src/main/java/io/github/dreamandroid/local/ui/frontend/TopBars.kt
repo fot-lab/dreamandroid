@@ -236,8 +236,12 @@ fun BrowseTopBar(
     onGalleryBrowseBatchSave: () -> Unit = {},
     onGalleryBrowseBatchDelete: () -> Unit = {},
     onGalleryBrowseExitSelection: () -> Unit = {},
+    onGalleryBrowseSelectAll: () -> Unit = {},
+    onGalleryBrowseInvertSelection: () -> Unit = {},
+    onGalleryBrowseDeselectAll: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    var showGalleryBrowseMenu by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
             if (isGalleryBrowseSelectionMode) {
@@ -261,11 +265,11 @@ fun BrowseTopBar(
         actions = {
             if (isGalleryBrowseSelectionMode) {
                 IconButton(onClick = onGalleryBrowseBatchSaveInfo) {
-                    Icon(Icons.Default.NoteAdd, stringResource(R.string.save_info),
+                    Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
                         tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onGalleryBrowseBatchSave) {
-                    Icon(Icons.Default.SaveAlt, stringResource(R.string.save))
+                    Icon(Icons.Default.Save, stringResource(R.string.save))
                 }
                 IconButton(onClick = onGalleryBrowseBatchDelete) {
                     Icon(Icons.Default.Delete, stringResource(R.string.delete),
@@ -277,6 +281,49 @@ fun BrowseTopBar(
                         Icons.Default.Apps,
                         contentDescription = "Toggle layout",
                     )
+                }
+                Box {
+                    IconButton(onClick = { showGalleryBrowseMenu = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Gallery browse menu",
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showGalleryBrowseMenu,
+                        onDismissRequest = { showGalleryBrowseMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.select_all)) },
+                            onClick = {
+                                showGalleryBrowseMenu = false
+                                onGalleryBrowseSelectAll()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.SelectAll, contentDescription = null)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.invert_selection)) },
+                            onClick = {
+                                showGalleryBrowseMenu = false
+                                onGalleryBrowseInvertSelection()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.FlipToBack, contentDescription = null)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.deselect_all)) },
+                            onClick = {
+                                showGalleryBrowseMenu = false
+                                onGalleryBrowseDeselectAll()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Deselect, contentDescription = null)
+                            },
+                        )
+                    }
                 }
             }
         },

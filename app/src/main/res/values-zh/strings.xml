@@ -197,6 +197,7 @@
     <string name="reproduce_params_title">复用参数</string>
     <string name="reproduce_params_hint">选择要应用到提示词页面的字段。</string>
     <string name="select_all">全选</string>
+    <string name="invert_selection">反选</string>
     <string name="deselect_all">全不选</string>
     <string name="result_params">步数: %1$s / CFG: %2$.1f / 种子: %3$s</string>
     <string name="result_params_2">尺寸: %1$sx%2$s / 耗时: %3$s / %4$s</string>
