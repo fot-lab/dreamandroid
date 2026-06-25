@@ -330,11 +330,7 @@ fun BrowseTopBar(
             }
         },
         navigationIcon = {
-            if (isGalleryBrowseSelectionMode) {
-                IconButton(onClick = onGalleryBrowseExitSelection) {
-                    Icon(Icons.Default.Close, stringResource(R.string.cancel))
-                }
-            } else {
+            if (!isGalleryBrowseSelectionMode) {
                 IconButton(onClick = { scope.launch { drawerState.open() } }) {
                     Icon(Icons.Default.Menu, stringResource(R.string.settings))
                 }
@@ -353,55 +349,61 @@ fun BrowseTopBar(
                     Icon(Icons.Default.Delete, stringResource(R.string.delete),
                         tint = MaterialTheme.colorScheme.error)
                 }
+                // X Close replaces Toggle Layout in selection mode
+                IconButton(onClick = onGalleryBrowseExitSelection) {
+                    Icon(Icons.Default.Close, stringResource(R.string.cancel))
+                }
             } else {
+                // Toggle layout — only visible in non-selection mode
                 IconButton(onClick = onToggleLayout) {
                     Icon(
                         Icons.Default.Apps,
                         contentDescription = "Toggle layout",
                     )
                 }
-                Box {
-                    IconButton(onClick = { showGalleryBrowseMenu = true }) {
-                        Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "Gallery browse menu",
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showGalleryBrowseMenu,
-                        onDismissRequest = { showGalleryBrowseMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.select_all)) },
-                            onClick = {
-                                showGalleryBrowseMenu = false
-                                onGalleryBrowseSelectAll()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.SelectAll, contentDescription = null)
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.invert_selection)) },
-                            onClick = {
-                                showGalleryBrowseMenu = false
-                                onGalleryBrowseInvertSelection()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.FlipToBack, contentDescription = null)
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.deselect_all)) },
-                            onClick = {
-                                showGalleryBrowseMenu = false
-                                onGalleryBrowseDeselectAll()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Deselect, contentDescription = null)
-                            },
-                        )
-                    }
+            }
+            // 3-dot dropdown — always visible, provides Select All / Invert / Deselect All
+            Box {
+                IconButton(onClick = { showGalleryBrowseMenu = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Gallery browse menu",
+                    )
+                }
+                DropdownMenu(
+                    expanded = showGalleryBrowseMenu,
+                    onDismissRequest = { showGalleryBrowseMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.select_all)) },
+                        onClick = {
+                            showGalleryBrowseMenu = false
+                            onGalleryBrowseSelectAll()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.SelectAll, contentDescription = null)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.invert_selection)) },
+                        onClick = {
+                            showGalleryBrowseMenu = false
+                            onGalleryBrowseInvertSelection()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.FlipToBack, contentDescription = null)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.deselect_all)) },
+                        onClick = {
+                            showGalleryBrowseMenu = false
+                            onGalleryBrowseDeselectAll()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Deselect, contentDescription = null)
+                        },
+                    )
                 }
             }
         },
