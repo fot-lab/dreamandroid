@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.ui.queue
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
@@ -8,6 +9,8 @@ import io.github.dreamandroid.local.ui.screens.QueueScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val TAG_QUEUE = "QueueSectionDbg"
 
 // =========== Queue Tab ===========
 
@@ -27,6 +30,7 @@ fun TabQueueScreen(
     queueOnToggleBatch: (String) -> Unit = {},
     queueOnToggleTask: (String) -> Unit = {},
 ) {
+    Log.d(TAG_QUEUE, "TabQueueScreen() tasks.size=${tasks.size} batchGroups.size=${batchGroups.size} selection=$queueIsSelectionMode")
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 

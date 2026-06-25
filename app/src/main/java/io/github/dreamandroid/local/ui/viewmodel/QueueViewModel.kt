@@ -35,6 +35,8 @@ class QueueViewModel(application: Application) : AndroidViewModel(application) {
     val queueRepository: QueueRepository = app.queueRepository
 
     init {
+        Log.d("QueueViewModelDbg", "QueueViewModel init: tasks.size=${queueRepository.tasks.value.size}")
+
         // Observe WorkManager state for logging
         viewModelScope.launch {
             QueueController.observeState(application).collect { info ->
@@ -44,10 +46,12 @@ class QueueViewModel(application: Application) : AndroidViewModel(application) {
 
         // Auto-start queue processing when tasks are added (if not already running and not paused)
         viewModelScope.launch {
-            queueRepository.tasks.collect {
+            queueRepository.tasks.collect { tasks ->
+                Log.d("QueueViewModelDbg", "tasks.collect: size=${tasks.size} pending=${queueRepository.hasPendingTasks()} active=${queueRepository.processingActive.value} paused=${queueRepository.queuePaused.value}")
                 if (queueRepository.hasPendingTasks()
                     && !queueRepository.processingActive.value
                     && !queueRepository.queuePaused.value) {
+                    Log.d("QueueViewModelDbg", "Auto-starting QueueController")
                     QueueController.start(application)
                 }
             }

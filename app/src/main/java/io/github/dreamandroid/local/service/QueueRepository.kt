@@ -1,6 +1,7 @@
 package io.github.dreamandroid.local.service
 
 import android.content.Context
+import android.util.Log
 import io.github.dreamandroid.local.core.error.AppError
 import io.github.dreamandroid.local.data.BatchGroupDisplay
 import io.github.dreamandroid.local.data.GenerationTask
@@ -286,8 +287,9 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     /** Build collapsed batch groups for display */
     fun getBatchGroups(): List<BatchGroupDisplay> {
         val tasks = _tasks.value
+        Log.d("QueueRepoDbg", "getBatchGroups() tasks.size=${tasks.size}")
         // Tasks without batchGroupId (orphans from pre-batch era) get their own group keyed by task id
-        return tasks.groupBy { it.batchGroupId.ifEmpty { it.id } }
+        val groups = tasks.groupBy { it.batchGroupId.ifEmpty { it.id } }
             .map { (groupId, groupedTasks) ->
                 val sorted = groupedTasks.sortedBy { it.batchIndex }
                 BatchGroupDisplay(
@@ -297,6 +299,8 @@ class QueueRepository private constructor(private val db: AppDatabase) {
                     count = groupedTasks.size,
                 )
             }
+        Log.d("QueueRepoDbg", "getBatchGroups() returned ${groups.size} groups: ${groups.map { "id=${it.batchGroupId.take(8)} count=${it.count}" }}")
+        return groups
     }
 
     fun clearCompleted() {

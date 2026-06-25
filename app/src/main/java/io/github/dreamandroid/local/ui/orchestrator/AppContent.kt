@@ -1,6 +1,7 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -76,6 +77,11 @@ fun AppContent() {
     val queueHasPending = remember(queueTasks) {
         queueViewModel.queueRepository.hasPendingTasks()
     }
+
+    // Debug: log queue state changes
+    Log.d("AppContentDbg", "Queue state: tasks.size=${queueTasks.size} batchGroups.size=${queueBatchGroups.size} " +
+        "processing=$queueProcessing paused=$queuePaused pending=$queueHasPending " +
+        "selectionMode=${queueViewModel.queueIsSelectionMode}")
 
     // ── Upscaler preferences ──
     val persistedUpscalerId = remember {

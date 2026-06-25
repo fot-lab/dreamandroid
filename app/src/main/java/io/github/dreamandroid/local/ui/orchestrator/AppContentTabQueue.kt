@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,8 @@ import io.github.dreamandroid.local.ui.queue.TabQueueScreen
 import io.github.dreamandroid.local.ui.viewmodel.QueueViewModel
 import kotlinx.coroutines.launch
 
+private const val TAG_QUEUE = "QueueTabDbg"
+
 /**
  * Queue tab: drawer (Generation + Health settings) + Scaffold + QueueTopBar + TabQueueScreen.
  */
@@ -37,6 +40,7 @@ fun AppContentTabQueue(
     hasPendingTasks: Boolean,
     recordRepository: RecordRepository,
 ) {
+    Log.d(TAG_QUEUE, "AppContentTabQueue() tasks.size=${tasks.size} batchGroups.size=${batchGroups.size} processing=$processingActive paused=$queuePaused selectionMode=${queueViewModel.queueIsSelectionMode}")
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 

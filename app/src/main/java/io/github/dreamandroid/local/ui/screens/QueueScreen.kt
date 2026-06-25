@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -29,6 +30,8 @@ import io.github.dreamandroid.local.data.BatchGroupDisplay
 import io.github.dreamandroid.local.data.GenerationTask
 import io.github.dreamandroid.local.data.TaskStatus
 
+private const val TAG_QUEUE = "QueueScreenDbg"
+
 @Composable
 fun QueueScreen(
     tasks: List<GenerationTask>,
@@ -46,9 +49,11 @@ fun QueueScreen(
     queueOnToggleTask: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    Log.d(TAG_QUEUE, "QueueScreen() entered | tasks.size=${tasks.size} batchGroups.size=${batchGroups.size} selection=$queueIsSelectionMode")
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
 
     if (tasks.isEmpty()) {
+        Log.d(TAG_QUEUE, "QueueScreen: rendering EMPTY state")
         // Empty state
         Box(
             modifier = modifier.fillMaxSize(),
@@ -78,6 +83,7 @@ fun QueueScreen(
         return
     }
 
+    Log.d(TAG_QUEUE, "QueueScreen: rendering LazyColumn with ${batchGroups.size} batchGroups")
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -85,6 +91,7 @@ fun QueueScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(batchGroups, key = { it.batchGroupId }) { group ->
+            Log.d(TAG_QUEUE, "QueueScreen: rendering batchGroup id=${group.batchGroupId.take(8)} count=${group.count} prompt=${group.prompt.take(30)}")
             val isExpanded = expandedGroups[group.batchGroupId] ?: false
             val isBatchSelected = group.batchGroupId in queueSelectedBatchIds
 
@@ -127,6 +134,7 @@ private fun TaskCard(
     queueIsTaskSelected: Boolean = false,
     queueOnToggleTask: () -> Unit = {},
 ) {
+    Log.d(TAG_QUEUE, "TaskCard() id=${task.id.take(8)} status=${task.status} prompt=${task.prompt.take(30)} selected=$queueIsTaskSelected selectionMode=$queueIsSelectionMode")
     val statusColor = statusColor(task.status, processingActive)
     val canSwipe = task.status != TaskStatus.PROCESSING && !queueIsSelectionMode
 
@@ -339,6 +347,7 @@ private fun BatchGroupCard(
     queueOnToggleBatch: () -> Unit = {},
     queueOnToggleTask: (String) -> Unit = {},
 ) {
+    Log.d(TAG_QUEUE, "BatchGroupCard() id=${group.batchGroupId.take(8)} tasks=${group.count} selected=$queueIsBatchSelected selectionMode=$queueIsSelectionMode")
     val canSwipe = group.tasks.none { it.status == TaskStatus.PROCESSING } && !queueIsSelectionMode
 
     val dismissState = rememberSwipeToDismissBoxState(
