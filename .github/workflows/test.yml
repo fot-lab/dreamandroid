@@ -219,13 +219,15 @@ jobs:
           script: sh ./test-script.sh
 
       # ── Capture screenshots of each bottom-navigation tab ──
+      # Best-effort: adb failures here are treated as warnings, not errors.
       - name: Capture tab screenshots
         if: always()
+        continue-on-error: true
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
           # Ensure app is running
-          adb shell am start -n io.github.dreamandroid.local/.MainActivity 2>/dev/null || true
+          adb shell am start -n io.github.dreamandroid.local/.MainActivity 2>/dev/null || echo "WARNING: app start failed"
           sleep 4
 
           mkdir -p screenshots
@@ -240,15 +242,16 @@ jobs:
             X="$(echo "$ENTRY" | cut -d: -f2)"
             Y="$(echo "$ENTRY" | cut -d: -f3)"
             echo "Switching to $NAME tab (tap $X,$Y)..."
-            adb shell input tap "$X" "$Y"
+            adb shell input tap "$X" "$Y" || echo "WARNING: tap $NAME failed"
             sleep 1.5
-            adb shell screencap -p "/sdcard/tab_${NAME}.png"
-            adb pull "/sdcard/tab_${NAME}.png" "screenshots/"
-            echo "✅ Captured $NAME"
+            adb shell screencap -p "/sdcard/tab_${NAME}.png" 2>/dev/null && \
+              adb pull "/sdcard/tab_${NAME}.png" "screenshots/" 2>/dev/null && \
+              echo "✅ Captured $NAME" || \
+              echo "WARNING: screencap/pull $NAME failed"
           done
 
           echo "=== Screenshots captured ==="
-          ls -l screenshots/
+          ls -l screenshots/ || echo "WARNING: no screenshots directory"
 
       # ── Upload tab screenshots ──
       - name: Upload tab screenshots
