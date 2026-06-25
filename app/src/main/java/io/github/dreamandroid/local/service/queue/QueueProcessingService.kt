@@ -23,9 +23,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.coroutines.coroutineContext
@@ -80,16 +77,6 @@ class QueueProcessingService : Service() {
     // Use process-wide singleton shared with WorkManager Worker and UI
     private val queueRepository get() = QueueRepository.getInstance(applicationContext)
 
-    // ── State (mirrors the path-A state in QueueRepository, kept for backward compat) ──
-
-    private val _isProcessing = MutableStateFlow(false)
-    @Deprecated("Prefer queueRepository.processingActive for cross-worker consistency")
-    val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
-
-    private val _currentProgress = MutableStateFlow(0f)
-    @Deprecated("Prefer queueRepository task-level progress observation")
-    val currentProgress: StateFlow<Float> = _currentProgress.asStateFlow()
-
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var processingJob: Job? = null
 
@@ -123,16 +110,12 @@ class QueueProcessingService : Service() {
     }
 
     private fun stopProcessing() {
-        _isProcessing.value = false
         queueRepository.setProcessingActive(false)
     }
 
     // ── Processing Loop ──
 
     private fun startProcessing() {
-        if (_isProcessing.value) return
-        _isProcessing.value = true
-
         processingJob = serviceScope.launch {
             processLoop()
         }
@@ -255,7 +238,6 @@ class QueueProcessingService : Service() {
                                     if (event.totalSteps > 0) event.totalSteps else task.steps
                                 val progress = event.step.toFloat() / effectiveTotalSteps
                                 resetStepTimeout()
-                                _currentProgress.value = progress
                                 queueRepository.updateTaskProgress(task.id, progress)
                                 updateNotification(
                                     "Generating: ${task.prompt.take(30)}...",

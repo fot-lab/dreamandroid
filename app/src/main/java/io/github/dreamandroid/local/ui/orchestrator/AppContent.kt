@@ -77,7 +77,7 @@ fun AppContent() {
     val generationTimedOut by queueViewModel.queueRepository.generationTimedOut.collectAsState()
     val queuePaused by queueViewModel.queueRepository.queuePaused.collectAsState()
     val queueHasPending = remember(queueTasks) {
-        queueTasks.any { it.status == TaskStatus.PENDING }
+        queueViewModel.queueRepository.hasPendingTasks()
     }
 
     // ── Upscaler preferences ──

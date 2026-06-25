@@ -1,5 +1,15 @@
 package io.github.dreamandroid.local.ui.screens.run
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * ModelRunState was the centralized state holder for the original ModelRunScreen.
+ * Since ModelRunScreen has been replaced by tab-based UI (Generate / Upscale tabs),
+ * this state class is kept solely as reference.
+ *
+ * Do NOT instantiate ModelRunState in new code.
+ */
+
 import android.graphics.Bitmap
 import android.graphics.Rect as AndroidRect
 import android.net.Uri
@@ -13,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import io.github.dreamandroid.local.data.GenerationMode
+import io.github.dreamandroid.local.data.GenerationParamsState
 import io.github.dreamandroid.local.data.HistoryFilter
 import io.github.dreamandroid.local.data.HistoryItem
 import io.github.dreamandroid.local.data.Resolution
@@ -35,9 +46,36 @@ import kotlinx.coroutines.Job
 typealias PathData = Any
 
 @Stable
-class ModelRunState {
+class ModelRunState(
+    /**
+     * Shared runtime state for generation parameters.
+     * Single source of truth shared with [GenerateViewModel].
+     */
+    val genParams: GenerationParamsState,
+) {
 
-    // ── Generation ────────────────────────────────────────────
+    // ── Generation Parameters (forwarding to shared state) ────
+
+    var prompt: String get() = genParams.prompt set(v) { genParams.prompt = v }
+    var negativePrompt: String get() = genParams.negativePrompt set(v) { genParams.negativePrompt = v }
+    var cfg: Float get() = genParams.cfg set(v) { genParams.cfg = v }
+    var steps: Float get() = genParams.steps set(v) { genParams.steps = v }
+    var seed: String get() = genParams.seed set(v) { genParams.seed = v }
+    var denoiseStrength: Float get() = genParams.denoiseStrength set(v) { genParams.denoiseStrength = v }
+    var useOpenCL: Boolean get() = genParams.useOpenCL set(v) { genParams.useOpenCL = v }
+    var batchCounts: Int get() = genParams.batchCounts set(v) { genParams.batchCounts = v }
+    var sampler: String get() = genParams.sampler set(v) { genParams.sampler = v }
+    var denoiseCurve: String get() = genParams.denoiseCurve set(v) { genParams.denoiseCurve = v }
+    var currentWidth: Int get() = genParams.width set(v) { genParams.width = v }
+    var currentHeight: Int get() = genParams.height set(v) { genParams.height = v }
+    var promptTokenCount: Int get() = genParams.promptTokenCount set(v) { genParams.promptTokenCount = v }
+    var promptTokenMax: Int get() = genParams.promptTokenMax set(v) { genParams.promptTokenMax = v }
+    var negativePromptTokenCount: Int get() = genParams.negativePromptTokenCount set(v) { genParams.negativePromptTokenCount = v }
+    var negativePromptTokenMax: Int get() = genParams.negativePromptTokenMax set(v) { genParams.negativePromptTokenMax = v }
+    var promptOverflowOffset: Int get() = genParams.promptOverflowOffset set(v) { genParams.promptOverflowOffset = v }
+    var negativePromptOverflowOffset: Int get() = genParams.negativePromptOverflowOffset set(v) { genParams.negativePromptOverflowOffset = v }
+
+    // ── Generation (non-shared) ───────────────────────────────
     var currentBitmap by mutableStateOf<Bitmap?>(null)
     var intermediateBitmap by mutableStateOf<Bitmap?>(null)
     var imageVersion by mutableIntStateOf(0)
@@ -58,9 +96,7 @@ class ModelRunState {
     var hasInitialized by mutableStateOf(false)
     var currentBatchGroupId by mutableStateOf<String?>(null)
 
-    // ── Prompt ────────────────────────────────────────────────
-    var prompt by mutableStateOf("")
-    var negativePrompt by mutableStateOf("")
+    // ── Prompt UI (non-shared) ────────────────────────────────
     var promptFieldValue by mutableStateOf(TextFieldValue(""))
     var negativePromptFieldValue by mutableStateOf(TextFieldValue(""))
     var promptSuggestions by mutableStateOf<List<TagSuggestion>>(emptyList())
@@ -77,27 +113,11 @@ class ModelRunState {
     var negativePromptHistoryAt by mutableStateOf(0L)
     var promptPopupDismissed by mutableStateOf(false)
     var negativePromptPopupDismissed by mutableStateOf(false)
-    var promptTokenCount by mutableIntStateOf(2)
-    var negativePromptTokenCount by mutableIntStateOf(2)
-    var promptTokenMax by mutableIntStateOf(77)
-    var negativePromptTokenMax by mutableIntStateOf(77)
-    var promptOverflowOffset by mutableIntStateOf(-1)
-    var negativePromptOverflowOffset by mutableIntStateOf(-1)
     var promptSuggestJob by mutableStateOf<Job?>(null)
     var negativePromptSuggestJob by mutableStateOf<Job?>(null)
 
-    // ── Parameters ────────────────────────────────────────────
-    var cfg by mutableFloatStateOf(7f)
-    var steps by mutableFloatStateOf(20f)
-    var seed by mutableStateOf("")
-    var denoiseStrength by mutableFloatStateOf(0.6f)
-    var useOpenCL by mutableStateOf(false)
-    var batchCounts by mutableIntStateOf(1)
-    var sampler by mutableStateOf("dpm")
-    var denoiseCurve by mutableStateOf("scaled_linear")
+    // ── Parameters (non-shared) ───────────────────────────────
     var aspectRatio by mutableStateOf("1:1")
-    var currentWidth by mutableIntStateOf(512)
-    var currentHeight by mutableIntStateOf(512)
     var availableResolutions by mutableStateOf<List<Resolution>>(emptyList())
 
     // ── Dialogs visibility ────────────────────────────────────

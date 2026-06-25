@@ -1,5 +1,15 @@
 package io.github.dreamandroid.local.ui.screens
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * The original single "Run" screen has been replaced by tab-based UI (BottomTab Generate,
+ * BottomTab Upscale). This file and its companion files under `ui/screens/run/` are kept
+ * solely as reference for the migration logic and parameter handling patterns.
+ *
+ * Do NOT add new navigation routes pointing to ModelRunScreen.
+ */
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ClipData
@@ -73,8 +83,8 @@ import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.*
 import io.github.dreamandroid.local.service.ModelDownloadService
 import io.github.dreamandroid.local.service.QueueRepository
-import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.service.backend.BackendService
+import io.github.dreamandroid.local.ui.backend.*
 import io.github.dreamandroid.local.ui.components.*
 import io.github.dreamandroid.local.ui.screens.run.*
 import io.github.dreamandroid.local.utils.*
@@ -134,7 +144,8 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     DisposableEffect(view) { view.keepScreenOn = true; onDispose { view.keepScreenOn = false } }
 
     // ── State ─────────────────────────────────────────────────
-    val state = remember { ModelRunState() }
+    val app = context.applicationContext as DreamAndroidApplication
+    val state = remember { ModelRunState(genParams = app.generationParamsState) }
 
     // History flow
     val historyFlow = remember(state.historyFilter) { historyManager.observe(state.historyFilter) }
@@ -237,7 +248,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     }
 
     LaunchedEffect(state.hasInitialized) {
-        if (state.hasInitialized && backendState !is BackendManager.State.Running) {
+        if (state.hasInitialized && !backendState.isDiffusionLoaded()) {
             model?.id?.let { modelId -> backendService.startDiffusion(modelId, state.currentWidth, state.currentHeight, state.useOpenCL) }
         }
     }
@@ -271,7 +282,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
     }
 
     LaunchedEffect(backendState, state.hasInitialized) {
-        if (!state.clipboardImportChecked && state.hasInitialized && backendState is BackendManager.State.Running) {
+        if (!state.clipboardImportChecked && state.hasInitialized && backendState.isDiffusionLoaded()) {
             state.clipboardImportChecked = true
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             val raw = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()

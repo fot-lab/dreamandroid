@@ -3,6 +3,7 @@ package io.github.dreamandroid.local
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.util.Log
+import io.github.dreamandroid.local.data.GenerationParamsState
 import io.github.dreamandroid.local.data.HistoryMigration
 import io.github.dreamandroid.local.data.MigrationState
 import io.github.dreamandroid.local.data.db.AppDatabase
@@ -65,6 +66,13 @@ class DreamAndroidApplication : Application(), ComponentCallbacks2 {
             throw IllegalStateException("BackendService not available", e)
         }
     }
+
+    /**
+     * Shared runtime state for generation parameters, used by both
+     * GenerateViewModel (Generate tab) and ModelRunScreen to ensure
+     * consistency across screens without parameter duplication.
+     */
+    val generationParamsState by lazy { GenerationParamsState() }
 
     /** Process-wide singleton queue repository, shared between UI and WorkManager Worker. */
     val queueRepository: QueueRepository

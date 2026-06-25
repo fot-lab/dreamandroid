@@ -40,8 +40,8 @@ import coil.request.ImageRequest
 import coil.size.Size
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.R
-import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.service.backend.BackendService
+import io.github.dreamandroid.local.ui.backend.*
 import io.github.dreamandroid.local.ui.components.BlockingProgressOverlay
 import io.github.dreamandroid.local.ui.components.ErrorMessageCard
 import io.github.dreamandroid.local.ui.components.SmoothCircularWavyProgressIndicator
@@ -63,10 +63,8 @@ fun UpscaleScreen(
     val app = context.applicationContext as DreamAndroidApplication
     val backendService = app.backendService
     val upscaleBackendState by backendService.state.collectAsState()
-    val isUpscaleBackendRunning = upscaleBackendState is BackendManager.State.Running
-        && (upscaleBackendState as BackendManager.State.Running).mode == BackendManager.Mode.Upscaler
-    val loadedUpscalerId = (upscaleBackendState as? BackendManager.State.Running)
-        ?.takeIf { it.mode == BackendManager.Mode.Upscaler }?.modelId
+    val isUpscaleBackendRunning = upscaleBackendState.isUpscalerLoaded()
+    val loadedUpscalerId = upscaleBackendState.activeUpscalerId()
 
     // String resources
     val msgUpscaleModelNotLoaded = stringResource(R.string.upscale_model_not_loaded)

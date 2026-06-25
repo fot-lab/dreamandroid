@@ -1,31 +1,23 @@
 package io.github.dreamandroid.local.ui.viewmodel
 
 import android.app.Application
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.core.error.AppError
+import io.github.dreamandroid.local.data.GenerationParamsState
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResult
 import kotlinx.coroutines.flow.first
 import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
  * Generate ViewModel extracted from AppContent God Object (UILA-COMP-0001).
  *
  * Manages:
- * - All generation parameters (prompt, steps, cfg, seed, etc.)
+ * - All generation parameters (delegates to shared [GenerationParamsState])
  * - Preference loading/saving (global + per-model)
  * - Tokenize calls (via BackendService HTTP middleware) with AppError-based error handling
  * - Add-to-queue logic
@@ -35,69 +27,72 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
     private val app = application as DreamAndroidApplication
     private val backendService: BackendService = app.backendService
 
-    // ── Generation Parameters ─────────────────────────────────
-    var genPrompt by mutableStateOf("")
-    var genNegativePrompt by mutableStateOf("")
-    var genSteps by mutableFloatStateOf(20f)
-    var genCfg by mutableFloatStateOf(7f)
-    var genSeed by mutableStateOf("")
-    var genBatchCounts by mutableIntStateOf(1)
-    var genSampler by mutableStateOf("dpm")
-    var genDenoiseCurve by mutableStateOf("scaled_linear")
-    var genDenoiseStrength by mutableFloatStateOf(0.6f)
-    var genUseOpenCL by mutableStateOf(false)
-    var genWidth by mutableIntStateOf(512)
-    var genHeight by mutableIntStateOf(512)
+    /** Shared runtime state for generation parameters (single source of truth). */
+    private val genParams: GenerationParamsState = app.generationParamsState
 
-    // ── Tokenize State ────────────────────────────────────────
-    var promptTokenCount by mutableIntStateOf(0)
-    var promptTokenMax by mutableIntStateOf(77)
-    var promptOverflowOffset by mutableIntStateOf(-1)
-    var negativePromptTokenCount by mutableIntStateOf(0)
-    var negativePromptTokenMax by mutableIntStateOf(77)
-    var negativePromptOverflowOffset by mutableIntStateOf(-1)
+    // ── Generation Parameters (forwarding to shared state) ────
+    var genPrompt: String get() = genParams.prompt set(v) { genParams.prompt = v }
+    var genNegativePrompt: String get() = genParams.negativePrompt set(v) { genParams.negativePrompt = v }
+    var genSteps: Float get() = genParams.steps set(v) { genParams.steps = v }
+    var genCfg: Float get() = genParams.cfg set(v) { genParams.cfg = v }
+    var genSeed: String get() = genParams.seed set(v) { genParams.seed = v }
+    var genBatchCounts: Int get() = genParams.batchCounts set(v) { genParams.batchCounts = v }
+    var genSampler: String get() = genParams.sampler set(v) { genParams.sampler = v }
+    var genDenoiseCurve: String get() = genParams.denoiseCurve set(v) { genParams.denoiseCurve = v }
+    var genDenoiseStrength: Float get() = genParams.denoiseStrength set(v) { genParams.denoiseStrength = v }
+    var genUseOpenCL: Boolean get() = genParams.useOpenCL set(v) { genParams.useOpenCL = v }
+    var genWidth: Int get() = genParams.width set(v) { genParams.width = v }
+    var genHeight: Int get() = genParams.height set(v) { genParams.height = v }
+
+    // ── Tokenize State (forwarding to shared state) ───────────
+    var promptTokenCount: Int get() = genParams.promptTokenCount set(v) { genParams.promptTokenCount = v }
+    var promptTokenMax: Int get() = genParams.promptTokenMax set(v) { genParams.promptTokenMax = v }
+    var promptOverflowOffset: Int get() = genParams.promptOverflowOffset set(v) { genParams.promptOverflowOffset = v }
+    var negativePromptTokenCount: Int get() = genParams.negativePromptTokenCount set(v) { genParams.negativePromptTokenCount = v }
+    var negativePromptTokenMax: Int get() = genParams.negativePromptTokenMax set(v) { genParams.negativePromptTokenMax = v }
+    var negativePromptOverflowOffset: Int get() = genParams.negativePromptOverflowOffset set(v) { genParams.negativePromptOverflowOffset = v }
 
     // ── Error State (AppError-sealed, UILA-COMP-0003) ────────
-    var tokenizeError by mutableStateOf<AppError?>(null)
+    var tokenizeError by androidx.compose.runtime.mutableStateOf<AppError?>(null)
 
     // ── Preferences ───────────────────────────────────────────
 
     suspend fun loadGlobalPrefs(prefs: GenerationPreferences) {
-        genPrompt = prefs.getGlobalPrompt()
-        genNegativePrompt = prefs.getGlobalNegativePrompt()
-        genBatchCounts = prefs.getGlobalBatchCounts().coerceAtLeast(1)
-        genWidth = prefs.getGlobalWidth().coerceIn(64, 4096)
-        genHeight = prefs.getGlobalHeight().coerceIn(64, 4096)
+        genParams.prompt = prefs.getGlobalPrompt()
+        genParams.negativePrompt = prefs.getGlobalNegativePrompt()
+        genParams.batchCounts = prefs.getGlobalBatchCounts().coerceAtLeast(1)
+        genParams.width = prefs.getGlobalWidth().coerceIn(64, 4096)
+        genParams.height = prefs.getGlobalHeight().coerceIn(64, 4096)
     }
 
     suspend fun loadModelPrefs(modelId: String, prefs: GenerationPreferences) {
         val p = prefs.getPreferences(modelId).first()
-        if (genPrompt.isEmpty() && p.prompt.isNotEmpty()) genPrompt = p.prompt
-        if (genNegativePrompt.isEmpty() && p.negativePrompt.isNotEmpty()) genNegativePrompt = p.negativePrompt
-        if (genBatchCounts == 1 && p.batchCounts > 1) genBatchCounts = p.batchCounts
-        if (p.steps > 0) genSteps = p.steps
-        if (p.cfgScale > 0) genCfg = p.cfgScale
-        if (p.seed.isNotEmpty()) genSeed = p.seed
-        genSampler = p.sampler
-        genDenoiseCurve = p.denoiseCurve
-        genDenoiseStrength = p.denoisingStrength
-        genUseOpenCL = p.useOpenCL
+        if (genParams.prompt.isEmpty() && p.prompt.isNotEmpty()) genParams.prompt = p.prompt
+        if (genParams.negativePrompt.isEmpty() && p.negativePrompt.isNotEmpty()) genParams.negativePrompt = p.negativePrompt
+        if (genParams.batchCounts == 1 && p.batchCounts > 1) genParams.batchCounts = p.batchCounts
+        if (p.steps > 0) genParams.steps = p.steps
+        if (p.cfgScale > 0) genParams.cfg = p.cfgScale
+        if (p.seed.isNotEmpty()) genParams.seed = p.seed
+        genParams.sampler = p.sampler
+        genParams.denoiseCurve = p.denoiseCurve
+        genParams.denoiseStrength = p.denoisingStrength
+        genParams.useOpenCL = p.useOpenCL
     }
 
     // ── Tokenize (HTTP via BackendService middleware, no direct BackendManager access) ──
 
     suspend fun tokenizePrompt(prompt: String): TokenizeResult? {
         if (prompt.isBlank()) {
-            promptTokenCount = 0
-            promptTokenMax = 77
-            promptOverflowOffset = -1
+            genParams.promptTokenCount = 0
+            genParams.promptTokenMax = 77
+            genParams.promptOverflowOffset = -1
             return null
         }
         return try {
             val result = backendService.tokenize(prompt)
-            promptTokenCount = result.count
-            promptTokenMax = result.maxLength
-            promptOverflowOffset = result.overflowOffset
+            genParams.promptTokenCount = result.count
+            genParams.promptTokenMax = result.maxLength
+            genParams.promptOverflowOffset = result.overflowOffset
             tokenizeError = null
             result
         } catch (e: Exception) {
@@ -108,16 +103,16 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
 
     suspend fun tokenizeNegativePrompt(prompt: String): TokenizeResult? {
         if (prompt.isBlank()) {
-            negativePromptTokenCount = 0
-            negativePromptTokenMax = 77
-            negativePromptOverflowOffset = -1
+            genParams.negativePromptTokenCount = 0
+            genParams.negativePromptTokenMax = 77
+            genParams.negativePromptOverflowOffset = -1
             return null
         }
         return try {
             val result = backendService.tokenize(prompt)
-            negativePromptTokenCount = result.count
-            negativePromptTokenMax = result.maxLength
-            negativePromptOverflowOffset = result.overflowOffset
+            genParams.negativePromptTokenCount = result.count
+            genParams.negativePromptTokenMax = result.maxLength
+            genParams.negativePromptOverflowOffset = result.overflowOffset
             tokenizeError = null
             result
         } catch (e: Exception) {
@@ -131,19 +126,19 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
     suspend fun saveAllFields(prefs: GenerationPreferences, modelId: String) {
         prefs.saveAllFields(
             modelId = modelId,
-            prompt = genPrompt,
-            negativePrompt = genNegativePrompt,
-            steps = genSteps,
-            cfgScale = genCfg,
-            seed = genSeed,
-            width = genWidth,
-            height = genHeight,
-            denoisingStrength = genDenoiseStrength,
-            useOpenCL = genUseOpenCL,
-            batchCounts = genBatchCounts,
-            sampler = genSampler,
-            denoiseCurve = genDenoiseCurve,
-            aspectRatio = inferAspectRatioString(genWidth, genHeight),
+            prompt = genParams.prompt,
+            negativePrompt = genParams.negativePrompt,
+            steps = genParams.steps,
+            cfgScale = genParams.cfg,
+            seed = genParams.seed,
+            width = genParams.width,
+            height = genParams.height,
+            denoisingStrength = genParams.denoiseStrength,
+            useOpenCL = genParams.useOpenCL,
+            batchCounts = genParams.batchCounts,
+            sampler = genParams.sampler,
+            denoiseCurve = genParams.denoiseCurve,
+            aspectRatio = inferAspectRatioString(genParams.width, genParams.height),
         )
     }
 
@@ -156,19 +151,19 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
     ) {
         queueRepository.addBatch(
             modelId = modelId,
-            prompt = genPrompt,
-            negativePrompt = genNegativePrompt,
-            steps = genSteps.roundToInt(),
-            cfg = genCfg,
-            seed = genSeed,
-            width = genWidth,
-            height = genHeight,
-            effectiveWidth = genWidth,
-            effectiveHeight = genHeight,
-            denoiseStrength = genDenoiseStrength,
-            useOpenCL = genUseOpenCL,
-            sampler = genSampler,
-            aspectRatio = inferAspectRatioString(genWidth, genHeight),
+            prompt = genParams.prompt,
+            negativePrompt = genParams.negativePrompt,
+            steps = genParams.steps.roundToInt(),
+            cfg = genParams.cfg,
+            seed = genParams.seed,
+            width = genParams.width,
+            height = genParams.height,
+            effectiveWidth = genParams.width,
+            effectiveHeight = genParams.height,
+            denoiseStrength = genParams.denoiseStrength,
+            useOpenCL = genParams.useOpenCL,
+            sampler = genParams.sampler,
+            aspectRatio = inferAspectRatioString(genParams.width, genParams.height),
             count = count.coerceAtLeast(1),
         )
     }
@@ -176,18 +171,6 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
     // ── Reset ─────────────────────────────────────────────────
 
     fun resetToDefaults() {
-        genPrompt = ""
-        genSteps = 20f
-        genCfg = 7f
-        genSeed = ""
-        genBatchCounts = 1
-        genSampler = "dpm"
-        genDenoiseCurve = "scaled_linear"
-        genDenoiseStrength = 0.6f
-        genUseOpenCL = false
-        genWidth = 512
-        genHeight = 512
-        promptTokenCount = 0
-        negativePromptTokenCount = 0
+        genParams.resetToDefaults()
     }
 }
