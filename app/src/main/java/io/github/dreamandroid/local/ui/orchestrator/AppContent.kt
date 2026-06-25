@@ -21,9 +21,6 @@ import io.github.dreamandroid.local.data.*
 import io.github.dreamandroid.local.navigation.BottomTab
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.ui.backend.*
-import io.github.dreamandroid.local.ui.screens.model.CustomModelDialog
-import io.github.dreamandroid.local.ui.screens.model.CustomNpuModelDialog
-import io.github.dreamandroid.local.ui.screens.model.CustomUpscaleModelDialog
 import io.github.dreamandroid.local.ui.viewmodel.BrowseViewModel
 import io.github.dreamandroid.local.ui.viewmodel.GenerateViewModel
 import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
@@ -100,149 +97,28 @@ fun AppContent() {
         }
     }
 
-    // ── String resources ──
-    val msgNpuModelAddedSuccess = stringResource(R.string.npu_model_added_success)
-    val msgNpuModelAddFailed = stringResource(R.string.npu_model_add_failed)
-    val msgModelConversionSuccess = stringResource(R.string.model_conversion_success)
-    val msgModelConversionFailed = stringResource(R.string.model_conversion_failed)
-
     // ── Dialogs ──
 
-    // No model warning
-    if (mainViewModel.showNoModelWarning) {
-        AlertDialog(
-            onDismissRequest = { mainViewModel.showNoModelWarning = false },
-            title = { Text(stringResource(R.string.no_model_loaded)) },
-            text = { Text(stringResource(R.string.no_model_loaded_hint)) },
-            confirmButton = {
-                TextButton(onClick = { mainViewModel.showNoModelWarning = false }) {
-                    Text(stringResource(R.string.got_it))
-                }
-            },
-        )
-    }
+    // Shared alert/confirm dialogs (no-model warning, delete confirm)
+    AppContentDialogModelsAlert(
+        mainViewModel = mainViewModel,
+        modelsViewModel = modelsViewModel,
+        snackbarHostState = snackbarHostState,
+    )
 
-    // Custom model import dialog
-    if (modelsViewModel.showCustomModelDialog) {
-        CustomModelDialog(
-            context,
-            onDismiss = { modelsViewModel.showCustomModelDialog = false },
-            onModelAdded = { modelName, fileUri, clipSkip, loraFiles ->
-                modelsViewModel.showCustomModelDialog = false
-                scope.launch {
-                    modelsViewModel.importCustomModel(context, modelName, fileUri, clipSkip, loraFiles)
-                    snackbarHostState.showSnackbar(msgModelConversionSuccess)
-                }
-            },
-        )
-    }
-
-    // Custom NPU model import dialog
-    if (modelsViewModel.showCustomNpuModelDialog) {
-        CustomNpuModelDialog(
-            context,
-            onDismiss = { modelsViewModel.showCustomNpuModelDialog = false },
-            onModelAdded = { modelName, zipUri ->
-                modelsViewModel.showCustomNpuModelDialog = false
-                scope.launch {
-                    modelsViewModel.importNpuModel(context, modelName, zipUri)
-                    snackbarHostState.showSnackbar(msgNpuModelAddedSuccess)
-                }
-            },
-        )
-    }
-
-    // Custom upscale model import dialog
-    if (modelsViewModel.showCustomUpscaleModelDialog) {
-        CustomUpscaleModelDialog(
-            context = context,
-            onDismiss = { modelsViewModel.showCustomUpscaleModelDialog = false },
-            onModelAdded = { modelName, fileUri ->
-                modelsViewModel.showCustomUpscaleModelDialog = false
-                scope.launch {
-                    val success = modelsViewModel.importUpscaleModel(context, modelName, fileUri)
-                    snackbarHostState.showSnackbar(
-                        if (success) context.getString(R.string.upscale_file_selected)
-                        else context.getString(R.string.error_download_failed, "")
-                    )
-                }
-            },
-        )
-    }
+    // Model import dialogs
+    AppContentDialogModelsImport(
+        modelsViewModel = modelsViewModel,
+        snackbarHostState = snackbarHostState,
+        scope = scope,
+    )
 
     // Rename model dialog
     if (modelsViewModel.showRenameDialog) {
-        val newName = modelsViewModel.renameText.trim()
-        val isDuplicate = newName.isNotEmpty() && modelsViewModel.isRenameDuplicate(newName)
-        AlertDialog(
-            onDismissRequest = { modelsViewModel.showRenameDialog = false },
-            title = { Text(stringResource(R.string.rename_model)) },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = modelsViewModel.renameText,
-                        onValueChange = { modelsViewModel.renameText = it },
-                        label = { Text(stringResource(R.string.custom_model_name)) },
-                        singleLine = true,
-                        isError = isDuplicate,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (isDuplicate) {
-                        Text(
-                            text = stringResource(R.string.rename_duplicate_error),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            // No explicit padding; let layout flow naturally
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            val success = modelsViewModel.renameModel(context, newName)
-                            snackbarHostState.showSnackbar(
-                                if (success) context.getString(R.string.rename_success)
-                                else context.getString(R.string.rename_failed, "directory error")
-                            )
-                        }
-                    },
-                    enabled = newName.isNotEmpty() && !isDuplicate,
-                ) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { modelsViewModel.showRenameDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    // Delete model confirmation dialog
-    if (modelsViewModel.showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { modelsViewModel.showDeleteConfirm = false },
-            title = { Text(stringResource(R.string.delete_model)) },
-            text = { Text(stringResource(R.string.delete_model_confirm_single)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            val success = modelsViewModel.deleteModel(context)
-                            snackbarHostState.showSnackbar(
-                                if (success) context.getString(R.string.delete_success)
-                                else context.getString(R.string.delete_failed)
-                            )
-                        }
-                    },
-                ) { Text(stringResource(R.string.delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { modelsViewModel.showDeleteConfirm = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+        AppContentDialogModelsRename(
+            modelsViewModel = modelsViewModel,
+            context = context,
+            snackbarHostState = snackbarHostState,
         )
     }
 
