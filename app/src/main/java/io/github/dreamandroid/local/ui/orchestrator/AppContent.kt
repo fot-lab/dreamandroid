@@ -192,7 +192,7 @@ fun AppContent() {
                             text = stringResource(R.string.rename_duplicate_error),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+                            // No explicit padding; let layout flow naturally
                         )
                     }
                 }
