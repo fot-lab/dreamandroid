@@ -230,10 +230,6 @@ fun QueueTopBar(
         },
         actions = {
             if (queueIsSelectionMode) {
-                // X Close replaces start/stop — exits selection mode
-                IconButton(onClick = queueOnExitSelection) {
-                    Icon(Icons.Default.Close, stringResource(R.string.cancel))
-                }
                 IconButton(onClick = queueOnBatchSaveInfo) {
                     Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
                         tint = MaterialTheme.colorScheme.primary)
@@ -241,6 +237,10 @@ fun QueueTopBar(
                 IconButton(onClick = queueOnBatchDelete) {
                     Icon(Icons.Default.Delete, stringResource(R.string.delete),
                         tint = MaterialTheme.colorScheme.error)
+                }
+                // X Close — exits selection mode
+                IconButton(onClick = queueOnExitSelection) {
+                    Icon(Icons.Default.Close, stringResource(R.string.cancel))
                 }
             } else {
                 // Show Pause while worker is actively processing
@@ -403,18 +403,18 @@ fun BrowseTopBar(
         },
         actions = {
             if (isGalleryBrowseSelectionMode) {
+                IconButton(onClick = onGalleryBrowseBatchSave) {
+                    Icon(Icons.Default.Save, stringResource(R.string.save))
+                }
                 IconButton(onClick = onGalleryBrowseBatchSaveInfo) {
                     Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
                         tint = MaterialTheme.colorScheme.primary)
-                }
-                IconButton(onClick = onGalleryBrowseBatchSave) {
-                    Icon(Icons.Default.Save, stringResource(R.string.save))
                 }
                 IconButton(onClick = onGalleryBrowseBatchDelete) {
                     Icon(Icons.Default.Delete, stringResource(R.string.delete),
                         tint = MaterialTheme.colorScheme.error)
                 }
-                // X Close replaces Toggle Layout in selection mode
+                // X Close — exits selection mode
                 IconButton(onClick = onGalleryBrowseExitSelection) {
                     Icon(Icons.Default.Close, stringResource(R.string.cancel))
                 }
