@@ -51,7 +51,7 @@ fun AppContentTabGenerate(
         generateViewModel.genDenoiseCurve = "scaled_linear"
         generateViewModel.genDenoiseStrength = 0.6f
         val repo = ModelRepository(context)
-        val m = modelsViewModel.selectedModelId?.let { id -> repo.models.find { it.id == id } }
+        val m = modelsViewModel.loadedModelId?.let { id -> repo.models.find { it.id == id } }
         generateViewModel.genPrompt = m?.defaultPrompt ?: ""
         generateViewModel.genNegativePrompt = m?.defaultNegativePrompt ?: ""
         kotlinx.coroutines.MainScope().launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -62,7 +62,7 @@ fun AppContentTabGenerate(
                 width = generateViewModel.genWidth,
                 height = generateViewModel.genHeight,
             )
-            modelsViewModel.selectedModelId?.let { modelId ->
+            modelsViewModel.loadedModelId?.let { modelId ->
                 generationPreferences.saveAllFields(
                     modelId = modelId,
                     prompt = generateViewModel.genPrompt,
@@ -84,7 +84,7 @@ fun AppContentTabGenerate(
 
     // ── Add to queue ──
     val onAddToQueue: (Int) -> Unit = { count ->
-        modelsViewModel.selectedModelId?.let { modelId ->
+        modelsViewModel.loadedModelId?.let { modelId ->
             generateViewModel.addToQueue(modelId, count, queueRepository)
             scope.launch {
                 snackbarHostState.showSnackbar(context.getString(R.string.added_to_queue, count))
@@ -93,7 +93,7 @@ fun AppContentTabGenerate(
     }
 
     val onGenTaskAddToQueue: () -> Unit = {
-        modelsViewModel.selectedModelId?.let { mid ->
+        modelsViewModel.loadedModelId?.let { mid ->
             val count = if (generateViewModel.genSeed.isNotBlank()) 1
             else generateViewModel.genBatchCounts.coerceAtLeast(1)
             generateViewModel.addToQueue(mid, count, queueRepository)
@@ -115,7 +115,7 @@ fun AppContentTabGenerate(
             topBar = {
                 GenerateTopBar(
                     drawerState = drawerState,
-                    modelId = modelsViewModel.selectedModelId,
+                    modelId = modelsViewModel.loadedModelId,
                     isModelLoaded = isModelLoaded,
                     onGenTaskParamReset = onGenTaskParamReset,
                     onGenTaskAddToQueue = onGenTaskAddToQueue,
@@ -125,7 +125,7 @@ fun AppContentTabGenerate(
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 TabGenerateScreen(
-                    modelId = if (isModelLoaded) modelsViewModel.selectedModelId else null,
+                    modelId = if (isModelLoaded) modelsViewModel.loadedModelId else null,
                     prompt = generateViewModel.genPrompt,
                     onPromptChange = { generateViewModel.genPrompt = it },
                     negativePrompt = generateViewModel.genNegativePrompt,

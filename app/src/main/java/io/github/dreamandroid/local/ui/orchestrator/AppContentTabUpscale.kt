@@ -20,7 +20,7 @@ fun AppContentTabUpscale(
     drawerState: DrawerState,
     snackbarHostState: SnackbarHostState,
     isUpscaleModelLoaded: Boolean,
-    selectedUpscalerId: String?,
+    loadedUpscalerId: String?,
 ) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -35,7 +35,7 @@ fun AppContentTabUpscale(
                 UpscaleTopBar(
                     drawerState = drawerState,
                     isUpscaleModelLoaded = isUpscaleModelLoaded,
-                    upscalerId = selectedUpscalerId,
+                    upscalerId = loadedUpscalerId,
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },

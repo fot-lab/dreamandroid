@@ -66,7 +66,7 @@ fun AppContent() {
     val isModelLoaded = backendState.isDiffusionLoaded()
     val isModelLoading = backendState.isDiffusionLoading()
     val isUpscaleModelLoaded = backendState.isUpscalerLoaded()
-    val selectedUpscalerId = backendState.activeUpscalerId()
+    val loadedUpscalerId = backendState.activeUpscalerId()
     val generationPreferences = remember { GenerationPreferences(context) }
 
     // ── Queue state (from QueueViewModel) ──
@@ -92,9 +92,9 @@ fun AppContent() {
         generateViewModel.loadGlobalPrefs(generationPreferences)
     }
 
-    // ── Load model-specific preferences when model changes ──
-    LaunchedEffect(modelsViewModel.selectedModelId) {
-        modelsViewModel.selectedModelId?.let { modelId ->
+    // ── Load model-specific preferences when loaded model changes ──
+    LaunchedEffect(modelsViewModel.loadedModelId) {
+        modelsViewModel.loadedModelId?.let { modelId ->
             generateViewModel.loadModelPrefs(modelId, generationPreferences)
         }
     }
@@ -306,7 +306,7 @@ fun AppContent() {
                     drawerState = drawerState,
                     snackbarHostState = snackbarHostState,
                     isUpscaleModelLoaded = isUpscaleModelLoaded,
-                    selectedUpscalerId = selectedUpscalerId,
+                    loadedUpscalerId = loadedUpscalerId,
                 )
                 BottomTab.Browse -> AppContentTabBrowse(
                     drawerState = drawerState,
