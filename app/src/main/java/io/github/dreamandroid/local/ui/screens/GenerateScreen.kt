@@ -694,7 +694,8 @@ fun GenerateScreen(
 
             HorizontalDivider()
 
-            // ---- Queue feedback message ----
+            // ---- Queue feedback message (commented out - redundant with AppContent Snackbar) ----
+            /*
             AnimatedVisibility(
                 visible = queueAddMessage != null,
                 enter = expandVertically() + fadeIn(),
@@ -727,6 +728,7 @@ fun GenerateScreen(
                     }
                 }
             }
+            */
 
             Spacer(Modifier.height(16.dp))
         } // end Parameters tab Column
