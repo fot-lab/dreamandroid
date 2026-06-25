@@ -53,6 +53,22 @@ fun AppContentTabModels(
             snackbarHostState.showSnackbar(context.getString(R.string.model_unloaded))
         }
     }
+
+    // ── ModelView multi-selection (3-dot dropdown) ──
+    val customModels = modelsViewModel.modelRepository.models.filter { it.isCustom }
+    val modelViewSelectAll: () -> Unit = {
+        modelsViewModel.modelViewSelectAll(customModels)
+    }
+    val modelViewInvertSelection: () -> Unit = {
+        modelsViewModel.modelViewInvertSelection(customModels)
+    }
+    val modelViewDeselectAll: () -> Unit = {
+        modelsViewModel.modelViewDeselectAll()
+    }
+    val modelViewSelectedCount = modelsViewModel.modelViewSelectedModelIds.size
+    val modelViewLoadModel: () -> Unit = {
+        modelsViewModel.modelViewSelectedModelIds.firstOrNull()?.let { loadModel(it) }
+    }
     val loadUpscaleModel: (String) -> Unit = { id ->
         scope.launch {
             modelsViewModel.loadUpscaleModel(id).onFailure { error ->
@@ -95,25 +111,28 @@ fun AppContentTabModels(
             topBar = {
                 ModelsTopBar(
                     drawerState = drawerState,
-                    selectedModelId = modelsViewModel.selectedModelId,
+                    modelViewSelectedCount = modelViewSelectedCount,
                     isModelLoaded = isModelLoaded,
                     isModelLoading = isModelLoading,
-                    onLoadModel = loadModel,
+                    onLoadModel = modelViewLoadModel,
                     onUnloadModel = unloadModel,
                     onImportModel = { modelsViewModel.showCustomModelDialog = true },
                     onImportNpuModel = { modelsViewModel.showCustomNpuModelDialog = true },
                     onImportUpscaleModel = { modelsViewModel.showCustomUpscaleModelDialog = true },
                     onRenameModel = { modelsViewModel.prepareRename() },
                     onDeleteModel = { modelsViewModel.showDeleteConfirm = true },
+                    // ── ModelView multi-selection ──
+                    modelViewOnSelectAll = modelViewSelectAll,
+                    modelViewOnInvertSelection = modelViewInvertSelection,
+                    modelViewOnDeselectAll = modelViewDeselectAll,
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 ModelListTab(
-                    selectedModelId = modelsViewModel.selectedModelId,
                     isModelLoaded = isModelLoaded,
-                    onSelectModel = { modelsViewModel.selectedModelId = it },
+                    loadedModelId = modelsViewModel.loadedModelId,
                     onLoadModel = loadModel,
                     modelRepository = modelsViewModel.modelRepository,
                     refreshVersion = modelsViewModel.modelRefreshVersion,
@@ -123,6 +142,9 @@ fun AppContentTabModels(
                     onUnloadUpscaleModel = unloadUpscaleModel,
                     persistedUpscalerId = persistedUpscalerId,
                     selectedUpscalerId = selectedUpscalerId,
+                    // ── Multi-selection ──
+                    modelViewSelectedModelIds = modelsViewModel.modelViewSelectedModelIds,
+                    modelViewOnToggleModelSelection = { modelsViewModel.modelViewToggleModelSelection(it) },
                 )
             }
         }

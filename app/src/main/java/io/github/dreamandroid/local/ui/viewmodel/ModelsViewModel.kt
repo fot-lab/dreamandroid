@@ -5,11 +5,13 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.dreamandroid.local.DreamAndroidApplication
+import io.github.dreamandroid.local.data.Model
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.data.ModelRepository
 import io.github.dreamandroid.local.service.backend.BackendService
@@ -39,9 +41,35 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
     val backendService: BackendService = app.backendService
     val modelRepository = ModelRepository(application)
 
-    // ── Model Selection ───────────────────────────────────────
-    var selectedModelId by mutableStateOf<String?>(null)
+    // ── Model Selection (multi-selection by default) ────────────
+    val modelViewSelectedModelIds = mutableStateListOf<String>()
+    val selectedModelId: String? get() = modelViewSelectedModelIds.firstOrNull()
+    var loadedModelId by mutableStateOf<String?>(null)
     var modelRefreshVersion by mutableIntStateOf(0)
+
+    fun modelViewToggleModelSelection(modelId: String) {
+        if (modelId in modelViewSelectedModelIds) {
+            modelViewSelectedModelIds.remove(modelId)
+        } else {
+            modelViewSelectedModelIds.add(modelId)
+        }
+    }
+
+    fun modelViewSelectAll(models: List<Model>) {
+        modelViewSelectedModelIds.clear()
+        modelViewSelectedModelIds.addAll(models.map { it.id })
+    }
+
+    fun modelViewInvertSelection(models: List<Model>) {
+        val allIds = models.map { it.id }.toSet()
+        val inverted = allIds - modelViewSelectedModelIds.toSet()
+        modelViewSelectedModelIds.clear()
+        modelViewSelectedModelIds.addAll(inverted)
+    }
+
+    fun modelViewDeselectAll() {
+        modelViewSelectedModelIds.clear()
+    }
 
     // ── Import Dialog State ───────────────────────────────────
     var showCustomModelDialog by mutableStateOf(false)
@@ -89,14 +117,14 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
         genUseOpenCL: Boolean,
     ): Result<Unit> {
         val result = backendService.startDiffusion(mId, genWidth, genHeight, genUseOpenCL)
-        result.onSuccess { selectedModelId = mId }
+        result.onSuccess { loadedModelId = mId }
         return result
     }
 
     suspend fun unloadModel(): Result<Unit> {
         return try {
             backendService.stop()
-            selectedModelId = null
+            loadedModelId = null
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -233,18 +261,24 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
     // ── Rename / Delete ───────────────────────────────────────
 
     fun prepareRename() {
-        val m = modelRepository.models.find { it.id == selectedModelId }
-        renameText = m?.name ?: (selectedModelId ?: "")
+        val targetId = modelViewSelectedModelIds.firstOrNull()
+        val m = modelRepository.models.find { it.id == targetId }
+        renameText = m?.name ?: (targetId ?: "")
         showRenameDialog = true
     }
 
     suspend fun renameModel(context: Context, newName: String): Boolean {
-        val renameModel = modelRepository.models.find { it.id == selectedModelId }
+        val targetId = modelViewSelectedModelIds.firstOrNull()
+        val renameModel = modelRepository.models.find { it.id == targetId }
         if (newName.isEmpty() || renameModel == null) return false
         val success = renameModel.renameModel(context, newName)
         if (success) {
             refreshModels()
-            selectedModelId = newName.replace(" ", "")
+            // update selection to new id after rename
+            val newId = newName.replace(" ", "")
+            val idx = modelViewSelectedModelIds.indexOfFirst { it == targetId }
+            if (idx >= 0) modelViewSelectedModelIds[idx] = newId
+            if (loadedModelId == targetId) loadedModelId = newId
         }
         showRenameDialog = false
         return success
@@ -252,15 +286,16 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
 
     suspend fun deleteModel(context: Context, wasLoaded: Boolean): Boolean {
         showDeleteConfirm = false
-        val delModel = modelRepository.models.find { it.id == selectedModelId }
+        val targetId = modelViewSelectedModelIds.firstOrNull()
+        val delModel = modelRepository.models.find { it.id == targetId }
         if (delModel == null) return false
 
-        if (wasLoaded && selectedModelId == delModel.id) {
+        if (wasLoaded && loadedModelId == delModel.id) {
             unloadModel()
         }
         val success = delModel.deleteModel(context)
         if (success) {
-            if (selectedModelId == delModel.id) selectedModelId = null
+            modelViewSelectedModelIds.remove(delModel.id)
             refreshModels()
         }
         return success

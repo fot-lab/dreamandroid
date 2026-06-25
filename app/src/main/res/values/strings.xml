@@ -432,6 +432,7 @@
     <string name="custom_upscale_model_name_hint">Enter upscale model name</string>
     <string name="model_type_generation">Generation</string>
     <string name="model_type_upscale">Upscale</string>
+    <string name="model_running">Running</string>
 
     <!-- Browse Screen -->
     <string name="no_generated_images">No generated images yet</string>

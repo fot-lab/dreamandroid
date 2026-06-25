@@ -362,6 +362,7 @@
     <string name="custom_upscale_model_name_hint">アップスケールモデル名を入力</string>
     <string name="model_type_generation">生成</string>
     <string name="model_type_upscale">アップスケール</string>
+    <string name="model_running">実行中</string>
     <string name="save_info">パラメータを保存</string>
     <string name="parameters_saved">パラメータを保存しました</string>
     <string name="batch_save_params">パラメータ一括保存</string>

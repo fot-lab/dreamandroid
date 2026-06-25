@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ModelsTopBar(
     drawerState: DrawerState,
-    selectedModelId: String?,
+    modelViewSelectedCount: Int,
     isModelLoaded: Boolean,
     isModelLoading: Boolean,
     onLoadModel: (String) -> Unit,
@@ -31,22 +31,21 @@ fun ModelsTopBar(
     onImportUpscaleModel: () -> Unit = {},
     onRenameModel: () -> Unit = {},
     onDeleteModel: () -> Unit = {},
+    // ── ModelView multi-selection (3-dot dropdown) ─────────────
+    modelViewOnSelectAll: () -> Unit = {},
+    modelViewOnInvertSelection: () -> Unit = {},
+    modelViewOnDeselectAll: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var showImportMenu by remember { mutableStateOf(false) }
+    var showModelViewMenu by remember { mutableStateOf(false) }
     TopAppBar(
-        title = {},
-        navigationIcon = {
-            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                Icon(Icons.Default.Menu, stringResource(R.string.settings))
-            }
-        },
-        actions = {
+        title = {
+            // Start / Stop model service — left-aligned next to drawer icon
             if (isModelLoaded) {
                 if (isModelLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier
-                            .padding(horizontal = 12.dp)
                             .size(24.dp),
                         strokeWidth = 2.dp,
                     )
@@ -57,63 +56,123 @@ fun ModelsTopBar(
                         Text(stringResource(R.string.unload_model))
                     }
                 }
-            }
-
-            if (selectedModelId != null && !isModelLoaded && !isModelLoading) {
-                TextButton(onClick = { onLoadModel(selectedModelId) }) {
+            } else if (modelViewSelectedCount == 1) {
+                TextButton(onClick = onLoadModel) {
                     Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.load_model))
                 }
             }
-
-            if (selectedModelId != null) {
-                IconButton(onClick = onDeleteModel) {
-                    Icon(Icons.Default.Delete, stringResource(R.string.delete_model))
+        },
+        navigationIcon = {
+            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                Icon(Icons.Default.Menu, stringResource(R.string.settings))
+            }
+        },
+        actions = {
+            when {
+                modelViewSelectedCount == 1 -> {
+                    // Edit: only when exactly 1 model is selected
+                    IconButton(onClick = onRenameModel) {
+                        Icon(Icons.Default.Edit, stringResource(R.string.rename_model))
+                    }
+                    // Delete: replaces Add/+ position
+                    IconButton(onClick = onDeleteModel) {
+                        Icon(Icons.Default.Delete, stringResource(R.string.delete_model))
+                    }
                 }
-                IconButton(onClick = onRenameModel) {
-                    Icon(Icons.Default.Edit, stringResource(R.string.rename_model))
+                modelViewSelectedCount > 1 -> {
+                    // Delete only
+                    IconButton(onClick = onDeleteModel) {
+                        Icon(Icons.Default.Delete, stringResource(R.string.delete_model))
+                    }
+                }
+                else -> {
+                    Box {
+                        IconButton(onClick = { showImportMenu = true }) {
+                            Icon(Icons.Default.Add, stringResource(R.string.import_model))
+                        }
+                        DropdownMenu(
+                            expanded = showImportMenu,
+                            onDismissRequest = { showImportMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.import_model)) },
+                                onClick = {
+                                    showImportMenu = false
+                                    onImportModel()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Memory, contentDescription = null)
+                                },
+                            )
+                            if (Model.isQualcommDevice()) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.import_npu_model)) },
+                                    onClick = {
+                                        showImportMenu = false
+                                        onImportNpuModel()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Speed, contentDescription = null)
+                                    },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.import_upscale_model)) },
+                                onClick = {
+                                    showImportMenu = false
+                                    onImportUpscaleModel()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Hd, contentDescription = null)
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
+            // 3-dot dropdown — always visible: Select All / Invert / Deselect All
             Box {
-                IconButton(onClick = { showImportMenu = true }) {
-                    Icon(Icons.Default.Add, stringResource(R.string.import_model))
+                IconButton(onClick = { showModelViewMenu = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "ModelView menu",
+                    )
                 }
                 DropdownMenu(
-                    expanded = showImportMenu,
-                    onDismissRequest = { showImportMenu = false },
+                    expanded = showModelViewMenu,
+                    onDismissRequest = { showModelViewMenu = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.import_model)) },
+                        text = { Text(stringResource(R.string.select_all)) },
                         onClick = {
-                            showImportMenu = false
-                            onImportModel()
+                            showModelViewMenu = false
+                            modelViewOnSelectAll()
                         },
                         leadingIcon = {
-                            Icon(Icons.Default.Memory, contentDescription = null)
+                            Icon(Icons.Default.SelectAll, contentDescription = null)
                         },
                     )
-                    if (Model.isQualcommDevice()) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.import_npu_model)) },
-                            onClick = {
-                                showImportMenu = false
-                                onImportNpuModel()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Speed, contentDescription = null)
-                            },
-                        )
-                    }
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.import_upscale_model)) },
+                        text = { Text(stringResource(R.string.invert_selection)) },
                         onClick = {
-                            showImportMenu = false
-                            onImportUpscaleModel()
+                            showModelViewMenu = false
+                            modelViewOnInvertSelection()
                         },
                         leadingIcon = {
-                            Icon(Icons.Default.Hd, contentDescription = null)
+                            Icon(Icons.Default.FlipToBack, contentDescription = null)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.deselect_all)) },
+                        onClick = {
+                            showModelViewMenu = false
+                            modelViewOnDeselectAll()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Deselect, contentDescription = null)
                         },
                     )
                 }

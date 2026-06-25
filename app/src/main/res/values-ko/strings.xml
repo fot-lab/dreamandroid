@@ -390,6 +390,7 @@
     <string name="custom_upscale_model_name_hint">업스케일 모델 이름 입력</string>
     <string name="model_type_generation">생성</string>
     <string name="model_type_upscale">업스케일</string>
+    <string name="model_running">실행 중</string>
     <string name="save_info">매개변수 저장</string>
     <string name="parameters_saved">매개변수가 저장되었습니다</string>
     <string name="batch_save_params">매개변수 일괄 저장</string>

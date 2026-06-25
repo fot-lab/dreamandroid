@@ -37,9 +37,8 @@ data class ImportingModelState(
 
 @Composable
 fun ModelListTab(
-    selectedModelId: String?,
     isModelLoaded: Boolean,
-    onSelectModel: (String) -> Unit,
+    loadedModelId: String?,
     onLoadModel: (String) -> Unit,
     modelRepository: ModelRepository,
     refreshVersion: Int,
@@ -50,6 +49,9 @@ fun ModelListTab(
     onUnloadUpscaleModel: () -> Unit = {},
     persistedUpscalerId: String? = null,
     selectedUpscalerId: String? = null,
+    // ── Multi-selection ──
+    modelViewSelectedModelIds: List<String> = emptyList(),
+    modelViewOnToggleModelSelection: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val upscalerRepository = remember(refreshVersion) { UpscalerRepository(context) }
@@ -107,9 +109,9 @@ fun ModelListTab(
             ) { model ->
                 ModelSelectCard(
                     model = model,
-                    isSelected = selectedModelId == model.id,
-                    isActive = isModelLoaded && selectedModelId == model.id,
-                    onSelect = { onSelectModel(model.id) },
+                    isActive = isModelLoaded && loadedModelId == model.id,
+                    isChecked = model.id in modelViewSelectedModelIds,
+                    onToggle = { modelViewOnToggleModelSelection(model.id) },
                 )
             }
 
@@ -278,13 +280,13 @@ private fun ImportingModelCard(state: ImportingModelState) {
 @Composable
 private fun ModelSelectCard(
     model: Model,
-    isSelected: Boolean,
     isActive: Boolean,
-    onSelect: () -> Unit,
+    isChecked: Boolean,
+    onToggle: () -> Unit,
 ) {
     val targetContainer = when {
         isActive -> MaterialTheme.colorScheme.primaryContainer
-        isSelected -> MaterialTheme.colorScheme.secondaryContainer
+        isChecked -> MaterialTheme.colorScheme.secondaryContainer
         else -> MaterialTheme.colorScheme.surfaceContainer
     }
     val backgroundColor by animateColorAsState(
@@ -294,7 +296,7 @@ private fun ModelSelectCard(
     )
 
     ElevatedCard(
-        onClick = onSelect,
+        onClick = onToggle,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(containerColor = backgroundColor),
         shape = MaterialTheme.shapes.large,
@@ -314,6 +316,18 @@ private fun ModelSelectCard(
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
+            if (isActive) {
+                Spacer(Modifier.width(8.dp))
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                ) {
+                    Text(
+                        text = stringResource(R.string.model_running),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -331,8 +345,8 @@ private fun ModelSelectCard(
                 )
             }
             Checkbox(
-                checked = isSelected,
-                onCheckedChange = { onSelect() },
+                checked = isChecked,
+                onCheckedChange = { onToggle() },
             )
         }
     }
