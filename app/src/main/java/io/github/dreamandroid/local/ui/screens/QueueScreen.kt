@@ -159,7 +159,11 @@ private fun TaskCard(
         backgroundContent = {
             // Use real-time offset instead of targetValue so the background
             // appears immediately on drag, not just near the dismiss threshold.
-            val currentOffset = dismissState.requireOffset()
+            val currentOffset = try {
+                dismissState.requireOffset()
+            } catch (_: IllegalStateException) {
+                0f
+            }
             val direction = when {
                 currentOffset < -1f -> SwipeToDismissBoxValue.EndToStart  // swiping left → delete (red)
                 currentOffset > 1f  -> SwipeToDismissBoxValue.StartToEnd  // swiping right → save (blue)
@@ -371,7 +375,11 @@ private fun BatchGroupCard(
         backgroundContent = {
             // Use real-time offset instead of targetValue so the background
             // appears immediately on drag, not just near the dismiss threshold.
-            val currentOffset = dismissState.requireOffset()
+            val currentOffset = try {
+                dismissState.requireOffset()
+            } catch (_: IllegalStateException) {
+                0f
+            }
             val direction = when {
                 currentOffset < -1f -> SwipeToDismissBoxValue.EndToStart  // swiping left → delete (red)
                 currentOffset > 1f  -> SwipeToDismissBoxValue.StartToEnd  // swiping right → save (blue)
