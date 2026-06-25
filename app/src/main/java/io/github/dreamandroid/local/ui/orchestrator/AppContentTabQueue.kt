@@ -14,7 +14,7 @@ import io.github.dreamandroid.local.data.GenerationTask
 import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.ui.frontend.QueueSettingsDrawerContent
 import io.github.dreamandroid.local.ui.frontend.QueueTopBar
-import io.github.dreamandroid.local.ui.queue.BatchGroupDisplay
+import io.github.dreamandroid.local.data.BatchGroupDisplay
 import io.github.dreamandroid.local.ui.queue.TabQueueScreen
 import io.github.dreamandroid.local.ui.viewmodel.QueueViewModel
 import kotlinx.coroutines.launch
@@ -36,6 +36,7 @@ fun AppContentTabQueue(
     recordRepository: RecordRepository,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -69,8 +70,8 @@ fun AppContentTabQueue(
                     processingActive = processingActive,
                     queuePaused = queuePaused,
                     hasPendingTasks = hasPendingTasks,
-                    onStop = { queueViewModel.stop(LocalContext.current) },
-                    onResume = { queueViewModel.resume(LocalContext.current) },
+                    onStop = { queueViewModel.stop(context) },
+                    onResume = { queueViewModel.resume(context) },
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },

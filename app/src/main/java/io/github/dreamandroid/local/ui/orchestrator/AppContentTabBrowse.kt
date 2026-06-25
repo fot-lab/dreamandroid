@@ -13,9 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
-import io.github.dreamandroid.local.data.BrowseLayoutMode
 import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.ui.frontend.BrowseTopBar
+import io.github.dreamandroid.local.ui.screens.BrowseLayoutMode
 import io.github.dreamandroid.local.ui.screens.BrowseScreen
 import io.github.dreamandroid.local.ui.viewmodel.BrowseViewModel
 import kotlinx.coroutines.launch
@@ -89,7 +89,7 @@ fun AppContentTabBrowse(
  * - Individual model checkboxes: multi-select; checking any auto-unchecks "All".
  */
 @Composable
-private fun BrowseModelFilterDrawer(
+private fun ColumnScope.BrowseModelFilterDrawer(
     knownModelIds: List<String>,
     filterModelIds: Set<String>,
     onToggleModel: (String) -> Unit,

@@ -29,6 +29,7 @@ import io.github.dreamandroid.local.ui.viewmodel.GenerateViewModel
 import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel
 import io.github.dreamandroid.local.ui.viewmodel.QueueViewModel
+import io.github.dreamandroid.local.ui.screens.BrowseLayoutMode
 import kotlinx.coroutines.launch
 
 /**

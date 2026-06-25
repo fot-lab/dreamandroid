@@ -84,20 +84,22 @@ fun AppContentTabGenerate(
 
     // ── Add to queue ──
     val onAddToQueue: (Int) -> Unit = { count ->
-        val modelId = modelsViewModel.selectedModelId ?: return@AppContentTabGenerate
-        generateViewModel.addToQueue(modelId, count, queueRepository)
-        scope.launch {
-            snackbarHostState.showSnackbar(context.getString(R.string.added_to_queue, count))
+        modelsViewModel.selectedModelId?.let { modelId ->
+            generateViewModel.addToQueue(modelId, count, queueRepository)
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.added_to_queue, count))
+            }
         }
     }
 
     val onGenTaskAddToQueue: () -> Unit = {
-        val mid = modelsViewModel.selectedModelId ?: return@AppContentTabGenerate
-        val count = if (generateViewModel.genSeed.isNotBlank()) 1
-        else generateViewModel.genBatchCounts.coerceAtLeast(1)
-        generateViewModel.addToQueue(mid, count, queueRepository)
-        scope.launch {
-            snackbarHostState.showSnackbar(context.getString(R.string.added_to_queue, count))
+        modelsViewModel.selectedModelId?.let { mid ->
+            val count = if (generateViewModel.genSeed.isNotBlank()) 1
+            else generateViewModel.genBatchCounts.coerceAtLeast(1)
+            generateViewModel.addToQueue(mid, count, queueRepository)
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.added_to_queue, count))
+            }
         }
     }
 
