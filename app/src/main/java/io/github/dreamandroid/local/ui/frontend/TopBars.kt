@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.*
+import io.github.dreamandroid.local.service.backend.BackendManager
 import kotlinx.coroutines.launch
 
 // =========== Top App Bars ===========
@@ -315,15 +316,16 @@ fun QueueTopBar(
 @Composable
 fun GenerateTopBar(
     drawerState: DrawerState,
-    modelId: String?,
-    isModelLoaded: Boolean,
+    loadedModelId: String?,
+    loadedModelType: BackendManager.Mode?,
     onGenTaskParamReset: () -> Unit = {},
     onGenTaskAddToQueue: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val modelRepository = remember { ModelRepository(context) }
-    val model = remember(modelId) { modelRepository.models.find { it.id == modelId } }
+    val isModelLoaded = loadedModelType == BackendManager.Mode.Diffusion && loadedModelId != null
+    val model = remember(loadedModelId) { loadedModelId?.let { modelRepository.models.find { m -> m.id == it } } }
 
     TopAppBar(
         title = {
@@ -477,14 +479,15 @@ fun BrowseTopBar(
 @Composable
 fun UpscaleTopBar(
     drawerState: DrawerState,
-    isUpscaleModelLoaded: Boolean,
-    upscalerId: String?,
+    loadedModelId: String?,
+    loadedModelType: BackendManager.Mode?,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val upscalerRepository = remember { UpscalerRepository(context) }
-    val upscalerName = remember(upscalerId, upscalerRepository.upscalers) {
-        upscalerId?.let { id -> upscalerRepository.upscalers.find { it.id == id }?.name }
+    val isUpscaleModelLoaded = loadedModelType == BackendManager.Mode.Upscaler && loadedModelId != null
+    val upscalerName = remember(loadedModelId, upscalerRepository.upscalers) {
+        loadedModelId?.let { id -> upscalerRepository.upscalers.find { it.id == id }?.name }
     }
 
     TopAppBar(

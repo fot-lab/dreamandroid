@@ -18,9 +18,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.*
+import io.github.dreamandroid.local.service.ModelDownloadService
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.screens.model.ExtractByteProgress
 import androidx.core.content.edit
-import io.github.dreamandroid.local.service.ModelDownloadService
 import kotlin.math.roundToInt
 
 // =========== Importing model state ===========
@@ -37,18 +38,17 @@ data class ImportingModelState(
 
 @Composable
 fun ModelListTab(
-    isModelLoaded: Boolean,
     loadedModelId: String?,
+    loadedModelType: BackendManager.Mode?,
+    isModelLoaded: Boolean,
+    isUpscaleModelLoaded: Boolean,
     onLoadModel: (String) -> Unit,
     modelRepository: ModelRepository,
     refreshVersion: Int,
     importingModels: List<ImportingModelState> = emptyList(),
-    // Upscale model support
-    isUpscaleModelLoaded: Boolean = false,
     onLoadUpscaleModel: (String) -> Unit = {},
     onUnloadUpscaleModel: () -> Unit = {},
     persistedUpscalerId: String? = null,
-    selectedUpscalerId: String? = null,
     // ── Multi-selection ──
     modelViewSelectedModelIds: List<String> = emptyList(),
     modelViewOnToggleModelSelection: (String) -> Unit = {},
@@ -127,8 +127,8 @@ fun ModelListTab(
                 }
 
                 items(downloadedUpscalers, key = { "upscaler_${it.id}" }) { upscaler ->
-                    val isThisUpscalerLoaded = isUpscaleModelLoaded &&
-                        selectedUpscalerId == upscaler.id
+                    val isThisUpscalerLoaded = loadedModelType == BackendManager.Mode.Upscaler &&
+                        loadedModelId == upscaler.id
 
                     UpscaleModelCardInline(
                         upscaler = upscaler,

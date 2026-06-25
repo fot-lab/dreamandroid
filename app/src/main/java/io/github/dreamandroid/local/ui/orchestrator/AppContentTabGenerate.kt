@@ -17,6 +17,7 @@ import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelRepository
 import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.service.QueueRepository
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.frontend.GenerateTopBar
 import io.github.dreamandroid.local.ui.frontend.TabGenerateScreen
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
@@ -35,9 +36,12 @@ fun AppContentTabGenerate(
     modelsViewModel: ModelsViewModel,
     generateViewModel: GenerateViewModel,
     queueRepository: QueueRepository,
-    isModelLoaded: Boolean,
+    loadedModelId: String?,
+    loadedModelType: BackendManager.Mode?,
     recordRepository: RecordRepository,
 ) {
+    // Derive whether the currently loaded model is a generator (Diffusion mode)
+    val isModelLoaded = loadedModelType == BackendManager.Mode.Diffusion && loadedModelId != null
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val generationPreferences = remember { GenerationPreferences(context) }
@@ -52,7 +56,7 @@ fun AppContentTabGenerate(
         generateViewModel.genDenoiseCurve = "scaled_linear"
         generateViewModel.genDenoiseStrength = 0.6f
         val repo = ModelRepository(context)
-        val m = modelsViewModel.loadedModelId?.let { id -> repo.models.find { it.id == id } }
+        val m = loadedModelId?.let { id -> repo.models.find { it.id == id } }
         generateViewModel.genPrompt = m?.defaultPrompt ?: ""
         generateViewModel.genNegativePrompt = m?.defaultNegativePrompt ?: ""
         kotlinx.coroutines.MainScope().launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -63,7 +67,7 @@ fun AppContentTabGenerate(
                 width = generateViewModel.genWidth,
                 height = generateViewModel.genHeight,
             )
-            modelsViewModel.loadedModelId?.let { modelId ->
+            loadedModelId?.let { modelId ->
                 generationPreferences.saveAllFields(
                     modelId = modelId,
                     prompt = generateViewModel.genPrompt,
@@ -85,7 +89,7 @@ fun AppContentTabGenerate(
 
     // ── Add to queue ──
     val onAddToQueue: (Int) -> Unit = { count ->
-        modelsViewModel.loadedModelId?.let { modelId ->
+        loadedModelId?.let { modelId ->
             generateViewModel.addToQueue(modelId, count, queueRepository)
             scope.launch {
                 snackbarHostState.showSnackbar(context.getString(R.string.added_to_queue, count))
@@ -94,7 +98,7 @@ fun AppContentTabGenerate(
     }
 
     val onGenTaskAddToQueue: () -> Unit = {
-        modelsViewModel.loadedModelId?.let { mid ->
+        loadedModelId?.let { mid ->
             val count = if (generateViewModel.genSeed.isNotBlank()) 1
             else generateViewModel.genBatchCounts.coerceAtLeast(1)
             generateViewModel.addToQueue(mid, count, queueRepository)
@@ -133,8 +137,8 @@ fun AppContentTabGenerate(
             topBar = {
                 GenerateTopBar(
                     drawerState = drawerState,
-                    modelId = modelsViewModel.loadedModelId,
-                    isModelLoaded = isModelLoaded,
+                    loadedModelId = loadedModelId,
+                    loadedModelType = loadedModelType,
                     onGenTaskParamReset = onGenTaskParamReset,
                     onGenTaskAddToQueue = onGenTaskAddToQueue,
                 )
@@ -143,7 +147,7 @@ fun AppContentTabGenerate(
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 TabGenerateScreen(
-                    modelId = if (isModelLoaded) modelsViewModel.loadedModelId else null,
+                    modelId = if (isModelLoaded) loadedModelId else null,
                     prompt = generateViewModel.genPrompt,
                     onPromptChange = { generateViewModel.genPrompt = it },
                     negativePrompt = generateViewModel.genNegativePrompt,

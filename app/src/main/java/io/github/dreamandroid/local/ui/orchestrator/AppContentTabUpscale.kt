@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.frontend.UpscaleTopBar
 import io.github.dreamandroid.local.ui.screens.UpscaleScreen
 import kotlinx.coroutines.launch
@@ -23,10 +24,11 @@ import kotlinx.coroutines.launch
 fun AppContentTabUpscale(
     drawerState: DrawerState,
     snackbarHostState: SnackbarHostState,
-    isUpscaleModelLoaded: Boolean,
-    loadedUpscalerId: String?,
+    loadedModelId: String?,
+    loadedModelType: BackendManager.Mode?,
 ) {
     val scope = rememberCoroutineScope()
+    val isUpscaleModelLoaded = loadedModelType == BackendManager.Mode.Upscaler && loadedModelId != null
 
     // ── BackHandler: close drawer on system back press ──
     BackHandler(enabled = drawerState.isOpen) {
@@ -57,8 +59,8 @@ fun AppContentTabUpscale(
             topBar = {
                 UpscaleTopBar(
                     drawerState = drawerState,
-                    isUpscaleModelLoaded = isUpscaleModelLoaded,
-                    upscalerId = loadedUpscalerId,
+                    loadedModelId = loadedModelId,
+                    loadedModelType = loadedModelType,
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },

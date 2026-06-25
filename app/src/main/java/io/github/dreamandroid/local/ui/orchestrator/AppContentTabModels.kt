@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.frontend.AppSettingsDrawerContent
 import io.github.dreamandroid.local.ui.frontend.ModelListTab
 import io.github.dreamandroid.local.ui.frontend.ModelsTopBar
@@ -26,10 +27,11 @@ fun AppContentTabModels(
     drawerState: DrawerState,
     snackbarHostState: SnackbarHostState,
     modelsViewModel: ModelsViewModel,
+    loadedModelId: String?,
+    loadedModelType: BackendManager.Mode?,
     isModelLoaded: Boolean,
     isModelLoading: Boolean,
     isUpscaleModelLoaded: Boolean,
-    selectedUpscalerId: String?,
     persistedUpscalerId: String?,
 ) {
     val context = LocalContext.current
@@ -137,17 +139,17 @@ fun AppContentTabModels(
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 ModelListTab(
+                    loadedModelId = loadedModelId,
+                    loadedModelType = loadedModelType,
                     isModelLoaded = isModelLoaded,
-                    loadedModelId = modelsViewModel.loadedModelId,
+                    isUpscaleModelLoaded = isUpscaleModelLoaded,
                     onLoadModel = loadModel,
                     modelRepository = modelsViewModel.modelRepository,
                     refreshVersion = modelsViewModel.modelRefreshVersion,
                     importingModels = modelsViewModel.importingModels,
-                    isUpscaleModelLoaded = isUpscaleModelLoaded,
                     onLoadUpscaleModel = loadUpscaleModel,
                     onUnloadUpscaleModel = unloadUpscaleModel,
                     persistedUpscalerId = persistedUpscalerId,
-                    selectedUpscalerId = selectedUpscalerId,
                     // ── Multi-selection ──
                     modelViewSelectedModelIds = modelsViewModel.modelViewSelectedModelIds,
                     modelViewOnToggleModelSelection = { modelsViewModel.modelViewToggleModelSelection(it) },

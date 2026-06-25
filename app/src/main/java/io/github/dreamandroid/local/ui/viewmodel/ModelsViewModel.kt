@@ -14,6 +14,7 @@ import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.data.Model
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.data.ModelRepository
+import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.frontend.ImportingModelState
 import io.github.dreamandroid.local.ui.screens.model.ExtractByteProgress
@@ -44,7 +45,6 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
     // ── Model Selection (multi-selection by default) ────────────
     val modelViewSelectedModelIds = mutableStateListOf<String>()
     val selectedModelId: String? get() = modelViewSelectedModelIds.firstOrNull()
-    var loadedModelId by mutableStateOf<String?>(null)
     var modelRefreshVersion by mutableIntStateOf(0)
 
     fun modelViewToggleModelSelection(modelId: String) {
@@ -116,15 +116,12 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
         genHeight: Int,
         genUseOpenCL: Boolean,
     ): Result<Unit> {
-        val result = backendService.startDiffusion(mId, genWidth, genHeight, genUseOpenCL)
-        result.onSuccess { loadedModelId = mId }
-        return result
+        return backendService.startDiffusion(mId, genWidth, genHeight, genUseOpenCL)
     }
 
     suspend fun unloadModel(): Result<Unit> {
         return try {
             backendService.stop()
-            loadedModelId = null
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -285,19 +282,21 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
             val newId = newName.replace(" ", "")
             val idx = modelViewSelectedModelIds.indexOfFirst { it == targetId }
             if (idx >= 0) modelViewSelectedModelIds[idx] = newId
-            if (loadedModelId == targetId) loadedModelId = newId
         }
         showRenameDialog = false
         return success
     }
 
-    suspend fun deleteModel(context: Context, wasLoaded: Boolean): Boolean {
+    suspend fun deleteModel(context: Context): Boolean {
         showDeleteConfirm = false
         val targetId = modelViewSelectedModelIds.firstOrNull()
         val delModel = modelRepository.models.find { it.id == targetId }
         if (delModel == null) return false
 
-        if (wasLoaded && loadedModelId == delModel.id) {
+        // If the target model is currently loaded in backend, unload it first
+        val currentState = backendService.state.value
+        if (currentState is BackendManager.State.Running &&
+            currentState.modelId == delModel.id) {
             unloadModel()
         }
         val success = delModel.deleteModel(context)

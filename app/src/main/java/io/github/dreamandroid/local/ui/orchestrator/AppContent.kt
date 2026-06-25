@@ -63,10 +63,11 @@ fun AppContent() {
     // ── Application-level dependencies ──
     val app = context.applicationContext as DreamAndroidApplication
     val backendState by modelsViewModel.backendService.state.collectAsState()
+    val loadedModelId = backendState.loadedModelId()
+    val loadedModelType = backendState.loadedModelType()
     val isModelLoaded = backendState.isDiffusionLoaded()
     val isModelLoading = backendState.isDiffusionLoading()
     val isUpscaleModelLoaded = backendState.isUpscalerLoaded()
-    val loadedUpscalerId = backendState.activeUpscalerId()
     val generationPreferences = remember { GenerationPreferences(context) }
 
     // ── Queue state (from QueueViewModel) ──
@@ -93,8 +94,8 @@ fun AppContent() {
     }
 
     // ── Load model-specific preferences when loaded model changes ──
-    LaunchedEffect(modelsViewModel.loadedModelId) {
-        modelsViewModel.loadedModelId?.let { modelId ->
+    LaunchedEffect(loadedModelId) {
+        loadedModelId?.let { modelId ->
             generateViewModel.loadModelPrefs(modelId, generationPreferences)
         }
     }
@@ -228,7 +229,7 @@ fun AppContent() {
                 TextButton(
                     onClick = {
                         scope.launch {
-                            val success = modelsViewModel.deleteModel(context, isModelLoaded)
+                            val success = modelsViewModel.deleteModel(context)
                             snackbarHostState.showSnackbar(
                                 if (success) context.getString(R.string.delete_success)
                                 else context.getString(R.string.delete_failed)
@@ -288,10 +289,11 @@ fun AppContent() {
                     drawerState = drawerState,
                     snackbarHostState = snackbarHostState,
                     modelsViewModel = modelsViewModel,
+                    loadedModelId = loadedModelId,
+                    loadedModelType = loadedModelType,
                     isModelLoaded = isModelLoaded,
                     isModelLoading = isModelLoading,
                     isUpscaleModelLoaded = isUpscaleModelLoaded,
-                    loadedUpscalerId = loadedUpscalerId,
                     persistedUpscalerId = persistedUpscalerId,
                 )
                 BottomTab.Queue -> AppContentTabQueue(
@@ -311,14 +313,15 @@ fun AppContent() {
                     modelsViewModel = modelsViewModel,
                     generateViewModel = generateViewModel,
                     queueRepository = queueViewModel.queueRepository,
-                    isModelLoaded = isModelLoaded,
+                    loadedModelId = loadedModelId,
+                    loadedModelType = loadedModelType,
                     recordRepository = recordRepository,
                 )
                 BottomTab.Upscale -> AppContentTabUpscale(
                     drawerState = drawerState,
                     snackbarHostState = snackbarHostState,
-                    isUpscaleModelLoaded = isUpscaleModelLoaded,
-                    loadedUpscalerId = loadedUpscalerId,
+                    loadedModelId = loadedModelId,
+                    loadedModelType = loadedModelType,
                 )
                 BottomTab.Browse -> AppContentTabBrowse(
                     drawerState = drawerState,
