@@ -124,7 +124,12 @@ fun AppContent() {
 
     // ── Scaffold with bottom bar ──
     // Each tab manages its own drawer + topBar + content via AppContentTab* composables.
+    // contentWindowInsets = WindowInsets(0) lets status bar insets pass through
+    // to the inner tab Scaffolds, so their TopAppBar can extend behind the system
+    // status bar (edge-to-edge). The bottom NavigationBar internally handles
+    // navigation bar insets.
     Scaffold(
+        contentWindowInsets = WindowInsets(0),
         bottomBar = {
             // Red flash animation for Models tab when generation timed out
             val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
