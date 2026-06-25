@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.runtime.Immutable
+import coil.imageLoader
+import coil.memory.MemoryCache
 import io.github.dreamandroid.local.data.db.AppDatabase
 import io.github.dreamandroid.local.data.db.TaskEntity
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
@@ -71,10 +73,14 @@ class HistoryManager(private val context: Context) {
     /**
      * Save a generated image to the history store.
      *
-     * **Write ordering (DB-first strategy):**
-     * 1. Insert into Room DB first (Single Source of Truth)
-     * 2. Write image file to disk
-     * 3. If file write fails, roll back the Room record to prevent orphan DB rows
+     * **Write ordering (file-first strategy):**
+     * 1. Write image file to disk first
+     * 2. Insert into Room DB
+     * 3. If DB insert fails, clean up the written file
+     *
+     * File-first ordering prevents a race condition where Room's reactive
+     * Flow emits the new record (triggering Coil to load the image) before
+     * the file has been written to disk.
      *
      * **Callers MUST check the return value.**
      * A `null` return means the save failed (disk full, permission error, etc.)
@@ -98,9 +104,19 @@ class HistoryManager(private val context: Context) {
         val imageFile = File(historyDir, "$timestamp.$ext")
 
         try {
+            // Step 1: Write image file to disk first
+            // (prevents race condition: file is fully written before DB insert triggers Flow)
+            imageFile.outputStream().use { out ->
+                if (isUpscaled) {
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                } else {
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+            }
+
             val taskId = UUID.randomUUID().toString()
 
-            // Step 1: Insert into Room DB first (SSOT)
+            // Step 2: Insert into Room DB
             val entity = TaskEntity(
                 id = taskId,
                 taskType = TaskEntity.TYPE_HISTORY,
@@ -126,27 +142,18 @@ class HistoryManager(private val context: Context) {
                 generationTime = params.generationTime,
                 runOnCpu = params.runOnCpu,
             )
-            dao.insert(entity)
-
-            // Step 2: Write image file to disk
             try {
-                imageFile.outputStream().use { out ->
-                    if (isUpscaled) {
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                    } else {
-                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                    }
-                }
-            } catch (fileEx: Exception) {
-                // File write failed → roll back Room record to prevent orphan DB rows
-                Log.e("HistoryManager", "File write failed, rolling back DB record", fileEx)
-                dao.deleteById(taskId)
+                dao.insert(entity)
+            } catch (dbEx: Exception) {
+                // DB insert failed → clean up the already-written file
+                Log.e("HistoryManager", "DB insert failed, cleaning up file", dbEx)
+                if (imageFile.exists()) imageFile.delete()
                 return@withContext null
             }
 
             HistoryItem.fromEntity(filesDir, entity)
         } catch (e: Exception) {
-            // DB insert failed or other error → clean up any partial file
+            // File write failed or other error → clean up any partial file
             Log.e("HistoryManager", "Failed to save image", e)
             if (imageFile.exists()) imageFile.delete()
             null
@@ -176,6 +183,10 @@ class HistoryManager(private val context: Context) {
         try {
             dao.deleteById(item.id)
             if (item.imageFile.exists()) item.imageFile.delete()
+            // Clean up Coil disk and memory cache for the deleted image
+            val imageLoader = context.imageLoader
+            imageLoader.diskCache?.remove(item.imageFile.absolutePath)
+            imageLoader.memoryCache?.remove(MemoryCache.Key(item.imageFile.absolutePath))
             true
         } catch (e: Exception) {
             Log.e("HistoryManager", "Failed to delete history item", e)
