@@ -33,20 +33,39 @@ class QueueViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Auto-start queue processing when tasks are added (if not already running)
+        // Auto-start queue processing when tasks are added (if not already running and not paused)
         viewModelScope.launch {
             queueRepository.tasks.collect {
-                if (queueRepository.hasPendingTasks() && !queueRepository.processingActive.value) {
+                if (queueRepository.hasPendingTasks()
+                    && !queueRepository.processingActive.value
+                    && !queueRepository.queuePaused.value) {
                     QueueController.start(application)
                 }
             }
         }
     }
 
-    fun start(context: Context) = QueueController.start(context)
+    fun start(context: Context) {
+        QueueController.start(context)
+        queueRepository.setQueuePaused(false)
+    }
 
     fun stop(context: Context) {
-        viewModelScope.launch { QueueController.stop(context) }
+        viewModelScope.launch {
+            try {
+                QueueController.stop(context)
+            } catch (e: Exception) {
+                Log.e("QueueViewModel", "Error stopping queue", e)
+                // Safety net: ensure paused state is set even on error
+                queueRepository.setProcessingActive(false)
+                queueRepository.setQueuePaused(true)
+                queueRepository.resetProcessingToPending()
+            }
+        }
+    }
+
+    fun resume(context: Context) {
+        QueueController.start(context)
     }
 
     fun removeTask(taskId: String) = queueRepository.removeTask(taskId)

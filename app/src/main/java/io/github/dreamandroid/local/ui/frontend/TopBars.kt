@@ -126,7 +126,10 @@ fun ModelsTopBar(
 fun QueueTopBar(
     drawerState: DrawerState,
     processingActive: Boolean = false,
+    queuePaused: Boolean = false,
+    hasPendingTasks: Boolean = false,
     onStop: () -> Unit = {},
+    onResume: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     TopAppBar(
@@ -142,12 +145,23 @@ fun QueueTopBar(
             }
         },
         actions = {
-            if (processingActive) {
+            // Show Stop while worker is actively processing
+            if (processingActive && !queuePaused) {
                 IconButton(onClick = onStop) {
                     Icon(
                         Icons.Default.Stop,
                         contentDescription = "Stop queue",
                         tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            // Show Play (resume) when queue is paused or has pending tasks but no worker
+            if (queuePaused || (!processingActive && hasPendingTasks)) {
+                IconButton(onClick = onResume) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = "Resume queue",
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }

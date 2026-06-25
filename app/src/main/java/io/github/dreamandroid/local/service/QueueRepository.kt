@@ -55,6 +55,10 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     private val _generationTimedOut = MutableStateFlow(false)
     val generationTimedOut: StateFlow<Boolean> = _generationTimedOut
 
+    /** Whether the queue was paused by user action (vs. naturally idle). */
+    private val _queuePaused = MutableStateFlow(false)
+    val queuePaused: StateFlow<Boolean> = _queuePaused
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // ── Init: restore from Room ──
@@ -98,6 +102,10 @@ class QueueRepository private constructor(private val db: AppDatabase) {
 
     fun setGenerationTimedOut(timedOut: Boolean) {
         _generationTimedOut.value = timedOut
+    }
+
+    fun setQueuePaused(paused: Boolean) {
+        _queuePaused.value = paused
     }
 
     // ── Batch / Task mutations ──
@@ -230,6 +238,25 @@ class QueueRepository private constructor(private val db: AppDatabase) {
 
     fun updateTaskProgress(id: String, progress: Float) {
         updateTask(id) { it.copy(progress = progress) }
+    }
+
+    /**
+     * Pause the queue: reset any PROCESSING task back to PENDING.
+     * PENDING tasks remain PENDING (not cancelled).
+     * Used when the user pauses the queue.
+     */
+    fun resetProcessingToPending() {
+        _tasks.update { tasks ->
+            tasks.map { task ->
+                if (task.status == TaskStatus.PROCESSING) {
+                    task.copy(status = TaskStatus.PENDING, progress = 0f)
+                } else task
+            }
+        }
+        scope.launch {
+            _tasks.value.filter { it.status == TaskStatus.PENDING }
+                .forEach { db.taskDao().insert(it.toEntity()) }
+        }
     }
 
     fun cancelAllPending() {

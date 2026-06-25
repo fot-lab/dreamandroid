@@ -75,6 +75,10 @@ fun AppContent() {
     val queueProcessing by queueViewModel.queueRepository.processingActive.collectAsState()
     val queueBatchGroups = remember(queueTasks) { queueViewModel.queueRepository.getBatchGroups() }
     val generationTimedOut by queueViewModel.queueRepository.generationTimedOut.collectAsState()
+    val queuePaused by queueViewModel.queueRepository.queuePaused.collectAsState()
+    val queueHasPending = remember(queueTasks) {
+        queueTasks.any { it.status == TaskStatus.PENDING }
+    }
 
     // ── Upscaler preferences ──
     val persistedUpscalerId = remember {
@@ -315,7 +319,10 @@ fun AppContent() {
                     BottomTab.Queue -> QueueTopBar(
                         drawerState = drawerState,
                         processingActive = queueProcessing,
+                        queuePaused = queuePaused,
+                        hasPendingTasks = queueHasPending,
                         onStop = { queueViewModel.stop(context) },
+                        onResume = { queueViewModel.resume(context) },
                     )
                     BottomTab.Generate -> GenerateTopBar(
                         drawerState = drawerState,

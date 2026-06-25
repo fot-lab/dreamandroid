@@ -40,6 +40,7 @@ object QueueController {
      */
     fun start(context: Context) {
         val workManager = WorkManager.getInstance(context)
+        val queueRepository = QueueRepository.getInstance(context)
 
         val workRequest = OneTimeWorkRequestBuilder<GenerationWorker>()
             .addTag(GenerationWorker.WORK_TAG)
@@ -55,52 +56,59 @@ object QueueController {
             ExistingWorkPolicy.KEEP, // Don't start a new one if already running
             workRequest,
         )
+        queueRepository.setQueuePaused(false)
         Log.d(TAG, "Unique work enqueued with KEEP policy")
     }
 
     /**
-     * Stop all queue processing.
+     * Pause all queue processing.
      *
      * **Order (race-free):**
      * 1. Cancel the WorkManager worker
      * 2. Wait for worker confirmation (CANCELLED state, 5s timeout)
-     * 3. Mark remaining PENDING tasks as CANCELLED
+     * 3. Reset any PROCESSING task back to PENDING
      *
-     * Step 1→2→3 ensures the worker has finished its current task's cleanup
-     * (e.g. [GenerationWorker.resetTaskToPending]) before we cancel the queue.
-     * This prevents the worker resetting a task to PENDING *after* we've
-     * already cancelled everything.
+     * PENDING tasks remain PENDING (not cancelled) so the user can resume later.
+     * The backend service is NOT stopped — only the queue worker is cancelled.
      */
     suspend fun stop(context: Context) {
-        val workManager = WorkManager.getInstance(context)
         val queueRepository = QueueRepository.getInstance(context)
 
-        // Step 1: Cancel the worker
-        workManager.cancelAllWorkByTag(GenerationWorker.WORK_TAG)
-        Log.d(TAG, "Worker cancellation requested")
+        try {
+            val workManager = WorkManager.getInstance(context)
 
-        // Step 2: Wait for worker to confirm cancellation (with timeout)
-        val confirmed = withTimeoutOrNull(5000L) {
-            workManager.getWorkInfosForUniqueWorkLiveData(GenerationWorker.WORK_TAG)
-                .asFlow()
-                .first { infos ->
-                    infos.all {
-                        it.state == WorkInfo.State.CANCELLED ||
-                        it.state == WorkInfo.State.SUCCEEDED ||
-                        it.state == WorkInfo.State.FAILED
+            // Step 1: Cancel the worker
+            workManager.cancelAllWorkByTag(GenerationWorker.WORK_TAG)
+            Log.d(TAG, "Worker cancellation requested")
+
+            // Step 2: Wait for worker to confirm cancellation (with timeout)
+            val confirmed = withTimeoutOrNull(5000L) {
+                workManager.getWorkInfosForUniqueWorkLiveData(GenerationWorker.WORK_TAG)
+                    .asFlow()
+                    .first { infos ->
+                        infos.all {
+                            it.state == WorkInfo.State.CANCELLED ||
+                            it.state == WorkInfo.State.SUCCEEDED ||
+                            it.state == WorkInfo.State.FAILED
+                        }
                     }
-                }
-        }
-        if (confirmed == null) {
-            Log.w(TAG, "Worker did not confirm cancellation within 5s — proceeding anyway")
-        } else {
-            Log.d(TAG, "Worker confirmed termination")
+            }
+            if (confirmed == null) {
+                Log.w(TAG, "Worker did not confirm cancellation within 5s — proceeding anyway")
+            } else {
+                Log.d(TAG, "Worker confirmed termination")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during worker cancellation", e)
         }
 
-        // Step 3: Now safe to cancel queue
-        queueRepository.cancelAllPending()
+        // Step 3: Reset any stale PROCESSING task to PENDING
+        // (Worker may have already done this via CancellationException handler,
+        //  but we ensure it here as a safety net)
+        queueRepository.resetProcessingToPending()
         queueRepository.setProcessingActive(false)
-        Log.d(TAG, "Queue processing stopped")
+        queueRepository.setQueuePaused(true)
+        Log.d(TAG, "Queue processing paused")
     }
 
     /**
