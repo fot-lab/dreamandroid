@@ -82,7 +82,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-v3
+          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-1080x1920-v4
 
       # ── Create AVD + generate snapshot (only on cache miss) ──
       - name: Create AVD and generate snapshot
@@ -93,7 +93,7 @@ jobs:
           arch: ${{ matrix.arch }}
           target: ${{ matrix.target }}
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x1920
           disable-animations: false
           script: echo "AVD snapshot generated for caching."
 
@@ -188,9 +188,50 @@ jobs:
           force-avd-creation: false
           disk-size: 2G
           heap-size: 1G
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x1920
           disable-animations: true
           script: sh ./test-script.sh
+
+      # ── Capture screenshots of each bottom-navigation tab ──
+      - name: Capture tab screenshots
+        if: always()
+        run: |
+          set -euo pipefail
+
+          # Ensure app is running
+          adb shell am start -n io.github.dreamandroid.local/.MainActivity 2>/dev/null || true
+          sleep 4
+
+          mkdir -p screenshots
+
+          # 5-tab bottom navigation on 1080x1920 emulator:
+          # Each tab occupies 1080/5 = 216px wide, centers at 108,324,540,756,972
+          # Bottom nav center Y ~ 1840
+          TABS="Models:108:1840 Queue:324:1840 Generate:540:1840 Upscale:756:1840 Browse:972:1840"
+
+          for ENTRY in $TABS; do
+            NAME="$(echo "$ENTRY" | cut -d: -f1)"
+            X="$(echo "$ENTRY" | cut -d: -f2)"
+            Y="$(echo "$ENTRY" | cut -d: -f3)"
+            echo "Switching to $NAME tab (tap $X,$Y)..."
+            adb shell input tap "$X" "$Y"
+            sleep 1.5
+            adb shell screencap -p "/sdcard/tab_${NAME}.png"
+            adb pull "/sdcard/tab_${NAME}.png" "screenshots/"
+            echo "✅ Captured $NAME"
+          done
+
+          echo "=== Screenshots captured ==="
+          ls -l screenshots/
+
+      # ── Upload tab screenshots ──
+      - name: Upload tab screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tab-screenshots-${{ matrix.api-level }}-${{ matrix.target }}
+          path: screenshots/
+          retention-days: 7
 
       # ── Upload logcat (always) ──
       - name: Upload logcat
