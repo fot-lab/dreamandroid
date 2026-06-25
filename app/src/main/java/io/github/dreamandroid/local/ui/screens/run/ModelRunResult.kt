@@ -42,6 +42,7 @@ import coil.request.ImageRequest
 import io.github.dreamandroid.local.BuildConfig
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.formatBrowseTime
 import io.github.dreamandroid.local.data.HistoryItem
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.ui.components.GenerationParamsDialog
@@ -243,7 +244,7 @@ fun ModelRunResultPage(
                                 }
                                 state.generationParams?.let { params ->
                                     Text(stringResource(R.string.result_params, params.steps, params.cfgScale, params.seed.toString()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(stringResource(R.string.result_params_2, params.width, params.height, params.generationTime ?: "unknown",
+                                    Text(stringResource(R.string.result_params_2, params.width, params.height, formatBrowseTime(params.generationTime).ifBlank { "unknown" },
                                         if (params.runOnCpu) { if (params.useOpenCL) "GPU" else "CPU" } else { "NPU" }),
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }

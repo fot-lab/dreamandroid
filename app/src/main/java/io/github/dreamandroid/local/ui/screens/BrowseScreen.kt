@@ -41,6 +41,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/**
+ * Converts a raw millisecond generation time string to "yyyy-MM-dd HH:mm:ss".
+ * Centralized here so all timestamp displays in the app use the same format.
+ * Falls back to the original string if it can't be parsed as a long.
+ */
+fun formatBrowseTime(generationTime: String?): String {
+    if (generationTime.isNullOrBlank()) return ""
+    val millis = generationTime.toLongOrNull() ?: return generationTime
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date(millis))
+}
+
 /** Layout modes for the Browse / Gallery screen. */
 enum class BrowseLayoutMode {
     DETAIL_LIST,
@@ -285,7 +297,7 @@ fun BrowseScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = "${item.params.width}×${item.params.height} · ${item.params.generationTime ?: ""}",
+                        text = "${item.params.width}×${item.params.height} · ${formatBrowseTime(item.params.generationTime)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

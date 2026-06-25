@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.GenerationMode
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
+import io.github.dreamandroid.local.ui.screens.formatBrowseTime
 import io.github.dreamandroid.local.utils.samplerDisplayName
 
 @Composable
@@ -120,7 +121,7 @@ fun GenerationParamsDialog(
                         }
                     }
                     Text(
-                        stringResource(R.string.basic_time, params.generationTime ?: "unknown"),
+                        stringResource(R.string.basic_time, formatBrowseTime(params.generationTime).ifBlank { "unknown" }),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
