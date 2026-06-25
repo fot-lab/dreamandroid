@@ -147,7 +147,7 @@ fun AppContentTabQueue(
                     processingActive = processingActive,
                     queuePaused = queuePaused,
                     hasPendingTasks = hasPendingTasks,
-                    onStop = { queueViewModel.stop(context) },
+                    onPause = { queueViewModel.stop(context) },
                     onResume = { queueViewModel.resume(context) },
                     // Queue selection mode
                     queueIsSelectionMode = queueViewModel.queueIsSelectionMode,

@@ -188,7 +188,7 @@ fun QueueTopBar(
     processingActive: Boolean = false,
     queuePaused: Boolean = false,
     hasPendingTasks: Boolean = false,
-    onStop: () -> Unit = {},
+    onPause: () -> Unit = {},
     onResume: () -> Unit = {},
     // ── Queue selection mode ──────────────────────────────────
     queueIsSelectionMode: Boolean = false,
@@ -210,10 +210,14 @@ fun QueueTopBar(
                     maxLines = 1,
                 )
             } else {
-                Text(
-                    text = "Queue",
-                    maxLines = 1,
-                )
+                val statusText = when {
+                    queuePaused -> stringResource(R.string.queue_paused)
+                    processingActive -> stringResource(R.string.model_running)
+                    else -> null
+                }
+                if (statusText != null) {
+                    Text(text = statusText, maxLines = 1)
+                }
             }
         },
         navigationIcon = {
@@ -238,12 +242,12 @@ fun QueueTopBar(
                         tint = MaterialTheme.colorScheme.error)
                 }
             } else {
-                // Show Stop while worker is actively processing
+                // Show Pause while worker is actively processing
                 if (processingActive && !queuePaused) {
-                    IconButton(onClick = onStop) {
+                    IconButton(onClick = onPause) {
                         Icon(
-                            Icons.Default.Stop,
-                            contentDescription = "Stop queue",
+                            Icons.Default.Pause,
+                            contentDescription = "Pause queue",
                             tint = MaterialTheme.colorScheme.error,
                         )
                     }

@@ -416,6 +416,7 @@
     <string name="model_type_generation">生成</string>
     <string name="model_type_upscale">放大</string>
     <string name="model_running">运行中</string>
+    <string name="queue_paused">已暂停</string>
     <string name="import_model">导入模型文件</string>
     <string name="import_npu_model">导入NPU模型zip</string>
     <string name="import_upscale_model">导入放大模型</string>
