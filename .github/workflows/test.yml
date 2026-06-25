@@ -81,13 +81,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # ── Hash all snapshot-relevant params → cache key ingredient ──
-      # Concatenates emulator-options, disk-size, and heap-size. Changing any
-      # of these produces a different full-length SHA256 → cache miss → rebuild.
-      - name: Compute emulator params hash
+      # ── Hash all AVD params → cache key ──
+      # Changing any parameter (api-level, arch, target, emulator-options,
+      # disk-size, heap-size) produces a different SHA256 → cache miss → rebuild.
+      - name: Compute AVD params hash
         id: emu-hash
         run: |
-          echo "hash=$(echo '${{ env.EMU_OPTIONS }} ${{ env.EMU_DISK_SIZE }} ${{ env.EMU_HEAP_SIZE }}' | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "hash=$(echo '${{ matrix.api-level }} ${{ matrix.arch }} ${{ matrix.target }} ${{ env.EMU_OPTIONS }} ${{ env.EMU_DISK_SIZE }} ${{ env.EMU_HEAP_SIZE }}' | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       # ── AVD cache ──
       # Strategy: cache a CLEAN emulator snapshot (no app installed).
@@ -95,8 +95,8 @@ jobs:
       # snapshot. The Run step uses -no-snapshot-save to never overwrite it,
       # keeping the cache reusable across every build → 100% hit rate after
       # the first run.
-      # Cache key includes the emulator-options hash → changing any emulator
-      # parameter (GPU, skin, camera, etc.) forces a cache miss and snapshot rebuild.
+      # Cache key is a SHA256 of all AVD parameters → changing anything
+      # (api-level, arch, target, GPU, skin, disk-size, etc.) forces a miss.
       - name: AVD cache
         uses: actions/cache@v4
         id: avd-cache
@@ -104,7 +104,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{ matrix.target }}-${{ steps.emu-hash.outputs.hash }}-v1
+          key: avd-${{ steps.emu-hash.outputs.hash }}-v2
 
       # ── Create clean AVD + snapshot (only on cache miss) ──
       - name: Create AVD and generate snapshot
