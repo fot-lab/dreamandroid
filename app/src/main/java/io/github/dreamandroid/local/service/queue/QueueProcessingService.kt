@@ -1,5 +1,14 @@
 package io.github.dreamandroid.local.service.queue
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * QueueProcessingService was the foreground service for queue processing. It has been
+ * replaced by GenerationWorker (WorkManager). The service is registered in
+ * AndroidManifest.xml with android:enabled="false" and will stopSelf() immediately
+ * if ever started. Kept solely as historical reference.
+ */
+
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
