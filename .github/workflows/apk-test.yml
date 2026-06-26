@@ -1,16 +1,16 @@
-name: Test APK on Emulator
+name: APK Test
 
 on:
   workflow_call:
     inputs:
       build-run-id:
-        description: 'Run ID of the build.yml workflow that uploaded debug APKs'
+        description: 'Run ID of the build workflow that uploaded debug APKs'
         required: false
         type: string
   workflow_dispatch:
     inputs:
       build-run-id:
-        description: 'Run ID of the build.yml workflow to download APKs from'
+        description: 'Run ID of the build workflow to download APKs from'
         required: true
         type: string
 
@@ -34,9 +34,7 @@ jobs:
         target: [google_apis]
 
     steps:
-      # ── Download pre-built debug APKs from build.yml ──
-      # Must specify run-id: workflow_call child jobs need explicit run-id to access
-      # parent workflow's artifacts, even within the same run.
+      # ── Download pre-built debug APKs from build workflow ──
       - name: Download debug APKs
         uses: actions/download-artifact@v4
         with:
@@ -45,8 +43,6 @@ jobs:
           run-id: ${{ inputs.build-run-id || github.run_id }}
 
       # ── Verify APKs exist ──
-      # download-artifact@v4 normally extracts ZIP artifacts automatically.
-      # If extraction failed, we detect ZIP files here and unzip them.
       - name: Verify APKs
         run: |
           echo "=== Directory listing ==="
@@ -74,7 +70,7 @@ jobs:
           fi
           echo "✅ APKs ready"
 
-      # ── Enable KVM (required for hardware acceleration on Linux) ──
+      # ── Enable KVM ──
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -82,21 +78,12 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       # ── Hash all AVD params → cache key ──
-      # Changing any parameter (api-level, arch, target, emulator-options,
-      # disk-size, heap-size) produces a different SHA256 → cache miss → rebuild.
       - name: Compute AVD params hash
         id: emu-hash
         run: |
           echo "hash=$(echo '${{ matrix.api-level }} ${{ matrix.arch }} ${{ matrix.target }} ${{ env.EMU_OPTIONS }} ${{ env.EMU_DISK_SIZE }} ${{ env.EMU_HEAP_SIZE }}' | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       # ── AVD cache ──
-      # Strategy: cache a CLEAN emulator snapshot (no app installed).
-      # The Create step below only runs on cache miss and produces a pristine
-      # snapshot. The Run step uses -no-snapshot-save to never overwrite it,
-      # keeping the cache reusable across every build → 100% hit rate after
-      # the first run.
-      # Cache key is a SHA256 of all AVD parameters → changing anything
-      # (api-level, arch, target, GPU, skin, disk-size, etc.) forces a miss.
       - name: AVD cache
         uses: actions/cache@v4
         id: avd-cache
@@ -121,10 +108,7 @@ jobs:
           disable-animations: false
           script: echo "AVD snapshot generated for caching."
 
-      # ── Write test script to file ──
-      # android-emulator-runner@v2 executes each line as a separate sh -c,
-      # so variables/functions cannot span lines. We write the script to a
-      # file and run it as a single shell invocation.
+      # ── Write test script ──
       - name: Write test script
         run: |
           cat > test-script.sh << 'SCRIPT_EOF'
@@ -138,7 +122,6 @@ jobs:
           MAIN_APK="$(find "$APKS" -name '*.apk' ! -name '*androidTest*' ! -name '*test*' | head -1)"
           TEST_APK="$(find "$APKS" -name '*androidTest*.apk' -o -name '*test*.apk' | head -1)"
 
-          # Trap: capture logcat on any exit (install failure, crash, normal)
           capture_logcat() {
             {
               echo "=== logcat (errors) ==="
@@ -156,7 +139,6 @@ jobs:
           }
           trap capture_logcat EXIT
 
-          # Uninstall old versions first (snapshot may contain stale app with mismatched signature)
           echo "Cleaning old packages..."
           adb uninstall io.github.dreamandroid.local || true
           adb uninstall io.github.dreamandroid.local.test || true
@@ -169,17 +151,11 @@ jobs:
 
           echo "Running tests..."
 
-          # Capture full instrumentation output so we can detect failures
-          # that am instrument masks (e.g. app process crash still returns 0).
           INSTR_OUT="$(adb shell am instrument -w -r \
             -e package io.github.dreamandroid.local \
             io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner 2>&1)" || true
           echo "$INSTR_OUT"
 
-          # Parse: detect any test failure
-          # - "FAILURES!!!" = standard JUnit runner failure summary
-          # - INSTRUMENTATION_STATUS_CODE: -2 = individual test failed
-          # - INSTRUMENTATION_RESULT: shortMsg= = process crash
           FAILED=0
           if echo "$INSTR_OUT" | grep -q "FAILURES!!!"; then
             echo "❌ Test runner reported failures"
@@ -203,8 +179,6 @@ jobs:
           chmod +x test-script.sh
 
       # ── Run tests ──
-      # Boots from cached clean snapshot (< 30s). -no-snapshot-save leaves
-      # the snapshot untouched so the cache stays valid for next build.
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -218,23 +192,18 @@ jobs:
           disable-animations: true
           script: sh ./test-script.sh
 
-      # ── Capture screenshots of each bottom-navigation tab ──
-      # Best-effort: adb failures here are treated as warnings, not errors.
+      # ── Capture screenshots ──
       - name: Capture tab screenshots
         if: always()
         continue-on-error: true
         run: |
           set -uo pipefail
 
-          # Ensure app is running
           adb shell am start -n io.github.dreamandroid.local/.MainActivity 2>/dev/null || echo "WARNING: app start failed"
           sleep 4
 
           mkdir -p screenshots
 
-          # 5-tab bottom navigation on 1080x1920 emulator:
-          # Each tab occupies 1080/5 = 216px wide, centers at 108,324,540,756,972
-          # Bottom nav center Y ~ 1840
           TABS="Models:108:1840 Queue:324:1840 Generate:540:1840 Upscale:756:1840 Browse:972:1840"
 
           for ENTRY in $TABS; do
@@ -262,7 +231,7 @@ jobs:
           path: screenshots/
           retention-days: 7
 
-      # ── Upload logcat (always) ──
+      # ── Upload logcat ──
       - name: Upload logcat
         if: always()
         uses: actions/upload-artifact@v4
@@ -271,7 +240,7 @@ jobs:
           path: logcat.txt
           retention-days: 7
 
-      # ── Upload test reports (always) ──
+      # ── Upload test reports ──
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4

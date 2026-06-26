@@ -1,0 +1,155 @@
+name: APK CMake
+
+on:
+  workflow_call:
+
+env:
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+  ANDROID_NDK_VERSION: 28.2.13676358
+
+jobs:
+  cmake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    steps:
+      # -------- checkout dreamandroid --------
+      - name: Checkout dreamandroid
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # -------- checkout private SDK --------
+      - name: Checkout private SDK
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/qairt
+          ssh-key: ${{ secrets.QAIRT_DEPLOY_KEY }}
+          path: qairt_sdk
+
+      # -------- Cache Rust toolchain (before NDK setup so cargo-ndk is pre-restored) --------
+      - name: Cache Rust Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.rustup/
+            app/src/main/cpp/3rdparty/tokenizers-cpp/rust/target/
+          key: rust-cargo-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/3rdparty/tokenizers-cpp/rust/Cargo.*') }}
+          restore-keys: rust-cargo-${{ runner.os }}-
+
+      # -------- NDK & build tools (check version, install only if missing) --------
+      - name: Verify & set up NDK & build tools
+        run: |
+          # --- NDK (exact version required) ---
+          NDK_PATH="$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION"
+          if [ -d "$NDK_PATH" ]; then
+            echo "✅ NDK $ANDROID_NDK_VERSION found, skip download"
+          else
+            echo "⚠️  NDK $ANDROID_NDK_VERSION not found, downloading..."
+            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;$ANDROID_NDK_VERSION"
+          fi
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
+
+          # --- cmake (require >= 3.22) ---
+          CMAKE_VER=$(cmake --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1 || echo "0.0")
+          CMAKE_MAJOR=$(echo "$CMAKE_VER" | cut -d. -f1)
+          CMAKE_MINOR=$(echo "$CMAKE_VER" | cut -d. -f2)
+          if [ "$CMAKE_MAJOR" -gt 3 ] || { [ "$CMAKE_MAJOR" -eq 3 ] && [ "$CMAKE_MINOR" -ge 22 ]; }; then
+            echo "✅ cmake $CMAKE_VER meets requirement (>= 3.22), skip download"
+          else
+            echo "⚠️  cmake $CMAKE_VER < 3.22, installing..."
+            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "cmake;3.22.1"
+          fi
+
+          # --- ninja ---
+          if which ninja > /dev/null 2>&1; then
+            echo "✅ ninja $(ninja --version 2>/dev/null || echo 'ok') found, skip install"
+          else
+            echo "⚠️  ninja not found, installing..."
+            sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+          fi
+
+          # --- Rust (for tokenizers-cpp) ---
+          # Cache (above) pre-restores ~/.cargo/bin/ and ~/.rustup/,
+          # so cargo-ndk and target are usually already present.
+          if which rustup > /dev/null 2>&1; then
+            if rustup target list --installed | grep -q aarch64-linux-android; then
+              echo "✅ Rust target aarch64-linux-android already installed"
+            else
+              echo "🔧 Installing Rust target aarch64-linux-android..."
+              rustup target add aarch64-linux-android
+            fi
+            if which cargo-ndk > /dev/null 2>&1; then
+              echo "✅ cargo-ndk found (from cache)"
+            else
+              echo "🔧 Installing cargo-ndk (cache miss, compiling) ..."
+              cargo install cargo-ndk
+            fi
+          else
+            echo "⚠️  rustup not found — tokenizers-cpp build may fail"
+          fi
+
+          # --- ccache ---
+          sudo apt-get install -y -qq ccache
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          key: ${{ runner.os }}-ndk-${{ env.ANDROID_NDK_VERSION }}
+          max-size: 2G
+
+      - name: Cache CMake build tree
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/cpp/build/android
+          key: cmake-build-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', 'app/src/main/cpp/CMakePresets.json', 'app/src/main/cpp/src/**') }}
+          restore-keys: cmake-build-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-
+
+      # -------- cmake configure & build --------
+      - name: CMake configure & build
+        id: cmake-build
+        timeout-minutes: 30
+        working-directory: app/src/main/cpp
+        run: |
+          set -euo pipefail
+          QNN_SDK_ROOT="${{ github.workspace }}/qairt_sdk"
+
+          echo "NDK  : $ANDROID_NDK_ROOT"
+          echo "QNN  : $QNN_SDK_ROOT"
+
+          cmake --preset android-release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DQNN_SDK_ROOT="$QNN_SDK_ROOT" \
+            2>&1 | tee ../native-build-log.txt
+          cmake --build --preset android-release \
+            2>&1 | tee -a ../native-build-log.txt
+
+      # -------- upload native build log (always, independent step) --------
+      - name: Upload native build log
+        if: always() && steps.cmake-build.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-native.log
+          path: app/src/main/native-build-log.txt
+          retention-days: 7
+
+      # -------- prepare native outputs for APK --------
+      - name: Prepare native outputs
+        if: steps.cmake-build.outcome == 'success'
+        run: |
+          mkdir -p native-out/jniLibs/arm64-v8a/
+          mkdir -p native-out/assets/
+          cp app/src/main/cpp/build/android/bin/arm64-v8a/libstable_diffusion_core.so native-out/jniLibs/arm64-v8a/
+          cp -r app/src/main/cpp/build/android/qnnlibs native-out/assets/
+
+      - name: Upload native artifacts
+        if: steps.cmake-build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs
+          path: native-out/

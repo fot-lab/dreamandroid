@@ -1,0 +1,206 @@
+name: APK Gradle
+
+on:
+  workflow_call:
+    inputs:
+      build-type:
+        description: 'Build type: debug or release'
+        required: true
+        type: string
+      verbose-logging:
+        description: 'Enable --info instead of --quiet for Gradle output'
+        type: boolean
+        default: false
+
+jobs:
+  gradle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      # -------- checkout dreamandroid (no submodules needed) --------
+      - name: Checkout dreamandroid
+        uses: actions/checkout@v4
+
+      # -------- validate VERSION_NAME format --------
+      - name: Validate VERSION_NAME
+        run: |
+          VERSION=$(cat VERSION_NAME)
+          if ! echo "$VERSION" | grep -qP '^\d{4}\.\d{2}\.\d{2}\.\d{2}\.\d{2}(-rc)?$'; then
+            echo "❌ VERSION_NAME format invalid: '$VERSION'"
+            echo "   Expected format: YYYY.MM.DD.HH.mm or YYYY.MM.DD.HH.mm-rc (e.g. 2026.06.12.06.00 or 2026.06.12.06.00-rc)"
+            exit 1
+          fi
+          echo "✅ VERSION_NAME: $VERSION"
+
+      # -------- JDK & Android SDK (check version, install only if missing) --------
+      - name: Verify JDK
+        id: jdk
+        run: |
+          JAVAC_VER=$(javac -version 2>&1 | grep -oP '\d+' | head -1)
+          echo "System javac version: $JAVAC_VER"
+          if [ "$JAVAC_VER" -ge 17 ] 2>/dev/null; then
+            echo "✅ JDK $JAVAC_VER meets requirement (>= 17), skip install"
+            echo "need_jdk=false" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  JDK $JAVAC_VER < 17, needs install"
+            echo "need_jdk=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up JDK 17
+        if: steps.jdk.outputs.need_jdk == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Verify & set up Android SDK
+        env:
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: |
+          TO_INSTALL=""
+          PLATFORM_DIR="$ANDROID_SDK_ROOT/platforms/android-36"
+          BT_DIR="$ANDROID_SDK_ROOT/build-tools/36.0.0"
+
+          if [ -d "$PLATFORM_DIR" ]; then
+            echo "✅ platforms;android-36 found, skip download"
+          else
+            echo "⚠️  platforms;android-36 not found"
+            TO_INSTALL="$TO_INSTALL platforms;android-36"
+          fi
+
+          if [ -d "$BT_DIR" ]; then
+            echo "✅ build-tools;36.0.0 found, skip download"
+          else
+            echo "⚠️  build-tools;36.0.0 not found"
+            TO_INSTALL="$TO_INSTALL build-tools;36.0.0"
+          fi
+
+          if [ -n "$TO_INSTALL" ]; then
+            echo "Installing:$TO_INSTALL"
+            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install $TO_INSTALL
+          fi
+
+      # -------- download native outputs (tolerate missing when cmake was skipped) --------
+      - name: Download native artifacts
+        id: download-native
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: native-libs
+
+      - name: Merge native outputs
+        if: steps.download-native.outcome == 'success'
+        run: |
+          mkdir -p app/src/main/jniLibs/
+          mkdir -p app/src/main/assets/
+          cp -r jniLibs app/src/main/
+          cp -r assets app/src/main/
+
+      # -------- gradle build --------
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Cache Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+          cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
+
+      # -------- keystore (release only) --------
+      - name: Get or create release keystore from qairt
+        if: inputs.build-type == 'release'
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          KEYSTORE_PASS="android"
+          KEY_ALIAS="androiddebugkey"
+          KEY_PASS="android"
+
+          QAIRT_REPO="git@github.com:${{ github.repository_owner }}/qairt.git"
+
+          mkdir -p ~/.ssh
+          echo "$QAIRT_DEPLOY_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          if git clone --depth 1 --branch keystore "$QAIRT_REPO" /tmp/qairt_ks 2>/dev/null; then
+            cp /tmp/qairt_ks/release.keystore "$GITHUB_WORKSPACE/release.keystore"
+            echo "✅ Using existing keystore from qairt@keystore"
+          else
+            echo "🔑 keystore branch not found, generating new keystore..."
+            keytool -genkey -v \
+              -keystore "$GITHUB_WORKSPACE/release.keystore" \
+              -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
+              -dname "CN=Android Debug, OU=DreamHub, O=DreamHub, L=Unknown, ST=Unknown, C=US"
+
+            git clone --depth 1 "$QAIRT_REPO" /tmp/qairt_ks
+            cd /tmp/qairt_ks
+            git checkout --orphan keystore
+            git rm -rf --ignore-unmatch . 2>/dev/null || true
+            cp "$GITHUB_WORKSPACE/release.keystore" .
+            git add release.keystore
+            git -c user.name="CI" -c user.email="ci@dreamhub" \
+              commit -m "Store release keystore"
+            git push origin keystore --force
+            cd "$GITHUB_WORKSPACE"
+            echo "✅ Generated and stored keystore to qairt@keystore"
+          fi
+
+          echo "RELEASE_STORE_FILE=${GITHUB_WORKSPACE}/release.keystore" > keystore.properties
+          echo "RELEASE_STORE_PASSWORD=${KEYSTORE_PASS}" >> keystore.properties
+          echo "RELEASE_KEY_ALIAS=${KEY_ALIAS}" >> keystore.properties
+          echo "RELEASE_KEY_PASSWORD=${KEY_PASS}" >> keystore.properties
+        env:
+          QAIRT_DEPLOY_KEY: ${{ secrets.QAIRT_DEPLOY_KEY }}
+
+      # -------- assemble --------
+      - name: Gradle assemble
+        id: gradle-build
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.build-type }}" = "release" ]; then
+            TARGET="assembleBasicRelease"
+          else
+            TARGET="assembleBasicDebug assembleBasicDebugAndroidTest"
+          fi
+          GRADLE_ARGS="$TARGET -x ktlintCheck -x detekt"
+          if [ "${{ inputs.verbose-logging }}" = "true" ]; then
+            GRADLE_ARGS="$GRADLE_ARGS --info"
+          else
+            GRADLE_ARGS="$GRADLE_ARGS --quiet"
+          fi
+          if [ "${{ inputs.build-type }}" = "release" ] && [ -f keystore.properties ]; then
+            GRADLE_ARGS="$GRADLE_ARGS -PkeystorePropertiesFile=${PWD}/keystore.properties"
+          fi
+          ./gradlew $GRADLE_ARGS 2>&1 | tee build-log.txt
+
+      # -------- upload release APK --------
+      - name: Upload APK
+        if: steps.gradle-build.outcome == 'success' && inputs.build-type == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dreamandroid-APK
+          path: app/build/outputs/apk/basic/release/*.apk
+          retention-days: 30
+
+      # -------- upload debug APKs for emulator test --------
+      - name: Upload debug APKs
+        if: steps.gradle-build.outcome == 'success' && inputs.build-type == 'debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apks
+          path: app/build/outputs/apk/**/debug/*.apk
+          retention-days: 1
+
+      # -------- upload build log (always, independent step) --------
+      - name: Upload build log
+        if: always() && steps.gradle-build.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-gradle.log
+          path: build-log.txt
+          retention-days: 7

@@ -16,12 +16,24 @@ on:
       - '.gitignore'
   workflow_dispatch:
     inputs:
-      build_native:
-        description: 'Build native C++ code (requires private SDK)'
+      cmake_libs:
+        description: 'Build native C++ libs (requires private SDK)'
         type: boolean
         default: true
-      release:
-        description: 'Publish APK as GitHub Release'
+      apk_debug:
+        description: 'Build debug APK'
+        type: boolean
+        default: true
+      apk_release:
+        description: 'Build release APK (R8 minify on)'
+        type: boolean
+        default: false
+      apk_test:
+        description: 'Run emulator instrumentation tests (requires apk_debug)'
+        type: boolean
+        default: false
+      github_release:
+        description: 'Publish APK as GitHub Release (requires apk_release)'
         type: boolean
         default: false
       verbose_logging:
@@ -33,373 +45,86 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-  # 28.2.13676358 is pre-installed on ubuntu-24.04 runner (no download needed)
-  ANDROID_NDK_VERSION: 28.2.13676358
-
 jobs:
   # ============================================================
-  # Stage 1 — Code Checkout & C++ Compilation
-  # (on all pushes; manual dispatch when build_native=true)
+  # Stage 1 — C++ Native Build (reusable)
   # ============================================================
-  native:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_native == 'true') }}
-
-    steps:
-      # -------- checkout dreamandroid --------
-      - name: Checkout dreamandroid
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      # -------- checkout private SDK --------
-      - name: Checkout private SDK
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/qairt
-          ssh-key: ${{ secrets.QAIRT_DEPLOY_KEY }}
-          path: qairt_sdk
-
-      # -------- Cache Rust toolchain (before NDK setup so cargo-ndk is pre-restored) --------
-      - name: Cache Rust Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/
-            ~/.cargo/git/
-            ~/.cargo/bin/
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-            ~/.rustup/
-            app/src/main/cpp/3rdparty/tokenizers-cpp/rust/target/
-          key: rust-cargo-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/3rdparty/tokenizers-cpp/rust/Cargo.*') }}
-          restore-keys: rust-cargo-${{ runner.os }}-
-
-      # -------- NDK & build tools (check version, install only if missing) --------
-      - name: Verify & set up NDK & build tools
-        run: |
-          # --- NDK (exact version required) ---
-          NDK_PATH="$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION"
-          if [ -d "$NDK_PATH" ]; then
-            echo "✅ NDK $ANDROID_NDK_VERSION found, skip download"
-          else
-            echo "⚠️  NDK $ANDROID_NDK_VERSION not found, downloading..."
-            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;$ANDROID_NDK_VERSION"
-          fi
-          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
-
-          # --- cmake (require >= 3.22) ---
-          CMAKE_VER=$(cmake --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1 || echo "0.0")
-          CMAKE_MAJOR=$(echo "$CMAKE_VER" | cut -d. -f1)
-          CMAKE_MINOR=$(echo "$CMAKE_VER" | cut -d. -f2)
-          if [ "$CMAKE_MAJOR" -gt 3 ] || { [ "$CMAKE_MAJOR" -eq 3 ] && [ "$CMAKE_MINOR" -ge 22 ]; }; then
-            echo "✅ cmake $CMAKE_VER meets requirement (>= 3.22), skip download"
-          else
-            echo "⚠️  cmake $CMAKE_VER < 3.22, installing..."
-            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "cmake;3.22.1"
-          fi
-
-          # --- ninja ---
-          if which ninja > /dev/null 2>&1; then
-            echo "✅ ninja $(ninja --version 2>/dev/null || echo 'ok') found, skip install"
-          else
-            echo "⚠️  ninja not found, installing..."
-            sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
-          fi
-
-          # --- Rust (for tokenizers-cpp) ---
-          # Cache (above) pre-restores ~/.cargo/bin/ and ~/.rustup/,
-          # so cargo-ndk and target are usually already present.
-          if which rustup > /dev/null 2>&1; then
-            if rustup target list --installed | grep -q aarch64-linux-android; then
-              echo "✅ Rust target aarch64-linux-android already installed"
-            else
-              echo "🔧 Installing Rust target aarch64-linux-android..."
-              rustup target add aarch64-linux-android
-            fi
-            if which cargo-ndk > /dev/null 2>&1; then
-              echo "✅ cargo-ndk found (from cache)"
-            else
-              echo "🔧 Installing cargo-ndk (cache miss, compiling) ..."
-              cargo install cargo-ndk
-            fi
-          else
-            echo "⚠️  rustup not found — tokenizers-cpp build may fail"
-          fi
-
-          # --- ccache ---
-          sudo apt-get install -y -qq ccache
-
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1
-        with:
-          key: ${{ runner.os }}-ndk-${{ env.ANDROID_NDK_VERSION }}
-          max-size: 2G
-
-      - name: Cache CMake build tree
-        uses: actions/cache@v4
-        with:
-          path: app/src/main/cpp/build/android
-          key: cmake-build-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', 'app/src/main/cpp/CMakePresets.json', 'app/src/main/cpp/src/**') }}
-          restore-keys: cmake-build-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-
-
-      # -------- cmake configure & build --------
-      - name: CMake configure & build
-        id: cmake-build
-        timeout-minutes: 30
-        working-directory: app/src/main/cpp
-        run: |
-          set -euo pipefail
-          QNN_SDK_ROOT="${{ github.workspace }}/qairt_sdk"
-
-          echo "NDK  : $ANDROID_NDK_ROOT"
-          echo "QNN  : $QNN_SDK_ROOT"
-
-          cmake --preset android-release \
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-            -DQNN_SDK_ROOT="$QNN_SDK_ROOT" \
-            2>&1 | tee ../native-build-log.txt
-          cmake --build --preset android-release \
-            2>&1 | tee -a ../native-build-log.txt
-
-      # -------- upload native build log (always, independent step) --------
-      - name: Upload native build log
-        if: always() && steps.cmake-build.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-native.log
-          path: app/src/main/native-build-log.txt
-          retention-days: 7
-
-      # -------- prepare native outputs for APK --------
-      - name: Prepare native outputs
-        run: |
-          mkdir -p native-out/jniLibs/arm64-v8a/
-          mkdir -p native-out/assets/
-          cp app/src/main/cpp/build/android/bin/arm64-v8a/libstable_diffusion_core.so native-out/jniLibs/arm64-v8a/
-          cp -r app/src/main/cpp/build/android/qnnlibs native-out/assets/
-
-      - name: Upload native artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-libs
-          path: native-out/
+  cmake:
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.cmake_libs == 'true') }}
+    uses: ./.github/workflows/apk-cmake.yml
+    secrets: inherit
 
   # ============================================================
-  # Stage 2 — Kotlin Compile & APK Packaging (release build)
+  # Stage 2a — Gradle Debug
   # ============================================================
-  apk:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    needs: native
-    if: always() && !cancelled()
-
-    steps:
-      # -------- checkout dreamandroid (no submodules needed) --------
-      - name: Checkout dreamandroid
-        uses: actions/checkout@v4
-
-      # -------- validate VERSION_NAME format --------
-      - name: Validate VERSION_NAME
-        run: |
-          VERSION=$(cat VERSION_NAME)
-          if ! echo "$VERSION" | grep -qP '^\d{4}\.\d{2}\.\d{2}\.\d{2}\.\d{2}(-rc)?$'; then
-            echo "❌ VERSION_NAME format invalid: '$VERSION'"
-            echo "   Expected format: YYYY.MM.DD.HH.mm or YYYY.MM.DD.HH.mm-rc (e.g. 2026.06.12.06.00 or 2026.06.12.06.00-rc)"
-            exit 1
-          fi
-          echo "✅ VERSION_NAME: $VERSION"
-
-      # -------- JDK & Android SDK (check version, install only if missing) --------
-      - name: Verify JDK
-        id: jdk
-        run: |
-          JAVAC_VER=$(javac -version 2>&1 | grep -oP '\d+' | head -1)
-          echo "System javac version: $JAVAC_VER"
-          if [ "$JAVAC_VER" -ge 17 ] 2>/dev/null; then
-            echo "✅ JDK $JAVAC_VER meets requirement (>= 17), skip install"
-            echo "need_jdk=false" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️  JDK $JAVAC_VER < 17, needs install"
-            echo "need_jdk=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set up JDK 17
-        if: steps.jdk.outputs.need_jdk == 'true'
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Verify & set up Android SDK
-        run: |
-          TO_INSTALL=""
-          PLATFORM_DIR="$ANDROID_SDK_ROOT/platforms/android-36"
-          BT_DIR="$ANDROID_SDK_ROOT/build-tools/36.0.0"
-
-          if [ -d "$PLATFORM_DIR" ]; then
-            echo "✅ platforms;android-36 found, skip download"
-          else
-            echo "⚠️  platforms;android-36 not found"
-            TO_INSTALL="$TO_INSTALL platforms;android-36"
-          fi
-
-          if [ -d "$BT_DIR" ]; then
-            echo "✅ build-tools;36.0.0 found, skip download"
-          else
-            echo "⚠️  build-tools;36.0.0 not found"
-            TO_INSTALL="$TO_INSTALL build-tools;36.0.0"
-          fi
-
-          if [ -n "$TO_INSTALL" ]; then
-            echo "Installing:$TO_INSTALL"
-            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install $TO_INSTALL
-          fi
-
-      # -------- download native outputs (only if native job succeeded) --------
-      - name: Download native artifacts
-        if: needs.native.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: native-libs
-
-      - name: Merge native outputs
-        if: needs.native.result == 'success'
-        run: |
-          mkdir -p app/src/main/jniLibs/
-          mkdir -p app/src/main/assets/
-          cp -r jniLibs app/src/main/
-          cp -r assets app/src/main/
-
-      # -------- gradle build --------
-      - name: Grant gradlew permission
-        run: chmod +x gradlew
-
-      - name: Cache Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          validate-wrappers: false
-          cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
-
-      - name: Get or create release keystore from qairt
-        timeout-minutes: 10
-        run: |
-          set -euo pipefail
-          # Default Android debug credentials (public, known values)
-          KEYSTORE_PASS="android"
-          KEY_ALIAS="androiddebugkey"
-          KEY_PASS="android"
-
-          QAIRT_REPO="git@github.com:${{ github.repository_owner }}/qairt.git"
-
-          # Set up SSH for qairt private repo
-          mkdir -p ~/.ssh
-          echo "$QAIRT_DEPLOY_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-          # Clone keystore orphan branch directly
-          if git clone --depth 1 --branch keystore "$QAIRT_REPO" /tmp/qairt_ks 2>/dev/null; then
-            cp /tmp/qairt_ks/release.keystore "$GITHUB_WORKSPACE/release.keystore"
-            echo "✅ Using existing keystore from qairt@keystore"
-          else
-            echo "🔑 keystore branch not found, generating new keystore..."
-            keytool -genkey -v \
-              -keystore "$GITHUB_WORKSPACE/release.keystore" \
-              -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
-              -dname "CN=Android Debug, OU=DreamHub, O=DreamHub, L=Unknown, ST=Unknown, C=US"
-
-            # Clone repo & push keystore as orphan branch
-            git clone --depth 1 "$QAIRT_REPO" /tmp/qairt_ks
-            cd /tmp/qairt_ks
-            git checkout --orphan keystore
-            git rm -rf --ignore-unmatch . 2>/dev/null || true
-            cp "$GITHUB_WORKSPACE/release.keystore" .
-            git add release.keystore
-            git -c user.name="CI" -c user.email="ci@dreamhub" \
-              commit -m "Store release keystore"
-            git push origin keystore --force
-            cd "$GITHUB_WORKSPACE"
-            echo "✅ Generated and stored keystore to qairt@keystore"
-          fi
-
-          # Write keystore.properties for Gradle
-          echo "RELEASE_STORE_FILE=${GITHUB_WORKSPACE}/release.keystore" > keystore.properties
-          echo "RELEASE_STORE_PASSWORD=${KEYSTORE_PASS}" >> keystore.properties
-          echo "RELEASE_KEY_ALIAS=${KEY_ALIAS}" >> keystore.properties
-          echo "RELEASE_KEY_PASSWORD=${KEY_PASS}" >> keystore.properties
-        env:
-          QAIRT_DEPLOY_KEY: ${{ secrets.QAIRT_DEPLOY_KEY }}
-
-      - name: Gradle assemble
-        id: gradle-build
-        timeout-minutes: 20
-        run: |
-          set -euo pipefail
-          GRADLE_ARGS="assembleBasicRelease -x ktlintCheck -x detekt"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.verbose_logging }}" = "true" ]; then
-            GRADLE_ARGS="$GRADLE_ARGS --info"
-          else
-            GRADLE_ARGS="$GRADLE_ARGS --quiet"
-          fi
-          if [ -f keystore.properties ]; then
-            GRADLE_ARGS="$GRADLE_ARGS -PkeystorePropertiesFile=${PWD}/keystore.properties"
-          fi
-          ./gradlew $GRADLE_ARGS 2>&1 | tee build-log.txt
-
-      # -------- assemble debug APKs for emulator tests ──
-      - name: Gradle assemble debug + test APK
-        if: steps.gradle-build.outcome == 'success'
-        run: |
-          ./gradlew assembleBasicDebug assembleBasicDebugAndroidTest \
-            -x ktlintCheck -x detekt \
-            --quiet
-
-      # -------- upload APK (only on success + tag/manual, independent step) --------
-      - name: Upload APK
-        if: steps.gradle-build.outcome == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
-        uses: actions/upload-artifact@v4
-        with:
-          name: dreamandroid-APK
-          path: app/build/outputs/apk/basic/release/*.apk
-          retention-days: 30
-
-      # -------- upload debug APKs for emulator test (always on success) ──
-      - name: Upload debug APKs
-        if: steps.gradle-build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-apks
-          path: app/build/outputs/apk/**/debug/*.apk
-          retention-days: 1
-
-      # -------- upload build log (always, independent step) --------
-      - name: Upload build log
-        if: always() && steps.gradle-build.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-gradle.log
-          path: build-log.txt
-          retention-days: 7
+  gradle-debug:
+    needs: cmake
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.cmake.result == 'success' || needs.cmake.result == 'skipped') &&
+      (
+        (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')) ||
+        github.event_name == 'pull_request' ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.apk_debug == 'true')
+      )
+    uses: ./.github/workflows/apk-gradle.yml
+    with:
+      build-type: debug
+      verbose-logging: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.verbose_logging == 'true' }}
+    secrets: inherit
 
   # ============================================================
-  # Stage 3 — Publish GitHub Release (tag push or manual trigger)
+  # Stage 2b — Gradle Release
+  # ============================================================
+  gradle-release:
+    needs: cmake
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.cmake.result == 'success' || needs.cmake.result == 'skipped') &&
+      (
+        startsWith(github.ref, 'refs/tags/v') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.apk_release == 'true')
+      )
+    uses: ./.github/workflows/apk-gradle.yml
+    with:
+      build-type: release
+      verbose-logging: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.verbose_logging == 'true' }}
+    secrets: inherit
+
+  # ============================================================
+  # Stage 3 — Emulator Test
+  # ============================================================
+  test:
+    needs: gradle-debug
+    if: |
+      always() &&
+      needs.gradle-debug.result == 'success' &&
+      (
+        (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.apk_test == 'true')
+      )
+    uses: ./.github/workflows/apk-test.yml
+    secrets: inherit
+    with:
+      build-run-id: ${{ github.run_id }}
+
+  # ============================================================
+  # Stage 4 — GitHub Release
   # ============================================================
   github-release:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: [native, apk]
+    needs: gradle-release
     if: |
       always() &&
       !cancelled() &&
-      (needs.native.result == 'success' || needs.native.result == 'skipped') &&
-      needs.apk.result == 'success' &&
-      (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release == 'true')
+      needs.gradle-release.result == 'success' &&
+      (
+        startsWith(github.ref, 'refs/tags/v') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.github_release == 'true')
+      )
 
     steps:
       - name: Download APK artifact
@@ -427,14 +152,3 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           prerelease: ${{ endsWith(github.ref, '-rc') }}
-
-  # ============================================================
-  # Stage 4 — Emulator Instrumentation Test (only if APK job succeeds)
-  # ============================================================
-  test:
-    needs: [apk]
-    if: ${{ always() && needs.apk.result == 'success' }}
-    uses: ./.github/workflows/test.yml
-    secrets: inherit
-    with:
-      build-run-id: ${{ github.run_id }}
