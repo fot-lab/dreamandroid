@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -203,7 +204,7 @@ fun AppContent() {
     val flashAlpha = remember { Animatable(1f) }
     LaunchedEffect(generationTimedOut) {
         if (generationTimedOut) {
-            while (isActive) {
+            while (true) {
                 flashAlpha.animateTo(
                     targetValue = 0.3f,
                     animationSpec = tween(800, easing = FastOutSlowInEasing),
