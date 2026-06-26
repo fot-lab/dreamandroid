@@ -21,5 +21,6 @@ build-log.txt
 build-logs/
 .codebuddy/
 scripts/
+worktrees/
 _jobs.json
 _relocate_tags.sh

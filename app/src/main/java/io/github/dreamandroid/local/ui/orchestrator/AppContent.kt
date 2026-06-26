@@ -198,6 +198,20 @@ fun AppContent() {
         queueBumpScale.animateTo(1f, spring())
     }
 
+    // ── Red flash animation (lifted to AppContent level to avoid
+    //     running inside Scaffold's bottom-bar sub-composition, which
+    //     can become inconsistent during rapid recomposition triggered
+    //     by queue progress updates) ──
+    val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "flashAlpha",
+    )
+
     // ── Scaffold with bottom bar ──
     // Each tab manages its own drawer + topBar + content via AppContentTab* composables.
     // contentWindowInsets = WindowInsets(0) lets status bar insets pass through
@@ -211,16 +225,6 @@ fun AppContent() {
             contentWindowInsets = WindowInsets(0),
             bottomBar = {
                 val density = LocalDensity.current
-                // Red flash animation for Models tab when generation timed out
-                val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
-                    initialValue = 1f,
-                    targetValue = 0.3f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(500, easing = LinearEasing),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "flashAlpha",
-                )
 
                 // ── Expandable bottom bar (5 rows × 5 icons when expanded) ──
                 // Swipe up/down on the hint bar to expand/collapse.
