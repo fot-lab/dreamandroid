@@ -223,19 +223,34 @@ fun AppContent() {
                 )
 
                 // ── Expandable bottom bar (5 rows × 5 icons when expanded) ──
-                // Swipe up on the NavigationBar to reveal rows 2–5.
+                // Swipe up/down on the hint bar to expand/collapse.
                 // All sizes derived from measured navBarHeightPx — no hardcoded dp.
                 Column(modifier = Modifier.fillMaxWidth()) {
 
-                    // ── navigation expand hint bar (expanded): at top of expanded area, ↓ to collapse ──
+                    // ── navigation expand hint bar (expanded): at top of expanded area, ↓ swipe to collapse ──
                     // Only visible when fully expanded; no animation to avoid
                     // participating in expand/shrink transitions.
                     if (isBottomBarExpanded) {
-                        val hintHeightDp = with(density) { (navBarHeightPx * 0.15f).toDp() }
+                        val hintHeightDp = with(density) { (navBarHeightPx * 0.20f).toDp() }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(hintHeightDp),
+                                .height(hintHeightDp)
+                                .pointerInput(Unit) {
+                                    var totalDrag = 0f
+                                    detectVerticalDragGestures(
+                                        onVerticalDrag = { _, dragAmount ->
+                                            totalDrag += dragAmount
+                                        },
+                                        onDragEnd = {
+                                            if (totalDrag > navBarHeightPx * 0.6f) {
+                                                isBottomBarExpanded = false
+                                            }
+                                            totalDrag = 0f
+                                        },
+                                        onDragCancel = { totalDrag = 0f },
+                                    )
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
@@ -255,7 +270,13 @@ fun AppContent() {
                     ) {
                         ExpandableIconRow(
                             rowHeightPx = navBarHeightPx,
-                            icons = listOf(null, null, null, null, null),
+                            slots = listOf(
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                            ),
                         )
                     }
 
@@ -267,7 +288,13 @@ fun AppContent() {
                     ) {
                         ExpandableIconRow(
                             rowHeightPx = navBarHeightPx,
-                            icons = listOf(null, null, null, null, null),
+                            slots = listOf(
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                            ),
                         )
                     }
 
@@ -279,7 +306,13 @@ fun AppContent() {
                     ) {
                         ExpandableIconRow(
                             rowHeightPx = navBarHeightPx,
-                            icons = listOf(null, null, null, null, null),
+                            slots = listOf(
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                                ExpandableSlot(null, null),
+                            ),
                         )
                     }
 
@@ -292,24 +325,39 @@ fun AppContent() {
                     ) {
                         ExpandableIconRow(
                             rowHeightPx = navBarHeightPx,
-                            icons = listOf(
-                                Icons.Default.Info,
-                                Icons.Default.Delete,
-                                Icons.Default.Person,
-                                Icons.Default.ArrowDownward,
-                                Icons.Default.Settings,
+                            slots = listOf(
+                                ExpandableSlot(Icons.Default.Info, "Info"),
+                                ExpandableSlot(Icons.Default.Delete, "Delete"),
+                                ExpandableSlot(Icons.Default.Person, "Person"),
+                                ExpandableSlot(Icons.Default.ArrowDownward, "Download"),
+                                ExpandableSlot(Icons.Default.Settings, "Settings"),
                             ),
                         )
                     }
 
-                    // ── navigation expand hint bar (collapsed): below rows, above NavBar, ↑ to expand ──
+                    // ── navigation expand hint bar (collapsed): below rows, above NavBar, ↑ swipe to expand ──
                     // Only visible when collapsed; no animation.
                     if (!isBottomBarExpanded) {
-                        val hintHeightDp = with(density) { (navBarHeightPx * 0.15f).toDp() }
+                        val hintHeightDp = with(density) { (navBarHeightPx * 0.20f).toDp() }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(hintHeightDp),
+                                .height(hintHeightDp)
+                                .pointerInput(Unit) {
+                                    var totalDrag = 0f
+                                    detectVerticalDragGestures(
+                                        onVerticalDrag = { _, dragAmount ->
+                                            totalDrag += dragAmount
+                                        },
+                                        onDragEnd = {
+                                            if (totalDrag < -navBarHeightPx * 0.6f) {
+                                                isBottomBarExpanded = true
+                                            }
+                                            totalDrag = 0f
+                                        },
+                                        onDragCancel = { totalDrag = 0f },
+                                    )
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
@@ -321,32 +369,12 @@ fun AppContent() {
                         }
                     }
 
-                    // Row 1 — NavigationBar (always visible, swipe to expand)
-                    // Gesture: swipe up ≥ 60% of nav bar height → expand
-                    //          swipe down ≥ 60% of nav bar height → collapse
+                    // Row 1 — NavigationBar (always visible)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .onGloballyPositioned { coords ->
                                 navBarHeightPx = coords.size.height.toFloat()
-                            }
-                            .pointerInput(isBottomBarExpanded) {
-                                var totalDrag = 0f
-                                detectVerticalDragGestures(
-                                    onVerticalDrag = { _, dragAmount ->
-                                        totalDrag += dragAmount
-                                    },
-                                    onDragEnd = {
-                                        val threshold = navBarHeightPx * 0.6f
-                                        if (!isBottomBarExpanded && totalDrag < -threshold) {
-                                            isBottomBarExpanded = true
-                                        } else if (isBottomBarExpanded && totalDrag > threshold) {
-                                            isBottomBarExpanded = false
-                                        }
-                                        totalDrag = 0f
-                                    },
-                                    onDragCancel = { totalDrag = 0f },
-                                )
                             },
                     ) {
                         NavigationBar {
@@ -520,43 +548,59 @@ private fun QueueStarAnimation(
 }
 
 /**
- * A single row of the expandable bottom bar with [icons] equally spaced.
+ * A slot in an expandable bottom bar row.
  *
- * All sizes are derived from [rowHeightPx] (the measured NavigationBar height)
- * so the row adapts to any device / theme / accessibility setting.
+ * @param icon  icon to display (null = empty slot)
+ * @param label label text below the icon (null = no label)
+ */
+private data class ExpandableSlot(
+    val icon: ImageVector?,
+    val label: String?,
+)
+
+/**
+ * A single row of the expandable bottom bar with [slots] equally distributed.
+ *
+ * Row height = [rowHeightPx] (measured NavigationBar height, relative).
+ * Columns use [Modifier.weight] for automatic equal-width distribution.
+ * Each column contains icon + label vertically centered — no hardcoded dp.
  *
  * @param rowHeightPx  measured pixel height of the NavigationBar row
- * @param icons        list of up to 5 icons; null = empty placeholder slot
+ * @param slots        list of up to 5 slots; null icon = empty placeholder
  */
 @Composable
 private fun ExpandableIconRow(
     rowHeightPx: Float,
-    icons: List<ImageVector?>,
+    slots: List<ExpandableSlot>,
 ) {
     val density = LocalDensity.current
     val rowHeightDp = with(density) { rowHeightPx.toDp() }
-    // Icon slot = 45% of row height, square
-    val slotSizeDp = rowHeightDp * 0.45f
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(rowHeightDp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        icons.take(5).forEach { icon ->
-            Box(
-                modifier = Modifier
-                    .size(slotSizeDp),
-                contentAlignment = Alignment.Center,
+        slots.take(5).forEach { slot ->
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
-                if (icon != null) {
+                if (slot.icon != null) {
                     Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(0.7f),
+                        imageVector = slot.icon,
+                        contentDescription = slot.label,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (slot.label != null) {
+                    Text(
+                        text = slot.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
             }
