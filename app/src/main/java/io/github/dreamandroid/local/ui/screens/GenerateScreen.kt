@@ -862,3 +862,4 @@ private fun RecordCard(
         }
     }
 }
+}
