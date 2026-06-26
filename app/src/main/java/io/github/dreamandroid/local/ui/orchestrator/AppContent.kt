@@ -13,7 +13,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -24,6 +23,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -41,7 +40,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlin.math.abs
 import kotlin.math.min
@@ -458,13 +456,10 @@ fun AppContent() {
             if (genParamPos != null && queuePos != null) {
                 val genParamRoot = genParamPos.positionInRoot()
                 val queueRoot = queuePos.positionInRoot()
-                // Star size = actual destination icon size (adapts to any device)
-                val starPxSize = queuePos.size
                 key(animTrigger) {
                     QueueStarAnimation(
                         startOffset = genParamRoot,
                         endOffset = queueRoot,
-                        starSizePx = starPxSize,
                         onArrived = { queueBumpTrigger++ },
                     )
                 }
@@ -474,23 +469,15 @@ fun AppContent() {
 }
 
 /**
- * A four-pointed star that flies from [startOffset] to [endOffset].
- *
- * All positioning/sizing is relative and driven by actual layout measurements:
- * - Path = parabola with arc height = 25% of vertical distance
- * - Star size = [starSizePx] (the destination icon's measured pixel size)
- * - Star is centered on the path point (not top-left aligned)
- *
- * No hardcoded dp values used for any size or position calculation.
+ * A work icon that flies from [startOffset] to [endOffset] along a parabola.
+ * Icon renders at default Material size (24.dp).
  */
 @Composable
 private fun QueueStarAnimation(
     startOffset: Offset,
     endOffset: Offset,
-    starSizePx: IntSize,
     onArrived: () -> Unit,
 ) {
-    val density = LocalDensity.current
     val progress = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
     val scale = remember { Animatable(0f) }
@@ -518,41 +505,18 @@ private fun QueueStarAnimation(
     val cx = startOffset.x + dx * p
     val cy = startOffset.y + dy * p - 4f * arcHeight * p * (1f - p)
 
-    // Convert measured icon pixel size to dp, then center the star on the path point
-    val starWidthDp = with(density) { starSizePx.width.toDp() }
-    val starHeightDp = with(density) { starSizePx.height.toDp() }
-    val halfW = starSizePx.width / 2f
-    val halfH = starSizePx.height / 2f
-
-    Canvas(
+    Icon(
+        imageVector = Icons.Default.Work,
+        contentDescription = null,
+        tint = Color(0xFFFFD700), // gold
         modifier = Modifier
-            .offset { IntOffset((cx - halfW).toInt(), (cy - halfH).toInt()) }
-            .size(starWidthDp, starHeightDp)
+            .offset { IntOffset(cx.toInt(), cy.toInt()) }
             .graphicsLayer {
                 this.alpha = alpha.value
                 this.scaleX = scale.value
                 this.scaleY = scale.value
             },
-    ) {
-        val w = size.width
-        val h = size.height
-        val cxStar = w / 2f
-        val cyStar = h / 2f
-        val outerR = min(w, h) / 2f
-        val innerR = outerR * 0.35f
-        val path = Path().apply {
-            moveTo(cxStar, cyStar - outerR)                // top
-            lineTo(cxStar + innerR, cyStar - innerR)       // inner top-right
-            lineTo(cxStar + outerR, cyStar)                // right
-            lineTo(cxStar + innerR, cyStar + innerR)       // inner bottom-right
-            lineTo(cxStar, cyStar + outerR)                // bottom
-            lineTo(cxStar - innerR, cyStar + innerR)       // inner bottom-left
-            lineTo(cxStar - outerR, cyStar)                // left
-            lineTo(cxStar - innerR, cyStar - innerR)       // inner top-left
-            close()
-        }
-        drawPath(path, Color(0xFFFFD700)) // gold 4-pointed star
-    }
+    )
 }
 
 /**
