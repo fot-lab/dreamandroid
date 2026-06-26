@@ -6,11 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -198,19 +194,27 @@ fun AppContent() {
         queueBumpScale.animateTo(1f, spring())
     }
 
-    // ── Red flash animation (lifted to AppContent level to avoid
-    //     running inside Scaffold's bottom-bar sub-composition, which
-    //     can become inconsistent during rapid recomposition triggered
-    //     by queue progress updates) ──
-    val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
-        initialValue = 1f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "flashAlpha",
-    )
+    // ── Red flash animation (Models tab when generation times out)
+    //     Animatable + LaunchedEffect keyed on generationTimedOut:
+    //     animation frames only run when the flash is actually needed.
+    //     When timed-out condition clears → coroutine cancels → snap to 1f.
+    val flashAlpha = remember { Animatable(1f) }
+    LaunchedEffect(generationTimedOut) {
+        if (generationTimedOut) {
+            while (isActive) {
+                flashAlpha.animateTo(
+                    targetValue = 0.3f,
+                    animationSpec = tween(800, easing = FastOutSlowInEasing),
+                )
+                flashAlpha.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(800, easing = FastOutSlowInEasing),
+                )
+            }
+        } else {
+            flashAlpha.snapTo(1f)
+        }
+    }
 
     // ── Scaffold with bottom bar ──
     // Each tab manages its own drawer + topBar + content via AppContentTab* composables.
@@ -404,7 +408,7 @@ fun AppContent() {
                                             imageVector = tab.icon,
                                             contentDescription = stringResource(tab.labelResId),
                                             tint = if (shouldFlash)
-                                                MaterialTheme.colorScheme.error.copy(alpha = flashAlpha)
+                                                MaterialTheme.colorScheme.error.copy(alpha = flashAlpha.value)
                                             else
                                                 LocalContentColor.current,
                                         )
