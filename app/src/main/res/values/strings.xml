@@ -451,4 +451,6 @@
     <!-- Generate tabs -->
     <string name="tab_parameters">Parameters</string>
     <string name="tab_records">Records</string>
+    <string name="load_record">Load to editor</string>
+    <string name="delete_record_confirm">Delete selected record(s)? This action cannot be undone.</string>
 </resources>

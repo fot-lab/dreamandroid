@@ -433,4 +433,6 @@
     <!-- Generate tabs -->
     <string name="tab_parameters">参数</string>
     <string name="tab_records">记录</string>
+    <string name="load_record">加载到编辑器</string>
+    <string name="delete_record_confirm">确认删除选中的记录？此操作不可撤销。</string>
 </resources>

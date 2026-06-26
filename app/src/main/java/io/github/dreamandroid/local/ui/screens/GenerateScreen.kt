@@ -83,6 +83,12 @@ fun GenerateScreen(
     onAddToQueue: (Int) -> Unit = {},
     // Record Manager
     recordRepository: RecordRepository? = null,
+    // Records tab selection (lifted to parent for top bar access)
+    selectedGenerateTab: Int = 0,
+    onSelectedGenerateTabChange: (Int) -> Unit = {},
+    selectedRecordIds: Set<String> = emptySet(),
+    onSelectedRecordIdsChange: (Set<String>) -> Unit = {},
+    onRecordsListChange: (List<GenerateParameterRecord>) -> Unit = {},
     // Tokenize callbacks (UILA-COMP-0005: moved from direct BackendManager in UI to ViewModel)
     onTokenizePrompt: (suspend (String) -> TokenizeResult?)? = null,
     onTokenizeNegativePrompt: (suspend (String) -> TokenizeResult?)? = null,
@@ -103,8 +109,8 @@ fun GenerateScreen(
 
     // ---- Load preferences for this model (global prefs + per-model) ----
 
-    // ---- Sub-tab selection ----
-    var selectedGenerateTab by remember { mutableIntStateOf(0) }
+    // ---- Sub-tab selection (state owned by parent) ----
+    // selectedGenerateTab, onSelectedGenerateTabChange are passed from parent
 
     // ---- Queue add feedback ----
     var queueAddMessage by remember { mutableStateOf<String?>(null) }
@@ -189,7 +195,7 @@ fun GenerateScreen(
             tabs.forEachIndexed { index, (title, icon) ->
                 Tab(
                     selected = selectedGenerateTab == index,
-                    onClick = { selectedGenerateTab = index },
+                    onClick = { onSelectedGenerateTabChange(index) },
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(icon, contentDescription = title)
@@ -661,20 +667,17 @@ fun GenerateScreen(
 
             1 -> {
                 val records by recordRepository?.records?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+                val recordsValue = records ?: emptyList()
+                // Notify parent of records list for selection operations
+                LaunchedEffect(recordsValue) { onRecordsListChange(recordsValue) }
                 RecordsTabContent(
-                    records = records ?: emptyList(),
-                    onDeleteRecord = { id -> scope.launch { recordRepository?.deleteRecord(id) } },
-                    onLoadRecord = { record ->
-                        // Load record into parameter editor then switch to Parameters tab
-                        onPromptChange(record.prompt)
-                        onNegativePromptChange(record.negativePrompt)
-                        onStepsChange(record.steps.toFloat())
-                        onCfgChange(record.cfg)
-                        onSeedChange(record.seed?.toString() ?: "")
-                        onWidthChange(record.width)
-                        onHeightChange(record.height)
-                        onSamplerChange(record.sampler)
-                        selectedGenerateTab = 0
+                    records = recordsValue,
+                    selectedRecordIds = selectedRecordIds,
+                    onToggleSelection = { id ->
+                        onSelectedRecordIdsChange(
+                            if (id in selectedRecordIds) selectedRecordIds - id
+                            else selectedRecordIds + id
+                        )
                     },
                 )
             }
@@ -687,8 +690,8 @@ fun GenerateScreen(
 @Composable
 private fun RecordsTabContent(
     records: List<GenerateParameterRecord>,
-    onDeleteRecord: (String) -> Unit,
-    onLoadRecord: (GenerateParameterRecord) -> Unit,
+    selectedRecordIds: Set<String>,
+    onToggleSelection: (String) -> Unit,
 ) {
     if (records.isEmpty()) {
         Box(
@@ -728,8 +731,8 @@ private fun RecordsTabContent(
         items(records, key = { it.id }) { record ->
             RecordCard(
                 record = record,
-                onDelete = { onDeleteRecord(record.id) },
-                onLoad = { onLoadRecord(record) },
+                isSelected = record.id in selectedRecordIds,
+                onToggle = { onToggleSelection(record.id) },
             )
         }
         item { Spacer(Modifier.height(80.dp)) }
@@ -739,131 +742,85 @@ private fun RecordsTabContent(
 @Composable
 private fun RecordCard(
     record: GenerateParameterRecord,
-    onDelete: () -> Unit,
-    onLoad: () -> Unit,
+    isSelected: Boolean,
+    onToggle: () -> Unit,
 ) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Record") },
-            text = { Text("Delete this saved parameter record?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        onDelete()
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-        )
-    }
-
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
+        onClick = onToggle,
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Source chip + prompt
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Source badge
-                val sourceColor = when (record.source) {
-                    RecordSource.QUEUE -> MaterialTheme.colorScheme.primaryContainer
-                    RecordSource.GALLERY -> MaterialTheme.colorScheme.tertiaryContainer
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Checkbox for multi-select
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggle() },
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                // Source chip + prompt
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Source badge
+                    val sourceColor = when (record.source) {
+                        RecordSource.QUEUE -> MaterialTheme.colorScheme.primaryContainer
+                        RecordSource.GALLERY -> MaterialTheme.colorScheme.tertiaryContainer
+                    }
+                    val sourceTextColor = when (record.source) {
+                        RecordSource.QUEUE -> MaterialTheme.colorScheme.onPrimaryContainer
+                        RecordSource.GALLERY -> MaterialTheme.colorScheme.onTertiaryContainer
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = sourceColor,
+                    ) {
+                        Text(
+                            text = record.source.name,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sourceTextColor,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = record.prompt.ifEmpty { "(empty prompt)" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                val sourceTextColor = when (record.source) {
-                    RecordSource.QUEUE -> MaterialTheme.colorScheme.onPrimaryContainer
-                    RecordSource.GALLERY -> MaterialTheme.colorScheme.onTertiaryContainer
-                }
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = sourceColor,
+
+                Spacer(Modifier.height(4.dp))
+
+                // Params summary + seed
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = record.source.name,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sourceTextColor,
+                        text = record.paramsSummary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = record.prompt.ifEmpty { "(empty prompt)" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Params summary
-            Text(
-                text = record.paramsSummary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            // Action buttons + seed
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Seed display
-                Text(
-                    text = record.seed?.let { "Seed: $it" } ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                // Load button
-                FilledTonalButton(
-                    onClick = onLoad,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                ) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = "Load to editor",
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("Load", style = MaterialTheme.typography.labelMedium)
-                }
-                Spacer(Modifier.width(8.dp))
-                // Delete button
-                IconButton(
-                    onClick = { showDeleteDialog = true },
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete record",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp),
-                    )
+                    if (record.seed != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Seed: ${record.seed}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
     }
-}
 }

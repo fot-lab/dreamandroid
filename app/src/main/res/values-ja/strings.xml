@@ -372,4 +372,6 @@
     <!-- Generate tabs -->
     <string name="tab_parameters">パラメータ</string>
     <string name="tab_records">レコード</string>
+    <string name="load_record">エディタに読み込む</string>
+    <string name="delete_record_confirm">選択したレコードを削除しますか？この操作は取り消せません。</string>
 </resources>

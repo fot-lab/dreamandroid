@@ -400,4 +400,6 @@
     <!-- Generate tabs -->
     <string name="tab_parameters">파라미터</string>
     <string name="tab_records">기록</string>
+    <string name="load_record">에디터로 불러오기</string>
+    <string name="delete_record_confirm">선택한 기록을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</string>
 </resources>

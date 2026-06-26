@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
+import io.github.dreamandroid.local.data.GenerateParameterRecord
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelRepository
 import io.github.dreamandroid.local.data.RecordRepository
@@ -45,6 +46,13 @@ fun AppContentTabGenerate(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val generationPreferences = remember { GenerationPreferences(context) }
+
+    // ── Records tab selection state ──
+    var selectedGenerateTab by remember { mutableIntStateOf(0) }
+    var selectedRecordIds by remember { mutableStateOf(setOf<String>()) }
+    var recordsList by remember { mutableStateOf(emptyList<GenerateParameterRecord>()) }
+    val selectedRecordCount = selectedRecordIds.size
+    var showDeleteRecordsDialog by remember { mutableStateOf(false) }
 
     // ── Reset all generation params to defaults ──
     val onGenTaskParamReset: () -> Unit = {
@@ -108,6 +116,58 @@ fun AppContentTabGenerate(
         }
     }
 
+    // ── Records tab selection operations ──
+    val onRecordsSelectAll: () -> Unit = { selectedRecordIds = recordsList.map { it.id }.toSet() }
+    val onRecordsInvertSelection: () -> Unit = {
+        selectedRecordIds = recordsList.map { it.id }.toSet() - selectedRecordIds
+    }
+    val onRecordsDeselectAll: () -> Unit = { selectedRecordIds = emptySet() }
+    val onLoadSelectedRecord: () -> Unit = {
+        val record = recordsList.find { it.id in selectedRecordIds }
+        if (record != null) {
+            generateViewModel.genPrompt = record.prompt
+            generateViewModel.genNegativePrompt = record.negativePrompt
+            generateViewModel.genSteps = record.steps.toFloat()
+            generateViewModel.genCfg = record.cfg
+            generateViewModel.genSeed = record.seed?.toString() ?: ""
+            generateViewModel.genWidth = record.width
+            generateViewModel.genHeight = record.height
+            generateViewModel.genSampler = record.sampler
+            selectedGenerateTab = 0
+        }
+    }
+    val onDeleteSelectedRecords: () -> Unit = { showDeleteRecordsDialog = true }
+
+    // ── Delete records confirmation dialog ──
+    if (showDeleteRecordsDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteRecordsDialog = false },
+            title = { Text(stringResource(R.string.delete)) },
+            text = { Text(stringResource(R.string.delete_record_confirm)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteRecordsDialog = false
+                        scope.launch {
+                            selectedRecordIds.forEach { id ->
+                                recordRepository.deleteRecord(id)
+                            }
+                            selectedRecordIds = emptySet()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteRecordsDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     // ── BackHandler: close drawer on system back press ──
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
@@ -141,6 +201,13 @@ fun AppContentTabGenerate(
                     loadedModelType = loadedModelType,
                     onGenTaskParamReset = onGenTaskParamReset,
                     onGenTaskAddToQueue = onGenTaskAddToQueue,
+                    selectedGenerateTab = selectedGenerateTab,
+                    selectedRecordCount = selectedRecordCount,
+                    onRecordsSelectAll = onRecordsSelectAll,
+                    onRecordsInvertSelection = onRecordsInvertSelection,
+                    onRecordsDeselectAll = onRecordsDeselectAll,
+                    onLoadSelectedRecord = onLoadSelectedRecord,
+                    onDeleteSelectedRecords = onDeleteSelectedRecords,
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -174,6 +241,12 @@ fun AppContentTabGenerate(
                     onHeightChange = { generateViewModel.genHeight = it },
                     onAddToQueue = onAddToQueue,
                     recordRepository = recordRepository,
+                    // Records tab selection
+                    selectedGenerateTab = selectedGenerateTab,
+                    onSelectedGenerateTabChange = { selectedGenerateTab = it },
+                    selectedRecordIds = selectedRecordIds,
+                    onSelectedRecordIdsChange = { selectedRecordIds = it },
+                    onRecordsListChange = { recordsList = it },
                     onTokenizePrompt = { prompt -> generateViewModel.tokenizePrompt(prompt) },
                     onTokenizeNegativePrompt = { nPrompt -> generateViewModel.tokenizeNegativePrompt(nPrompt) },
                     promptTokenCount = generateViewModel.promptTokenCount,

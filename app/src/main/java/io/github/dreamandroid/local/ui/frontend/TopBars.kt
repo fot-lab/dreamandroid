@@ -320,12 +320,22 @@ fun GenerateTopBar(
     loadedModelType: BackendManager.Mode?,
     onGenTaskParamReset: () -> Unit = {},
     onGenTaskAddToQueue: () -> Unit = {},
+    // Records tab selection
+    selectedGenerateTab: Int = 0,
+    selectedRecordCount: Int = 0,
+    onRecordsSelectAll: () -> Unit = {},
+    onRecordsInvertSelection: () -> Unit = {},
+    onRecordsDeselectAll: () -> Unit = {},
+    onLoadSelectedRecord: () -> Unit = {},
+    onDeleteSelectedRecords: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val modelRepository = remember { ModelRepository(context) }
     val isModelLoaded = loadedModelType == BackendManager.Mode.Diffusion && loadedModelId != null
     val model = remember(loadedModelId) { loadedModelId?.let { modelRepository.models.find { m -> m.id == it } } }
+    var showGenerateMenu by remember { mutableStateOf(false) }
+    val isRecordsTab = selectedGenerateTab == 1
 
     TopAppBar(
         title = {
@@ -358,11 +368,71 @@ fun GenerateTopBar(
             }
         },
         actions = {
-            IconButton(onClick = onGenTaskParamReset) {
-                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.reset))
+            if (!isRecordsTab) {
+                IconButton(onClick = onGenTaskParamReset) {
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.reset))
+                }
+                IconButton(onClick = onGenTaskAddToQueue) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.generate_image))
+                }
+            } else {
+                if (selectedRecordCount == 1) {
+                    IconButton(onClick = onLoadSelectedRecord) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.load_record))
+                    }
+                }
+                if (selectedRecordCount >= 1) {
+                    IconButton(onClick = onDeleteSelectedRecords) {
+                        Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
-            IconButton(onClick = onGenTaskAddToQueue) {
-                Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.generate_image))
+
+            // 3-dot dropdown — always visible
+            Box {
+                IconButton(onClick = { showGenerateMenu = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Generate menu",
+                    )
+                }
+                DropdownMenu(
+                    expanded = showGenerateMenu,
+                    onDismissRequest = { showGenerateMenu = false },
+                ) {
+                    if (isRecordsTab) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.select_all)) },
+                            onClick = {
+                                showGenerateMenu = false
+                                onRecordsSelectAll()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.SelectAll, contentDescription = null)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.invert_selection)) },
+                            onClick = {
+                                showGenerateMenu = false
+                                onRecordsInvertSelection()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.FlipToBack, contentDescription = null)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.deselect_all)) },
+                            onClick = {
+                                showGenerateMenu = false
+                                onRecordsDeselectAll()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Deselect, contentDescription = null)
+                            },
+                        )
+                    }
+                }
             }
         },
     )
@@ -489,6 +559,7 @@ fun UpscaleTopBar(
     val upscalerName = remember(loadedModelId, upscalerRepository.upscalers) {
         loadedModelId?.let { id -> upscalerRepository.upscalers.find { it.id == id }?.name }
     }
+    var showUpscaleMenu by remember { mutableStateOf(false) }
 
     TopAppBar(
         title = {
@@ -518,6 +589,22 @@ fun UpscaleTopBar(
         navigationIcon = {
             IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Default.Menu, stringResource(R.string.settings))
+            }
+        },
+        actions = {
+            // 3-dot dropdown — placeholder, always visible
+            Box {
+                IconButton(onClick = { showUpscaleMenu = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Upscale menu",
+                    )
+                }
+                DropdownMenu(
+                    expanded = showUpscaleMenu,
+                    onDismissRequest = { showUpscaleMenu = false },
+                ) {
+                }
             }
         },
     )
