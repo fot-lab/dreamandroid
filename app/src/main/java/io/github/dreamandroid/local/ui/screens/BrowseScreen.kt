@@ -232,17 +232,6 @@ fun BrowseScreen(
                     )
                     Row {
                         IconButton(onClick = {
-                            scope.launch {
-                                recordRepository?.let { browseViewModel.saveSingleParams(item, it) }
-                                Toast.makeText(
-                                    context, context.getString(R.string.parameters_saved), Toast.LENGTH_SHORT,
-                                ).show()
-                            }
-                        }) {
-                            Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
-                                tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = {
                             scope.launch(Dispatchers.IO) {
                                 val ok = browseViewModel.saveSingleToGallery(context, item)
                                 if (ok) {
@@ -254,8 +243,22 @@ fun BrowseScreen(
                         }) {
                             Icon(Icons.Default.Save, stringResource(R.string.save))
                         }
+                        IconButton(onClick = {
+                            scope.launch {
+                                recordRepository?.let { browseViewModel.saveSingleParams(item, it) }
+                                Toast.makeText(
+                                    context, context.getString(R.string.parameters_saved), Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }) {
+                            Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
+                                tint = MaterialTheme.colorScheme.primary)
+                        }
                         IconButton(onClick = { showDelete = true }) {
                             Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                        }
+                        IconButton(onClick = { browseViewModel.showHistoryDetailDialog = null }) {
+                            Icon(Icons.Default.Close, stringResource(R.string.close))
                         }
                     }
                 }
@@ -301,11 +304,6 @@ fun BrowseScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { browseViewModel.showHistoryDetailDialog = null }) {
-                    Text(stringResource(R.string.close))
                 }
             },
         )
