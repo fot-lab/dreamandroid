@@ -122,12 +122,17 @@ jobs:
           MAIN_APK="$(find "$APKS" -name '*.apk' ! -name '*androidTest*' ! -name '*test*' | head -1)"
           TEST_APK="$(find "$APKS" -name '*androidTest*.apk' -o -name '*test*.apk' | head -1)"
 
-          capture_logcat() {
+          # ── logcat capture helpers ──
+
+          logcat_snapshot() {
+            local TAG="$1"
+            local OUTFILE="logcat-${TAG}.txt"
             {
-              echo "=== logcat (errors) ==="
+              echo "=== Phase: $TAG ==="
+              echo "=== logcat (errors & crash) ==="
               adb logcat -d -s AndroidRuntime:E System.err:W '*:F' DEBUG:I ActivityManager:I 2>/dev/null || true
               echo ""
-              echo "=== logcat (package) ==="
+              echo "=== logcat (dreamandroid) ==="
               adb logcat -d 2>/dev/null | grep -E "io\.github\.dreamandroid" || echo "(no matching lines)"
               echo ""
               echo "=== tombstone (native crash) ==="
@@ -135,46 +140,108 @@ jobs:
                 echo "--- $f ---"
                 adb shell cat "/data/tombstones/$f" 2>/dev/null || true
               done
-            } > logcat.txt
+              echo ""
+              echo "=== dumpsys meminfo ==="
+              adb shell dumpsys meminfo io.github.dreamandroid.local 2>/dev/null | head -30 || true
+            } > "$OUTFILE"
+            echo "  logcat snapshot → $OUTFILE"
           }
-          trap capture_logcat EXIT
 
-          echo "Cleaning old packages..."
+          capture_final_logcat() {
+            logcat_snapshot "final"
+          }
+          trap capture_final_logcat EXIT
+
+          # ── installer helper ──
+
+          install_apks() {
+            echo "Cleaning old packages..."
+            adb uninstall io.github.dreamandroid.local || true
+            adb uninstall io.github.dreamandroid.local.test || true
+            echo "Installing: $MAIN_APK"
+            adb install -r -g "$MAIN_APK"
+            echo "Installing: $TEST_APK"
+            adb install -r -g "$TEST_APK"
+          }
+
+          # ── run single test class ──
+
+          run_class() {
+            local CLASS="$1"
+            local PHASE="$2"
+            echo ""
+            echo "==================== $PHASE ===================="
+            echo "Class: $CLASS"
+
+            adb logcat -c || true  # clear logcat before test
+            logcat_snapshot "${PHASE}-before"
+
+            local OUT
+            OUT="$(adb shell am instrument -w -r \
+              -e class "$CLASS" \
+              io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner 2>&1)" || true
+            echo "$OUT"
+
+            logcat_snapshot "${PHASE}-after"
+
+            # Check for failures
+            if echo "$OUT" | grep -qE "(FAILURES!!|INSTRUMENTATION_STATUS_CODE: -2|INSTRUMENTATION_RESULT: shortMsg=)"; then
+              echo "❌ $PHASE: FAILED"
+              return 1
+            fi
+            echo "✅ $PHASE: PASSED"
+            return 0
+          }
+
+          OVERALL_FAILED=0
+
+          # ─────────────────────────────────────────────────
+          # Phase 1 — QueueProgressCrashTest (dedicated, with crash debugging)
+          #   Simulates fake backend HTTP progress updates into task queue.
+          #   Primary crash surface: progress display in Queue tab during
+          #   Compose recomposition triggered by StateFlow.update{}.
+          # ─────────────────────────────────────────────────
+          install_apks
+
+          if ! run_class "io.github.dreamandroid.local.QueueProgressCrashTest" "QueueProgressCrash"; then
+            OVERALL_FAILED=1
+          fi
+
+          # ─────────────────────────────────────────────────
+          # Phase 2 — Remaining instrumentation tests
+          #   AppLaunchInstrumentationTest, etc.
+          # ─────────────────────────────────────────────────
+          # Reinstall to ensure clean state after QueueProgressCrashTest
           adb uninstall io.github.dreamandroid.local || true
-          adb uninstall io.github.dreamandroid.local.test || true
-
+          sleep 1
           echo "Installing: $MAIN_APK"
           adb install -r -g "$MAIN_APK"
 
-          echo "Installing: $TEST_APK"
-          adb install -r -g "$TEST_APK"
+          echo "Running remaining tests..."
+          logcat_snapshot "remaining-before"
 
-          echo "Running tests..."
-
-          INSTR_OUT="$(adb shell am instrument -w -r \
+          REM_OUT="$(adb shell am instrument -w -r \
             -e package io.github.dreamandroid.local \
+            -e notClass io.github.dreamandroid.local.QueueProgressCrashTest \
             io.github.dreamandroid.local.test/androidx.test.runner.AndroidJUnitRunner 2>&1)" || true
-          echo "$INSTR_OUT"
+          echo "$REM_OUT"
 
-          FAILED=0
-          if echo "$INSTR_OUT" | grep -q "FAILURES!!!"; then
-            echo "❌ Test runner reported failures"
-            FAILED=1
-          fi
-          if echo "$INSTR_OUT" | grep -q "INSTRUMENTATION_STATUS_CODE: -2"; then
-            echo "❌ Individual test returned failure status (-2)"
-            FAILED=1
-          fi
-          if echo "$INSTR_OUT" | grep -q "INSTRUMENTATION_RESULT: shortMsg="; then
-            echo "❌ Instrumentation result contains error message"
-            FAILED=1
+          logcat_snapshot "remaining-after"
+
+          if echo "$REM_OUT" | grep -qE "(FAILURES!!|INSTRUMENTATION_STATUS_CODE: -2|INSTRUMENTATION_RESULT: shortMsg=)"; then
+            echo "❌ Remaining tests: FAILED"
+            OVERALL_FAILED=1
+          else
+            echo "✅ Remaining tests: PASSED"
           fi
 
-          if [ "$FAILED" -eq 1 ]; then
-            echo "❌ TESTS FAILED"
+          if [ "$OVERALL_FAILED" -eq 1 ]; then
+            echo ""
+            echo "❌ ONE OR MORE TEST PHASES FAILED"
             exit 1
           fi
-          echo "✅ All tests passed"
+          echo ""
+          echo "✅ ALL TESTS PASSED"
           SCRIPT_EOF
           chmod +x test-script.sh
 
@@ -231,13 +298,27 @@ jobs:
           path: screenshots/
           retention-days: 7
 
-      # ── Upload logcat ──
-      - name: Upload logcat
+      # ── Upload logcat(s) ──
+      - name: Upload logcat (QueueProgressCrash before/after)
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: logcat-crash-${{ matrix.api-level }}-${{ matrix.target }}
+          path: |
+            logcat-QueueProgressCrash-before.txt
+            logcat-QueueProgressCrash-after.txt
+          retention-days: 7
+
+      - name: Upload logcat (remaining tests + final)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: logcat-${{ matrix.api-level }}-${{ matrix.target }}
-          path: logcat.txt
+          path: |
+            logcat-remaining-before.txt
+            logcat-remaining-after.txt
+            logcat-final.txt
           retention-days: 7
 
       # ── Upload test reports ──

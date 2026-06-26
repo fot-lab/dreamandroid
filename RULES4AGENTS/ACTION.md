@@ -13,15 +13,18 @@
 
 ```
 push/PR to master
-  └─ build.yml: apk job
-       ├─ assembleBasicRelease (release APK)
-       ├─ assembleBasicDebug + assembleBasicDebugAndroidTest (debug APKs for test)
-       └─ upload debug-apks artifact
-            └─ (workflow_run 自动触发)
-                 └─ test.yml: instrumentation-test job
-                      ├─ download debug-apks artifact
-                      ├─ KVM + emulator (AVD snapshot cache)
-                      └─ adb install → am instrument
+  └─ build.yml
+       ├─ cmake (native C++ libs, cached)
+       ├─ gradle-debug (debug APK + androidTest APK)
+       ├─ gradle-release (release APK, R8 minify on)
+       ├─ test (Stage 3, needs: gradle-debug)
+       │    └─ apk-test.yml: instrumentation-test job
+       │         ├─ download debug-apks artifact
+       │         ├─ KVM + emulator (AVD snapshot cache)
+       │         ├─ Phase 1: QueueProgressCrashTest (dedicated, with crash logcat)
+       │         ├─ Phase 2: remaining tests (notClass filter)
+       │         └─ upload: screenshots + logcat-crash + logcat + test-reports
+       └─ github-release (needs: gradle-release)
 ```
 
 - **test.yml 不会重复编译** — 直接从 build.yml 下载预构建的 debug APK
@@ -70,20 +73,20 @@ push/PR to master
 - `VERSION_CODE`: 递增整数（当前 `245`）
 - Release 时 APK 重命名为 `DreamHub-{version}-arm64-v8a-release.apk`
 
-### `test.yml` — 模拟器启动测试 (`.github/workflows/test.yml`)
+### `apk-test.yml` — 模拟器仪表化测试 (`.github/workflows/apk-test.yml`)
 
 #### 触发规则
 
 | 触发事件 | 行为 |
 |----------|------|
-| `workflow_run` (build.yml 成功) | 自动下载 `debug-apks` → 模拟器测试 |
+| `build.yml` Stage 3 调度 | `needs: gradle-debug` → 下载 `debug-apks` → 模拟器测试 |
 | `workflow_dispatch` | 手动触发，需提供 `build-run-id` |
 
 #### 工作流特点
 
 - **无 checkout** — 不拉代码
 - **无 Gradle** — 不编译，直接使用 build.yml 产物
-- **adb install + am instrument** — 绕过 Gradle 直接运行测试
+- **两阶段测试** — QueueProgressCrashTest 先跑（带 crash logcat），其余后跑
 
 #### 关键配置
 
@@ -93,8 +96,15 @@ push/PR to master
 | 模拟器 Action | `reactivecircus/android-emulator-runner@v2` |
 | 系统镜像 | `system-images;android-30;google_apis;x86_64` |
 | KVM | 通过 udev 规则启用 |
-| 测试方式 | `adb install` APK → `am instrument -e class AppLaunchInstrumentationTest` |
+| 测试方式 | `adb install` APK → `am instrument -e class <TestClass>` |
 | AVD 快照 | 两步模式 (generate snapshot → load + test) |
+
+#### 两阶段测试
+
+| 阶段 | 命令 | 测试类 | 目的 |
+|------|------|--------|------|
+| Phase 1 | `am instrument -e class QueueProgressCrashTest` | `QueueProgressCrashTest` | 虚假后端 HTTP 进度 + Queue 崩溃检测，独立 logcat 前后采集 |
+| Phase 2 | `am instrument -e package ... -e notClass QueueProgressCrashTest` | `AppLaunchInstrumentationTest` 等 | 其余所有测试，干净重装 APK |
 
 #### 缓存策略
 
@@ -102,7 +112,12 @@ push/PR to master
 
 #### 产物
 
-- Logcat (`logcat-{api-level}-{target}`): 保留 7 天
+| Artifact | 内容 |
+|----------|------|
+| `logcat-crash-{api}-{target}` | QueueProgressCrashTest before/after logcat |
+| `logcat-{api}-{target}` | 剩余测试 + final logcat |
+| `tab-screenshots-{api}-{target}` | 5 个 Tab 截图 |
+| `test-reports-{api}-{target}` | AndroidTest HTML 报告 |
 
 #### 构建配置配合
 
@@ -110,7 +125,16 @@ Debug APK 需包含 `x86_64` ABI（`app/build.gradle.kts` debug block 已配置�
 
 #### 测试覆盖
 
-见 `app/src/androidTest/java/io/github/dreamandroid/local/AppLaunchInstrumentationTest.kt`：
+见 `app/src/androidTest/java/io/github/dreamandroid/local/`：
+
+**`QueueProgressCrashTest.kt`** (5 阶段):
+- Phase 1: 单任务 10%→90% 渐进进度 → COMPLETED
+- Phase 2: 第一任务完成后注入第二任务，混合展示
+- Phase 3: 20 步快速进度更新（Queue 页面实时观察）
+- Phase 4: Tab 切换压力测试 (Models↔Queue↔Generate↔Browse)
+- Phase 5: 冷启动时 Room DB 预存 PROCESSING 任务 + restoreFromDb
+
+**`AppLaunchInstrumentationTest.kt`**:
 - Application 类型正确 & onCreate 不崩溃
 - Activity 全链路启动
 - 关键依赖 (database/backendService/queueRepository) 逐个初始化不崩溃
@@ -160,5 +184,7 @@ Debug APK 需包含 `x86_64` ABI（`app/build.gradle.kts` debug block 已配置�
 
 | 日期 | 描述 |
 |------|------|
+| 2026-06-26 | `apk-test.yml` 改为两阶段测试：Phase 1 `QueueProgressCrashTest` 独立运行 + crash logcat；Phase 2 其余测试 |
+| 2026-06-26 | 更新工作流协作关系图，反映 cmake → gradle-debug → test → release 四阶段管道 |
 | 2026-06-16 | 添加 CI Workflow 状态查询规则（GitHub REST API） |
 | 2026-06-16 | 初始创建。声明无本地构建工具链，所有构建在云端 CI/CD 完成 |
