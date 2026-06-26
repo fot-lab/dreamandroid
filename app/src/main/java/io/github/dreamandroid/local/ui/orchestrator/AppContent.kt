@@ -229,7 +229,7 @@ fun AppContent() {
                 // All sizes derived from measured navBarHeightPx — no hardcoded dp.
                 Column(modifier = Modifier.fillMaxWidth()) {
 
-                    // ── Hint strip (expanded): at top of expanded area, ↓ to collapse ──
+                    // ── navigation expand hint bar (expanded): at top of expanded area, ↓ to collapse ──
                     // Only visible when fully expanded; no animation to avoid
                     // participating in expand/shrink transitions.
                     if (isBottomBarExpanded) {
@@ -304,7 +304,7 @@ fun AppContent() {
                         )
                     }
 
-                    // ── Hint strip (collapsed): below rows, above NavBar, ↑ to expand ──
+                    // ── navigation expand hint bar (collapsed): below rows, above NavBar, ↑ to expand ──
                     // Only visible when collapsed; no animation.
                     if (!isBottomBarExpanded) {
                         val hintHeightDp = with(density) { (navBarHeightPx * 0.15f).toDp() }
