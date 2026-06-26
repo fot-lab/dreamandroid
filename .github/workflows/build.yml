@@ -63,6 +63,21 @@ jobs:
           ssh-key: ${{ secrets.QAIRT_DEPLOY_KEY }}
           path: qairt_sdk
 
+      # -------- Cache Rust toolchain (before NDK setup so cargo-ndk is pre-restored) --------
+      - name: Cache Rust Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.rustup/
+            app/src/main/cpp/3rdparty/tokenizers-cpp/rust/target/
+          key: rust-cargo-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/3rdparty/tokenizers-cpp/rust/Cargo.*') }}
+          restore-keys: rust-cargo-${{ runner.os }}-
+
       # -------- NDK & build tools (check version, install only if missing) --------
       - name: Verify & set up NDK & build tools
         run: |
@@ -96,6 +111,8 @@ jobs:
           fi
 
           # --- Rust (for tokenizers-cpp) ---
+          # Cache (above) pre-restores ~/.cargo/bin/ and ~/.rustup/,
+          # so cargo-ndk and target are usually already present.
           if which rustup > /dev/null 2>&1; then
             if rustup target list --installed | grep -q aarch64-linux-android; then
               echo "✅ Rust target aarch64-linux-android already installed"
@@ -104,9 +121,9 @@ jobs:
               rustup target add aarch64-linux-android
             fi
             if which cargo-ndk > /dev/null 2>&1; then
-              echo "✅ cargo-ndk found"
+              echo "✅ cargo-ndk found (from cache)"
             else
-              echo "🔧 Installing cargo-ndk..."
+              echo "🔧 Installing cargo-ndk (cache miss, compiling) ..."
               cargo install cargo-ndk
             fi
           else
@@ -115,18 +132,6 @@ jobs:
 
           # --- ccache ---
           sudo apt-get install -y -qq ccache
-
-      - name: Cache Rust Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/
-            ~/.cargo/git/
-            ~/.cargo/bin/
-            ~/.rustup/
-            app/src/main/cpp/3rdparty/tokenizers-cpp/rust/target/
-          key: rust-cargo-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/3rdparty/tokenizers-cpp/rust/Cargo.*') }}
-          restore-keys: rust-cargo-${{ runner.os }}-
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1
