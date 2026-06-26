@@ -267,6 +267,12 @@ fun AppContentTabGenerate(
                     onHeightChange = { generateViewModel.genHeight = it },
                     onAddToQueue = onAddToQueue,
                     recordRepository = recordRepository,
+                    // Records tab selection (lifted for top bar)
+                    selectedGenerateTab = selectedGenerateTab,
+                    onSelectedGenerateTabChange = { selectedGenerateTab = it },
+                    selectedRecordIds = selectedRecordIds,
+                    onSelectedRecordIdsChange = { selectedRecordIds = it },
+                    onRecordsListChange = { recordsList = it },
                     onTokenizePrompt = { prompt -> generateViewModel.tokenizePrompt(prompt) },
                     onTokenizeNegativePrompt = { nPrompt -> generateViewModel.tokenizeNegativePrompt(nPrompt) },
                     promptTokenCount = generateViewModel.promptTokenCount,

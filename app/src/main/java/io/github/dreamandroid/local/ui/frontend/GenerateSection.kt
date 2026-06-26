@@ -1,6 +1,7 @@
 package io.github.dreamandroid.local.ui.frontend
 
 import androidx.compose.runtime.Composable
+import io.github.dreamandroid.local.data.GenerateParameterRecord
 import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.service.backend.BackendManager.TokenizeResult
 import io.github.dreamandroid.local.ui.screens.GenerateScreen
@@ -36,6 +37,12 @@ fun TabGenerateScreen(
     onHeightChange: (Int) -> Unit,
     onAddToQueue: (Int) -> Unit = {},
     recordRepository: RecordRepository? = null,
+    // Records tab selection (lifted to parent for top bar access)
+    selectedGenerateTab: Int = 0,
+    onSelectedGenerateTabChange: (Int) -> Unit = {},
+    selectedRecordIds: Set<String> = emptySet(),
+    onSelectedRecordIdsChange: (Set<String>) -> Unit = {},
+    onRecordsListChange: (List<GenerateParameterRecord>) -> Unit = {},
     // Tokenize callbacks (via BackendService HTTP middleware, surfaced through ViewModel)
     onTokenizePrompt: (suspend (String) -> TokenizeResult?)? = null,
     onTokenizeNegativePrompt: (suspend (String) -> TokenizeResult?)? = null,
@@ -74,6 +81,11 @@ fun TabGenerateScreen(
         onHeightChange = onHeightChange,
         onAddToQueue = onAddToQueue,
         recordRepository = recordRepository,
+        selectedGenerateTab = selectedGenerateTab,
+        onSelectedGenerateTabChange = onSelectedGenerateTabChange,
+        selectedRecordIds = selectedRecordIds,
+        onSelectedRecordIdsChange = onSelectedRecordIdsChange,
+        onRecordsListChange = onRecordsListChange,
         onTokenizePrompt = onTokenizePrompt,
         onTokenizeNegativePrompt = onTokenizeNegativePrompt,
         promptTokenCount = promptTokenCount,
