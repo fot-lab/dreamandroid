@@ -229,6 +229,26 @@ fun AppContent() {
                 // All sizes derived from measured navBarHeightPx — no hardcoded dp.
                 Column(modifier = Modifier.fillMaxWidth()) {
 
+                    // ── Hint strip (expanded): at top of expanded area, ↓ to collapse ──
+                    // Only visible when fully expanded; no animation to avoid
+                    // participating in expand/shrink transitions.
+                    if (isBottomBarExpanded) {
+                        val hintHeightDp = with(density) { (navBarHeightPx * 0.15f).toDp() }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(hintHeightDp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(0.6f),
+                                tint = Color.Gray.copy(alpha = 0.4f),
+                            )
+                        }
+                    }
+
                     // Row 5 (user-customizable, empty for now)
                     AnimatedVisibility(
                         visible = isBottomBarExpanded,
@@ -284,26 +304,23 @@ fun AppContent() {
                         )
                     }
 
-                    // ── Hint strip: chevron indicator for swipe gesture ──
-                    // Independent 15% of navBarHeightPx; not part of row sizing.
-                    // Arrow ↑ when collapsed, ↓ when expanded.
-                    val hintHeightDp = with(density) { (navBarHeightPx * 0.15f).toDp() }
-                    val hintArrow = if (isBottomBarExpanded)
-                        Icons.Default.KeyboardArrowDown
-                    else
-                        Icons.Default.KeyboardArrowUp
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(hintHeightDp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = hintArrow,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(0.6f),
-                            tint = Color.Gray.copy(alpha = 0.4f),
-                        )
+                    // ── Hint strip (collapsed): below rows, above NavBar, ↑ to expand ──
+                    // Only visible when collapsed; no animation.
+                    if (!isBottomBarExpanded) {
+                        val hintHeightDp = with(density) { (navBarHeightPx * 0.15f).toDp() }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(hintHeightDp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(0.6f),
+                                tint = Color.Gray.copy(alpha = 0.4f),
+                            )
+                        }
                     }
 
                     // Row 1 — NavigationBar (always visible, swipe to expand)
