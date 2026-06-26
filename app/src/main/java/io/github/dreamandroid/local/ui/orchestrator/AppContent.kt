@@ -2,6 +2,9 @@ package io.github.dreamandroid.local.ui.orchestrator
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -11,12 +14,20 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
@@ -73,6 +84,10 @@ fun AppContent() {
     var animTrigger by remember { mutableIntStateOf(0) }
     var queueBumpTrigger by remember { mutableIntStateOf(0) }
     val queueBumpScale = remember { Animatable(1f) }
+
+    // ── Expandable bottom bar state ──
+    var isBottomBarExpanded by remember { mutableStateOf(false) }
+    var navBarHeightPx by remember { mutableFloatStateOf(0f) }
 
     // ── ViewModels (Activity-scoped, shared across tabs) ──
     val mainViewModel: MainViewModel = viewModel()
@@ -194,6 +209,7 @@ fun AppContent() {
         Scaffold(
             contentWindowInsets = WindowInsets(0),
             bottomBar = {
+                val density = LocalDensity.current
                 // Red flash animation for Models tab when generation timed out
                 val flashAlpha by rememberInfiniteTransition(label = "flash").animateFloat(
                     initialValue = 1f,
@@ -204,36 +220,127 @@ fun AppContent() {
                     ),
                     label = "flashAlpha",
                 )
-                NavigationBar {
-                    BottomTab.entries.forEach { tab ->
-                        val isModelsTab = tab == BottomTab.Models
-                        val shouldFlash = isModelsTab && generationTimedOut
-                        val isQueueTab = tab == BottomTab.Queue
-                        NavigationBarItem(
-                            modifier = if (isQueueTab) {
-                                Modifier
-                                    .onGloballyPositioned { queueIconCoords = it }
-                                    .graphicsLayer {
-                                        scaleX = queueBumpScale.value
-                                        scaleY = queueBumpScale.value
-                                    }
-                            } else {
-                                Modifier
-                            },
-                            selected = mainViewModel.selectedTab == tab,
-                            onClick = { mainViewModel.selectedTab = tab },
-                            icon = {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = stringResource(tab.labelResId),
-                                    tint = if (shouldFlash)
-                                        MaterialTheme.colorScheme.error.copy(alpha = flashAlpha)
-                                    else
-                                        LocalContentColor.current,
+
+                // ── Expandable bottom bar (5 rows × 5 icons when expanded) ──
+                // Swipe up on the NavigationBar to reveal rows 2–5.
+                // All sizes derived from measured navBarHeightPx — no hardcoded dp.
+                Column(modifier = Modifier.fillMaxWidth()) {
+
+                    // Row 5 (user-customizable, empty for now)
+                    AnimatedVisibility(
+                        visible = isBottomBarExpanded,
+                        enter = expandVertically(),
+                        exit = shrinkVertically(),
+                    ) {
+                        ExpandableIconRow(
+                            rowHeightPx = navBarHeightPx,
+                            icons = listOf(null, null, null, null, null),
+                        )
+                    }
+
+                    // Row 4 (user-customizable, empty for now)
+                    AnimatedVisibility(
+                        visible = isBottomBarExpanded,
+                        enter = expandVertically(),
+                        exit = shrinkVertically(),
+                    ) {
+                        ExpandableIconRow(
+                            rowHeightPx = navBarHeightPx,
+                            icons = listOf(null, null, null, null, null),
+                        )
+                    }
+
+                    // Row 3 (user-customizable, empty for now)
+                    AnimatedVisibility(
+                        visible = isBottomBarExpanded,
+                        enter = expandVertically(),
+                        exit = shrinkVertically(),
+                    ) {
+                        ExpandableIconRow(
+                            rowHeightPx = navBarHeightPx,
+                            icons = listOf(null, null, null, null, null),
+                        )
+                    }
+
+                    // Row 2 — predefined system icons (immutable)
+                    // Info | RecycleBin | User | Download | Settings
+                    AnimatedVisibility(
+                        visible = isBottomBarExpanded,
+                        enter = expandVertically(),
+                        exit = shrinkVertically(),
+                    ) {
+                        ExpandableIconRow(
+                            rowHeightPx = navBarHeightPx,
+                            icons = listOf(
+                                Icons.Default.Info to null,
+                                Icons.Default.Delete to null,
+                                Icons.Default.Person to null,
+                                Icons.Default.ArrowDownward to null,
+                                Icons.Default.Settings to null,
+                            ),
+                        )
+                    }
+
+                    // Row 1 — NavigationBar (always visible, swipe to expand)
+                    // Gesture: swipe up ≥ 60% of nav bar height → expand
+                    //          swipe down ≥ 60% of nav bar height → collapse
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { coords ->
+                                navBarHeightPx = coords.size.height.toFloat()
+                            }
+                            .pointerInput(isBottomBarExpanded) {
+                                var totalDrag = 0f
+                                detectVerticalDragGestures(
+                                    onVerticalDrag = { _, dragAmount ->
+                                        totalDrag += dragAmount
+                                    },
+                                    onDragEnd = {
+                                        val threshold = navBarHeightPx * 0.6f
+                                        if (!isBottomBarExpanded && totalDrag < -threshold) {
+                                            isBottomBarExpanded = true
+                                        } else if (isBottomBarExpanded && totalDrag > threshold) {
+                                            isBottomBarExpanded = false
+                                        }
+                                        totalDrag = 0f
+                                    },
+                                    onDragCancel = { totalDrag = 0f },
                                 )
                             },
-                            label = { Text(stringResource(tab.labelResId)) },
-                        )
+                    ) {
+                        NavigationBar {
+                            BottomTab.entries.forEach { tab ->
+                                val isModelsTab = tab == BottomTab.Models
+                                val shouldFlash = isModelsTab && generationTimedOut
+                                val isQueueTab = tab == BottomTab.Queue
+                                NavigationBarItem(
+                                    modifier = if (isQueueTab) {
+                                        Modifier
+                                            .onGloballyPositioned { queueIconCoords = it }
+                                            .graphicsLayer {
+                                                scaleX = queueBumpScale.value
+                                                scaleY = queueBumpScale.value
+                                            }
+                                    } else {
+                                        Modifier
+                                    },
+                                    selected = mainViewModel.selectedTab == tab,
+                                    onClick = { mainViewModel.selectedTab = tab },
+                                    icon = {
+                                        Icon(
+                                            imageVector = tab.icon,
+                                            contentDescription = stringResource(tab.labelResId),
+                                            tint = if (shouldFlash)
+                                                MaterialTheme.colorScheme.error.copy(alpha = flashAlpha)
+                                            else
+                                                LocalContentColor.current,
+                                        )
+                                    },
+                                    label = { Text(stringResource(tab.labelResId)) },
+                                )
+                            }
+                        }
                     }
                 }
             },
@@ -403,5 +510,50 @@ private fun QueueStarAnimation(
             close()
         }
         drawPath(path, Color(0xFFFFD700)) // gold 4-pointed star
+    }
+}
+
+/**
+ * A single row of the expandable bottom bar with [icons] equally spaced.
+ *
+ * All sizes are derived from [rowHeightPx] (the measured NavigationBar height)
+ * so the row adapts to any device / theme / accessibility setting.
+ *
+ * @param rowHeightPx  measured pixel height of the NavigationBar row
+ * @param icons        list of up to 5 icons; null = empty placeholder slot
+ */
+@Composable
+private fun ExpandableIconRow(
+    rowHeightPx: Float,
+    icons: List<ImageVector?>,
+) {
+    val density = LocalDensity.current
+    val rowHeightDp = with(density) { rowHeightPx.toDp() }
+    // Icon slot = 45% of row height, square
+    val slotSizeDp = rowHeightDp * 0.45f
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(rowHeightDp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        icons.take(5).forEach { icon ->
+            Box(
+                modifier = Modifier
+                    .size(slotSizeDp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(0.7f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
