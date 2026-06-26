@@ -1,5 +1,15 @@
 package io.github.dreamandroid.local.ui.screens.run
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * ModelRunGeneration was the generation logic layer of the original ModelRunScreen.
+ * Since ModelRunScreen has been replaced by tab-based UI (Generate / Upscale tabs),
+ * this file is kept solely as reference.
+ *
+ * Do NOT call any function from this file in new code.
+ */
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager

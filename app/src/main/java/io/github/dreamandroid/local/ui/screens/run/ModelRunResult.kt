@@ -1,5 +1,15 @@
 package io.github.dreamandroid.local.ui.screens.run
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * ModelRunResult was the result page (Page 1) of the original ModelRunScreen.
+ * Since ModelRunScreen has been replaced by tab-based UI (Generate / Upscale tabs),
+ * this file is kept solely as reference.
+ *
+ * Do NOT instantiate any composable from this file in new code.
+ */
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -181,7 +191,7 @@ fun ModelRunResultPage(
                                             Icon(Icons.Default.Report, contentDescription = "report inappropriate content")
                                         }
                                     }
-                                    if (!model?.runOnCpu!! && state.generationParams?.let { maxOf(it.width, it.height) <= 1024 } == true) {
+                                    if (model?.runOnCpu == false && state.generationParams?.let { maxOf(it.width, it.height) <= 1024 } == true) {
                                         FilledTonalIconButton(onClick = { state.showUpscalerDialog = true }, enabled = !state.isRunning && !state.isUpscaling) {
                                             Icon(Icons.Default.AutoFixHigh, contentDescription = "upscale image")
                                         }
@@ -267,7 +277,8 @@ fun ModelRunResultPage(
                             state.showReportDialog = false
                             coroutineScope.launch {
                                 state.currentBitmap?.let { bitmap ->
-                                    io.github.dreamandroid.local.utils.reportImage(bitmap = bitmap, modelName = model?.name ?: "", params = state.generationParams!!,
+                                    val reportParams = state.generationParams ?: return@let
+                                    io.github.dreamandroid.local.utils.reportImage(bitmap = bitmap, modelName = model?.name ?: "", params = reportParams,
                                         onSuccess = { Toast.makeText(context, "Thanks for your report.", Toast.LENGTH_SHORT).show() },
                                         onError = { error -> Toast.makeText(context, "Error: $error", Toast.LENGTH_SHORT).show() })
                                 }
@@ -282,9 +293,10 @@ fun ModelRunResultPage(
 
         // Parameters dialog
         if (state.showParametersDialog && state.generationParams != null) {
+            val dialogParams = state.generationParams ?: return
             GenerationParamsDialog(
                 title = stringResource(R.string.params_detail),
-                params = state.generationParams!!,
+                params = dialogParams,
                 modelId = generationParamsModelId,
                 showImg2imgButton = useImg2img,
                 onShare = { state.shareSourceParams = state.generationParams; state.shareSourceModelId = generationParamsModelId },

@@ -93,7 +93,12 @@ fun CropImageScreen(
 
                 // Get original image dimensions
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                context.contentResolver.openInputStream(imageUri)!!.use {
+                val inputStream = context.contentResolver.openInputStream(imageUri)
+                if (inputStream == null) {
+                    errorMessage = "Failed to open image"
+                    return@launch
+                }
+                inputStream.use {
                     BitmapFactory.decodeStream(it, null, options)
                 }
                 val originalWidth = options.outWidth

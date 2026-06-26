@@ -1,5 +1,15 @@
 package io.github.dreamandroid.local.ui.screens.run
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * ModelRunPrompt was the prompt input page of the original ModelRunScreen.
+ * Since ModelRunScreen has been replaced by tab-based UI (Generate / Upscale tabs),
+ * this file is kept solely as reference.
+ *
+ * Do NOT instantiate any composable from this file in new code.
+ */
+
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast

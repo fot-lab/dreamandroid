@@ -154,14 +154,14 @@ fun UpscaleScreen(
                         }
                     }
 
-                    if (upscaleViewModel.selectedBitmap != null) {
+                    upscaleViewModel.selectedBitmap?.let { bmp ->
                         Surface(
                             modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
                             color = MaterialTheme.colorScheme.secondaryContainer,
                             shape = MaterialTheme.shapes.small,
                         ) {
                             Text(
-                                text = "${upscaleViewModel.selectedBitmap!!.width} × ${upscaleViewModel.selectedBitmap!!.height}",
+                                text = "${bmp.width} × ${bmp.height}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),

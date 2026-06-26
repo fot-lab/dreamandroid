@@ -605,24 +605,28 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
 
         // ── Crop / Inpaint / Preview overlays ──────────────────
 
-        if (state.showCropScreen && state.imageUriForCrop != null) {
-            val aspectTarget = computeAspectTargetSize(model?.isSdxl == true, state.aspectRatio)
-            CropImageScreen(
-                imageUri = state.imageUriForCrop!!,
-                width = aspectTarget?.first ?: state.currentWidth, height = aspectTarget?.second ?: state.currentHeight,
-                onCropComplete = { bs, bmp, rect -> handleCropComplete(state, context, model, scope, bs, bmp, rect) },
-                onCancel = { state.showCropScreen = false; state.imageUriForCrop = null; state.selectedImageUri = null; state.hasOriginalImageForStitch = false },
-            )
+        if (state.showCropScreen) {
+            state.imageUriForCrop?.let { cropUri ->
+                val aspectTarget = computeAspectTargetSize(model?.isSdxl == true, state.aspectRatio)
+                CropImageScreen(
+                    imageUri = cropUri,
+                    width = aspectTarget?.first ?: state.currentWidth, height = aspectTarget?.second ?: state.currentHeight,
+                    onCropComplete = { bs, bmp, rect -> handleCropComplete(state, context, model, scope, bs, bmp, rect) },
+                    onCancel = { state.showCropScreen = false; state.imageUriForCrop = null; state.selectedImageUri = null; state.hasOriginalImageForStitch = false },
+                )
+            }
         }
 
-        if (state.showInpaintScreen && state.croppedBitmap != null) {
-            InpaintScreen(
-                originalBitmap = state.croppedBitmap!!,
-                existingMaskBitmap = if (state.isInpaintMode) state.maskBitmap else null,
-                existingPathHistory = state.savedPathHistory,
-                onInpaintComplete = { mbs, _, mb, ph -> handleInpaintComplete(state, context, scope, mbs, mb, ph) },
-                onCancel = { state.showInpaintScreen = false },
-            )
+        if (state.showInpaintScreen) {
+            state.croppedBitmap?.let { inpaintBitmap ->
+                InpaintScreen(
+                    originalBitmap = inpaintBitmap,
+                    existingMaskBitmap = if (state.isInpaintMode) state.maskBitmap else null,
+                    existingPathHistory = state.savedPathHistory,
+                    onInpaintComplete = { mbs, _, mb, ph -> handleInpaintComplete(state, context, scope, mbs, mb, ph) },
+                    onCancel = { state.showInpaintScreen = false },
+                )
+            }
         }
 
         if (state.isPreviewMode && state.currentBitmap != null) {

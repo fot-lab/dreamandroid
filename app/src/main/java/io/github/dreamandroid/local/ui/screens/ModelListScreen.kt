@@ -1,5 +1,15 @@
 package io.github.dreamandroid.local.ui.screens
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * ModelListScreen was the original model list / management screen. It has been
+ * replaced by the tab-based UI (BottomTab Models → AppContentTabModels).
+ * This file and its companion files are kept solely as reference.
+ *
+ * Do NOT add new navigation routes pointing to ModelListScreen.
+ */
+
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri

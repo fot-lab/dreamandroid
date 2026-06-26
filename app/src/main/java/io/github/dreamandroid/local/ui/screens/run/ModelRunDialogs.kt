@@ -1,5 +1,15 @@
 package io.github.dreamandroid.local.ui.screens.run
 
+/*
+ * NOTE: This file is no longer in use.
+ *
+ * ModelRunDialogs was the dialog layer for the original ModelRunScreen.
+ * Since ModelRunScreen has been replaced by tab-based UI (Generate / Upscale tabs),
+ * this file is kept solely as reference.
+ *
+ * Do NOT instantiate any composable from this file in new code.
+ */
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -83,7 +93,7 @@ fun ModelRunResolutionChangeDialog(
     onRestart: (Resolution) -> Unit,
 ) {
     if (!state.showResolutionChangeDialog || state.pendingResolution == null) return
-    val resolution = state.pendingResolution!!
+    val resolution = state.pendingResolution ?: return
     AlertDialog(
         onDismissRequest = { state.showResolutionChangeDialog = false; state.pendingResolution = null },
         title = { Text(stringResource(R.string.switch_resolution)) },
@@ -115,8 +125,9 @@ fun ModelRunHistoryDetailDialog(
     msgImageSaved: String,
 ) {
     if (!state.showHistoryDetailDialog || state.selectedHistoryItem == null) return
-    val historyBitmap = remember(state.selectedHistoryItem?.imageFile?.absolutePath) {
-        BitmapFactory.decodeFile(state.selectedHistoryItem!!.imageFile.absolutePath)
+    val detailItem = state.selectedHistoryItem ?: return
+    val historyBitmap = remember(detailItem.imageFile.absolutePath) {
+        BitmapFactory.decodeFile(detailItem.imageFile.absolutePath)
     }
     val dismissDetail: () -> Unit = { state.showHistoryDetailDialog = false; state.selectedHistoryItem = null }
     ZoomableImageOverlay(
@@ -149,12 +160,13 @@ fun ModelRunHistoryParametersDialog(
     onSendToImg2img: (Bitmap) -> Unit,
 ) {
     if (!state.showHistoryParametersDialog || state.selectedHistoryItem == null) return
-    val params = state.selectedHistoryItem!!.params
+    val historyItem = state.selectedHistoryItem ?: return
+    val params = historyItem.params
     GenerationParamsDialog(
         title = stringResource(R.string.generation_params_title),
-        params = params, modelId = state.selectedHistoryItem?.modelId ?: "",
-        displayMode = state.selectedHistoryItem?.mode, showImg2imgButton = useImg2img,
-        onShare = { state.shareSourceParams = params; state.shareSourceModelId = state.selectedHistoryItem?.modelId },
+        params = params, modelId = historyItem.modelId ?: "",
+        displayMode = historyItem.mode, showImg2imgButton = useImg2img,
+        onShare = { state.shareSourceParams = params; state.shareSourceModelId = historyItem.modelId },
         onSendToImg2img = {
             val item = state.selectedHistoryItem
             if (item != null) {
@@ -163,7 +175,7 @@ fun ModelRunHistoryParametersDialog(
                 else { Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show() }
             }
         },
-        onReproduce = { state.pendingReproduceParams = state.selectedHistoryItem!!.params; state.showHistoryParametersDialog = false; state.showReproduceParamsDialog = true },
+        onReproduce = { historyItem.params.let { state.pendingReproduceParams = it; state.showHistoryParametersDialog = false; state.showReproduceParamsDialog = true } },
         onDismiss = { state.showHistoryParametersDialog = false },
     )
 }
@@ -183,7 +195,7 @@ fun ModelRunReproduceParamsDialog(
     onClearImg2img: () -> Unit,
 ) {
     if (!state.showReproduceParamsDialog || state.pendingReproduceParams == null) return
-    val params = state.pendingReproduceParams!!
+    val params = state.pendingReproduceParams ?: return
     ReproduceParametersDialog(
         params = params,
         onApply = { selectedFields ->
@@ -221,6 +233,7 @@ fun ModelRunDeleteHistoryDialog(
 ) {
     val context = LocalContext.current
     if (!state.showDeleteHistoryDialog || state.selectedHistoryItem == null) return
+    val deleteItem = state.selectedHistoryItem ?: return
     AlertDialog(
         onDismissRequest = { state.showDeleteHistoryDialog = false },
         title = { Text(stringResource(R.string.delete_image)) },
@@ -228,7 +241,7 @@ fun ModelRunDeleteHistoryDialog(
         confirmButton = {
             TextButton(onClick = {
                 scope.launch {
-                    val success = historyManager.deleteHistoryItem(item = state.selectedHistoryItem!!)
+                    val success = historyManager.deleteHistoryItem(item = deleteItem)
                     if (success) {
                         state.showDeleteHistoryDialog = false; state.showHistoryDetailDialog = false; state.selectedHistoryItem = null
                         Toast.makeText(context, msgDeleted, Toast.LENGTH_SHORT).show()
