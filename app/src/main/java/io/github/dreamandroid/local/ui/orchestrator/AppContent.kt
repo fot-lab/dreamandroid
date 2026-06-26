@@ -134,10 +134,12 @@ fun AppContent() {
         queueViewModel.queueRepository.hasPendingTasks()
     }
 
-    // Debug: log queue state changes
-    Log.d("AppContentDbg", "Queue state: tasks.size=${queueTasks.size} batchGroups.size=${queueBatchGroups.size} " +
-        "processing=$queueProcessing paused=$queuePaused pending=$queueHasPending " +
-        "selectionMode=${queueViewModel.queueIsSelectionMode}")
+    // Debug: log queue state changes (SideEffect runs after successful recomposition only)
+    SideEffect {
+        Log.d("AppContentDbg", "Queue state: tasks.size=${queueTasks.size} batchGroups.size=${queueBatchGroups.size} " +
+            "processing=$queueProcessing paused=$queuePaused pending=$queueHasPending " +
+            "selectionMode=${queueViewModel.queueIsSelectionMode}")
+    }
 
     // ── Upscaler preferences ──
     val persistedUpscalerId = remember {
@@ -187,6 +189,25 @@ fun AppContent() {
     // ── Queue-fly animation callbacks ──
     val onQueueAnimationRequest: () -> Unit = remember(queueAnimEnabled) {
         { if (queueAnimEnabled) animTrigger++ }
+    }
+
+    // Stable lambdas passed to child composables — remembered to avoid
+    // new lambda identity on every recomposition (would force child re-render).
+    val onQueueAnimEnabledChange = remember {
+        { enabled: Boolean ->
+            queueAnimEnabled = enabled
+            scope.launch { generationPreferences.setQueueAnimEnabled(enabled) }
+        }
+    }
+    val onGenParamAddQueuePositioned = remember {
+        { offset: Offset -> genParamAddQueueBtnPos = offset }
+    }
+    val onToggleLayout = remember {
+        {
+            val next = browseLayoutMode.next()
+            browseLayoutMode = next
+            scope.launch { generationPreferences.setBrowseLayoutMode(next.name) }
+        }
     }
 
     // Queue icon bump animation
@@ -461,11 +482,8 @@ fun AppContent() {
                         recordRepository = recordRepository,
                         onQueueAnimationRequest = onQueueAnimationRequest,
                         queueAnimEnabled = queueAnimEnabled,
-                        onQueueAnimEnabledChange = { enabled ->
-                            queueAnimEnabled = enabled
-                            scope.launch { generationPreferences.setQueueAnimEnabled(enabled) }
-                        },
-                        onGenParamAddQueuePositioned = { offset -> genParamAddQueueBtnPos = offset },
+                        onQueueAnimEnabledChange = onQueueAnimEnabledChange,
+                        onGenParamAddQueuePositioned = onGenParamAddQueuePositioned,
                     )
                     BottomTab.Upscale -> AppContentTabUpscale(
                         drawerState = drawerState,
@@ -479,11 +497,7 @@ fun AppContent() {
                         browseViewModel = browseViewModel,
                         recordRepository = recordRepository,
                         browseLayoutMode = browseLayoutMode,
-                        onToggleLayout = {
-                            val next = browseLayoutMode.next()
-                            browseLayoutMode = next
-                            scope.launch { generationPreferences.setBrowseLayoutMode(next.name) }
-                        },
+                        onToggleLayout = onToggleLayout,
                     )
                 }
             }

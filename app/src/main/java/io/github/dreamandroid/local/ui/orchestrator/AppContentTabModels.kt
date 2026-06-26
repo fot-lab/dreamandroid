@@ -58,7 +58,11 @@ fun AppContentTabModels(
     }
 
     // ── ModelView multi-selection (3-dot dropdown) ──
-    val customModels = modelsViewModel.modelRepository.models.filter { it.isCustom }
+    // derivedStateOf: only recomputes when source list elements change,
+    // not on every recomposition of AppContentTabModels.
+    val customModels by derivedStateOf {
+        modelsViewModel.modelRepository.models.filter { it.isCustom }
+    }
     val modelViewSelectAll: () -> Unit = {
         modelsViewModel.modelViewSelectAll(customModels)
     }

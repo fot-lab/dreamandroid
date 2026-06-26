@@ -40,7 +40,9 @@ fun AppContentTabQueue(
     hasPendingTasks: Boolean,
     recordRepository: RecordRepository,
 ) {
-    Log.d(TAG_QUEUE, "AppContentTabQueue() tasks.size=${tasks.size} batchGroups.size=${batchGroups.size} processing=$processingActive paused=$queuePaused selectionMode=${queueViewModel.queueIsSelectionMode}")
+    SideEffect {
+        Log.d(TAG_QUEUE, "AppContentTabQueue() tasks.size=${tasks.size} batchGroups.size=${batchGroups.size} processing=$processingActive paused=$queuePaused selectionMode=${queueViewModel.queueIsSelectionMode}")
+    }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
