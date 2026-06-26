@@ -374,4 +374,5 @@
     <string name="tab_records">レコード</string>
     <string name="load_record">エディタに読み込む</string>
     <string name="delete_record_confirm">選択したレコードを削除しますか？この操作は取り消せません。</string>
+    <string name="queue_anim_toggle">キュー追加アニメーション</string>
 </resources>

@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,11 @@ fun AppContentTabGenerate(
     loadedModelId: String?,
     loadedModelType: BackendManager.Mode?,
     recordRepository: RecordRepository,
+    // Queue animation
+    onQueueAnimationRequest: () -> Unit = {},
+    queueAnimEnabled: Boolean = true,
+    onQueueAnimEnabledChange: (Boolean) -> Unit = {},
+    onGenParamAddQueuePositioned: (LayoutCoordinates) -> Unit = {},
 ) {
     // Derive whether the currently loaded model is a generator (Diffusion mode)
     val isModelLoaded = loadedModelType == BackendManager.Mode.Diffusion && loadedModelId != null
@@ -113,6 +119,7 @@ fun AppContentTabGenerate(
             scope.launch {
                 snackbarHostState.showSnackbar(context.getString(R.string.added_to_queue, count))
             }
+            onQueueAnimationRequest()
         }
     }
 
@@ -190,6 +197,24 @@ fun AppContentTabGenerate(
                         Icon(Icons.Default.Close, stringResource(R.string.close))
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                // Queue animation toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.queue_anim_toggle),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = queueAnimEnabled,
+                        onCheckedChange = onQueueAnimEnabledChange,
+                    )
+                }
             }
         },
     ) {
@@ -208,6 +233,7 @@ fun AppContentTabGenerate(
                     onRecordsDeselectAll = onRecordsDeselectAll,
                     onLoadSelectedRecord = onLoadSelectedRecord,
                     onDeleteSelectedRecords = onDeleteSelectedRecords,
+                    onPlayButtonPositioned = onGenParamAddQueuePositioned,
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },

@@ -453,4 +453,5 @@
     <string name="tab_records">Records</string>
     <string name="load_record">Load to editor</string>
     <string name="delete_record_confirm">Delete selected record(s)? This action cannot be undone.</string>
+    <string name="queue_anim_toggle">Add-to-queue animation</string>
 </resources>
