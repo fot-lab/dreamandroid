@@ -218,6 +218,7 @@ fun BrowseScreen(
 
         AlertDialog(
             onDismissRequest = { browseViewModel.showHistoryDetailDialog = null },
+            confirmButton = {},
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
