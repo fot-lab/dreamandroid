@@ -430,4 +430,7 @@
     <plurals name="batch_save_params_confirm">
         <item quantity="other">将 %d 张选中图片的参数保存到记录管理器？</item>
     </plurals>
+    <!-- Generate tabs -->
+    <string name="tab_parameters">参数</string>
+    <string name="tab_records">记录</string>
 </resources>

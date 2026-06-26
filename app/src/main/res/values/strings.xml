@@ -448,4 +448,7 @@
         <item quantity="one">Save parameters from %d selected image to record manager?</item>
         <item quantity="other">Save parameters from %d selected images to record manager?</item>
     </plurals>
+    <!-- Generate tabs -->
+    <string name="tab_parameters">Parameters</string>
+    <string name="tab_records">Records</string>
 </resources>

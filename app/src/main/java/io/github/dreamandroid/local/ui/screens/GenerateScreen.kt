@@ -174,7 +174,7 @@ fun GenerateScreen(
     }
 
     // ---- UI ----
-    val tabs = listOf("Parameters" to Icons.Default.Tune, "Records" to Icons.Default.Bookmarks)
+    val tabs = listOf(stringResource(R.string.tab_parameters) to Icons.Default.Tune, stringResource(R.string.tab_records) to Icons.Default.Bookmarks)
 
     Column(
         modifier = modifier
@@ -190,8 +190,12 @@ fun GenerateScreen(
                 Tab(
                     selected = selectedGenerateTab == index,
                     onClick = { selectedGenerateTab = index },
-                    text = { Text(title) },
-                    icon = { Icon(icon, contentDescription = title) },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(icon, contentDescription = title)
+                            Text(title)
+                        }
+                    },
                 )
             }
         }

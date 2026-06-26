@@ -369,4 +369,7 @@
     <plurals name="batch_save_params_confirm">
         <item quantity="other">選択した %d 枚の画像のパラメータをレコードマネージャーに保存しますか？</item>
     </plurals>
+    <!-- Generate tabs -->
+    <string name="tab_parameters">パラメータ</string>
+    <string name="tab_records">レコード</string>
 </resources>

@@ -397,4 +397,7 @@
     <plurals name="batch_save_params_confirm">
         <item quantity="other">선택한 %d개 이미지의 매개변수를 레코드 관리자에 저장하시겠습니까?</item>
     </plurals>
+    <!-- Generate tabs -->
+    <string name="tab_parameters">파라미터</string>
+    <string name="tab_records">기록</string>
 </resources>
