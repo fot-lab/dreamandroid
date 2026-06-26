@@ -37,6 +37,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -272,11 +273,11 @@ fun AppContent() {
                         ExpandableIconRow(
                             rowHeightPx = navBarHeightPx,
                             icons = listOf(
-                                Icons.Default.Info to null,
-                                Icons.Default.Delete to null,
-                                Icons.Default.Person to null,
-                                Icons.Default.ArrowDownward to null,
-                                Icons.Default.Settings to null,
+                                Icons.Default.Info,
+                                Icons.Default.Delete,
+                                Icons.Default.Person,
+                                Icons.Default.ArrowDownward,
+                                Icons.Default.Settings,
                             ),
                         )
                     }
