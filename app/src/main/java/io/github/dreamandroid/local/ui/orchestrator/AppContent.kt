@@ -28,7 +28,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -75,9 +74,12 @@ fun AppContent() {
     var browseLayoutMode by remember { mutableStateOf(BrowseLayoutMode.THREE_COLUMNS) }
 
     // ── Queue-fly animation state ──
+    //     Storing Offset (value equality) instead of LayoutCoordinates (reference
+    //     equality) — prevents infinite recomposition loop that occurs when
+    //     onGloballyPositioned writes new LayoutCoordinates every layout pass.
     var queueAnimEnabled by remember { mutableStateOf(true) }
-    var genParamAddQueueBtnCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    var queueIconCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var genParamAddQueueBtnPos by remember { mutableStateOf(Offset.Zero) }
+    var queueIconPosInRoot by remember { mutableStateOf(Offset.Zero) }
     var animTrigger by remember { mutableIntStateOf(0) }
     var queueBumpTrigger by remember { mutableIntStateOf(0) }
     val queueBumpScale = remember { Animatable(1f) }
@@ -393,7 +395,9 @@ fun AppContent() {
                                 NavigationBarItem(
                                     modifier = if (isQueueTab) {
                                         Modifier
-                                            .onGloballyPositioned { queueIconCoords = it }
+                                            .onGloballyPositioned { coords ->
+                                                queueIconPosInRoot = coords.positionInRoot()
+                                            }
                                             .graphicsLayer {
                                                 scaleX = queueBumpScale.value
                                                 scaleY = queueBumpScale.value
@@ -460,7 +464,7 @@ fun AppContent() {
                             queueAnimEnabled = enabled
                             scope.launch { generationPreferences.setQueueAnimEnabled(enabled) }
                         },
-                        onGenParamAddQueuePositioned = { genParamAddQueueBtnCoords = it },
+                        onGenParamAddQueuePositioned = { offset -> genParamAddQueueBtnPos = offset },
                     )
                     BottomTab.Upscale -> AppContentTabUpscale(
                         drawerState = drawerState,
@@ -487,15 +491,13 @@ fun AppContent() {
         // ── Queue-fly star animation overlay ──
         // Drawn on top of everything (above the Scaffold including bottom bar)
         if (animTrigger > 0) {
-            val genParamPos = genParamAddQueueBtnCoords
-            val queuePos = queueIconCoords
-            if (genParamPos != null && queuePos != null) {
-                val genParamRoot = genParamPos.positionInRoot()
-                val queueRoot = queuePos.positionInRoot()
+            val startPos = genParamAddQueueBtnPos
+            val endPos = queueIconPosInRoot
+            if (startPos != Offset.Zero && endPos != Offset.Zero) {
                 key(animTrigger) {
                     QueueStarAnimation(
-                        startOffset = genParamRoot,
-                        endOffset = queueRoot,
+                        startOffset = startPos,
+                        endOffset = endPos,
                         onArrived = { queueBumpTrigger++ },
                     )
                 }

@@ -7,8 +7,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -330,7 +331,7 @@ fun GenerateTopBar(
     onRecordsDeselectAll: () -> Unit = {},
     onLoadSelectedRecord: () -> Unit = {},
     onDeleteSelectedRecords: () -> Unit = {},
-    onPlayButtonPositioned: (LayoutCoordinates) -> Unit = {},
+    onPlayButtonPositioned: (Offset) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -377,7 +378,9 @@ fun GenerateTopBar(
                 }
                 IconButton(
                     onClick = onGenTaskAddToQueue,
-                    modifier = Modifier.onGloballyPositioned { onPlayButtonPositioned(it) },
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                        onPlayButtonPositioned(coords.positionInRoot())
+                    },
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.generate_image))
                 }

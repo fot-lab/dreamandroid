@@ -9,7 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -45,7 +45,7 @@ fun AppContentTabGenerate(
     onQueueAnimationRequest: () -> Unit = {},
     queueAnimEnabled: Boolean = true,
     onQueueAnimEnabledChange: (Boolean) -> Unit = {},
-    onGenParamAddQueuePositioned: (LayoutCoordinates) -> Unit = {},
+    onGenParamAddQueuePositioned: (Offset) -> Unit = {},
 ) {
     // Derive whether the currently loaded model is a generator (Diffusion mode)
     val isModelLoaded = loadedModelType == BackendManager.Mode.Diffusion && loadedModelId != null
