@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -279,6 +281,28 @@ fun AppContent() {
                                 Icons.Default.ArrowDownward,
                                 Icons.Default.Settings,
                             ),
+                        )
+                    }
+
+                    // ── Hint strip: chevron indicator for swipe gesture ──
+                    // Independent 15% of navBarHeightPx; not part of row sizing.
+                    // Arrow ↑ when collapsed, ↓ when expanded.
+                    val hintHeightDp = with(density) { (navBarHeightPx * 0.15f).toDp() }
+                    val hintArrow = if (isBottomBarExpanded)
+                        Icons.Default.KeyboardArrowDown
+                    else
+                        Icons.Default.KeyboardArrowUp
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(hintHeightDp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = hintArrow,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(0.6f),
+                            tint = Color.Gray.copy(alpha = 0.4f),
                         )
                     }
 
