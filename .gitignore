@@ -22,5 +22,8 @@ build-logs/
 .codebuddy/
 scripts/
 worktrees/
+.idea/
+.vscode/
+.kotlin/
 _jobs.json
 _relocate_tags.sh
