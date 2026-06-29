@@ -554,11 +554,7 @@ private fun SingleColumnCard(
                 contentDescription = "Generated image",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(
-                        if (item.params.width > 0 && item.params.height > 0)
-                            item.params.width.toFloat() / item.params.height
-                        else 1f,
-                    ),
+                    .aspectRatio(1f),
                 contentScale = ContentScale.Fit,
             )
             Row(
@@ -614,11 +610,7 @@ private fun GridCard(
                     contentDescription = "Generated image",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(
-                            if (item.params.width > 0 && item.params.height > 0)
-                                item.params.width.toFloat() / item.params.height
-                            else 1f,
-                        ),
+                        .aspectRatio(1f),
                     contentScale = ContentScale.Fit,
                 )
                 if (isSelectionMode) {
@@ -680,9 +672,10 @@ private fun DetailListItem(
                     .data(item.imageFile.absolutePath).crossfade(true).build(),
                 contentDescription = "Thumbnail",
                 modifier = Modifier
-                    .size(72.dp)
+                    .fillMaxHeight()
+                    .aspectRatio(1f)
                     .clip(RoundedCornerShape(6.dp)),
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
