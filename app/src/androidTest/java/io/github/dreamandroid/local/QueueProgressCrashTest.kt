@@ -321,7 +321,7 @@ class QueueProgressCrashTest {
         assertAppAlive("Phase 4: Queue tab with 20% progress")
 
         // Switch away and back rapidly (stress test recomposition)
-        val tabs = listOf("Models", "Queue", "Generate", "Queue", "Browse", "Queue")
+        val tabs = listOf("Models", "Queue", "Generate", "Queue", "Gallery", "Queue")
         for ((idx, tab) in tabs.withIndex()) {
             navigateToTab(tab)
             Thread.sleep(500)
