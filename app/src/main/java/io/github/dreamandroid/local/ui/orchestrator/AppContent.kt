@@ -193,16 +193,16 @@ fun AppContent() {
 
     // Stable lambdas passed to child composables — remembered to avoid
     // new lambda identity on every recomposition (would force child re-render).
-    val onQueueAnimEnabledChange = remember {
+    val onQueueAnimEnabledChange: (Boolean) -> Unit = remember {
         { enabled: Boolean ->
             queueAnimEnabled = enabled
             scope.launch { generationPreferences.setQueueAnimEnabled(enabled) }
         }
     }
-    val onGenParamAddQueuePositioned = remember {
+    val onGenParamAddQueuePositioned: (Offset) -> Unit = remember {
         { offset: Offset -> genParamAddQueueBtnPos = offset }
     }
-    val onToggleLayout = remember {
+    val onToggleLayout: () -> Unit = remember {
         {
             val next = browseLayoutMode.next()
             browseLayoutMode = next
