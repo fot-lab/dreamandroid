@@ -51,6 +51,7 @@ import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel
 import io.github.dreamandroid.local.ui.viewmodel.QueueViewModel
 import io.github.dreamandroid.local.ui.screens.BrowseLayoutMode
+import io.github.dreamandroid.local.ui.screens.download.DownloadManagerScreen
 import kotlinx.coroutines.launch
 
 /**
@@ -183,6 +184,17 @@ fun AppContent() {
             modelsViewModel = modelsViewModel,
             context = context,
             snackbarHostState = snackbarHostState,
+        )
+    }
+
+    // Download Manager overlay (full-screen)
+    if (modelsViewModel.showDownloadManager) {
+        DownloadManagerScreen(
+            onClose = { modelsViewModel.showDownloadManager = false },
+            onModelStateChanged = { modelId ->
+                modelsViewModel.modelRepository.refreshModelState(modelId)
+                modelsViewModel.modelRefreshVersion++
+            },
         )
     }
 

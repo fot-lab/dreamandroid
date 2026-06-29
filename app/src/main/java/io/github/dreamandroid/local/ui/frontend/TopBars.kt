@@ -33,6 +33,7 @@ fun ModelsTopBar(
     onImportModel: () -> Unit = {},
     onImportNpuModel: () -> Unit = {},
     onImportUpscaleModel: () -> Unit = {},
+    onDownloadManager: () -> Unit = {},
     onRenameModel: () -> Unit = {},
     onDeleteModel: () -> Unit = {},
     // ── ModelView multi-selection (3-dot dropdown) ─────────────
@@ -130,6 +131,17 @@ fun ModelsTopBar(
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.Hd, contentDescription = null)
+                                },
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.download_manager_menu)) },
+                                onClick = {
+                                    showImportMenu = false
+                                    onDownloadManager()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.CloudDownload, contentDescription = null)
                                 },
                             )
                         }

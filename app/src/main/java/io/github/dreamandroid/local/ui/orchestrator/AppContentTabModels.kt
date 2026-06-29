@@ -131,6 +131,7 @@ fun AppContentTabModels(
                     onImportModel = { modelsViewModel.showCustomModelDialog = true },
                     onImportNpuModel = { modelsViewModel.showCustomNpuModelDialog = true },
                     onImportUpscaleModel = { modelsViewModel.showCustomUpscaleModelDialog = true },
+                    onDownloadManager = { modelsViewModel.showDownloadManager = true },
                     onRenameModel = { modelsViewModel.prepareRename() },
                     onDeleteModel = { modelsViewModel.showDeleteConfirm = true },
                     // ── ModelView multi-selection ──

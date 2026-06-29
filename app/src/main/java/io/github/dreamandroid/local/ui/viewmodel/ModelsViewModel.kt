@@ -75,6 +75,7 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
     var showCustomModelDialog by mutableStateOf(false)
     var showCustomNpuModelDialog by mutableStateOf(false)
     var showCustomUpscaleModelDialog by mutableStateOf(false)
+    var showDownloadManager by mutableStateOf(false)
     var importingModels by mutableStateOf<List<ImportingModelState>>(emptyList())
 
     // ── Rename / Delete ───────────────────────────────────────
