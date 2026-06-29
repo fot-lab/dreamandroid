@@ -528,6 +528,15 @@ class QueueProgressCrashTest {
         }
         device.waitForIdle()
         Thread.sleep(500)
+        // Dismiss the soft keyboard — crucial: the open keyboard covers the
+        // NavigationBar, preventing UiAutomator from finding tab labels by text.
+        try {
+            device.pressBack()
+            Log.i(TAG, "Keyboard dismissed after typing")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to dismiss keyboard: ${e.message}")
+        }
+        Thread.sleep(300)
     }
 
     /**
