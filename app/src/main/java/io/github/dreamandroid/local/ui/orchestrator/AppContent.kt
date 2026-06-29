@@ -187,16 +187,8 @@ fun AppContent() {
         )
     }
 
-    // Download Manager overlay (full-screen)
-    if (modelsViewModel.showDownloadManager) {
-        DownloadManagerScreen(
-            onClose = { modelsViewModel.showDownloadManager = false },
-            onModelStateChanged = { modelId ->
-                modelsViewModel.modelRepository.refreshModelState(modelId)
-                modelsViewModel.modelRefreshVersion++
-            },
-        )
-    }
+    // NOTE: DownloadManagerScreen moved inside the outer Box (after Scaffold)
+    // to ensure correct z-ordering — it must render ON TOP of the Scaffold.
 
     // ── Queue-fly animation callbacks ──
     val onQueueAnimationRequest: () -> Unit = remember(queueAnimEnabled) {
@@ -529,6 +521,19 @@ fun AppContent() {
                     )
                 }
             }
+        }
+
+        // ── Download Manager overlay (full-screen, topmost) ──
+        // Placed last in the Box → highest z-order, renders ABOVE the Scaffold
+        // and the queue-fly animation.
+        if (modelsViewModel.showDownloadManager) {
+            DownloadManagerScreen(
+                onClose = { modelsViewModel.showDownloadManager = false },
+                onModelStateChanged = { modelId ->
+                    modelsViewModel.modelRepository.refreshModelState(modelId)
+                    modelsViewModel.modelRefreshVersion++
+                },
+            )
         }
     }
 }

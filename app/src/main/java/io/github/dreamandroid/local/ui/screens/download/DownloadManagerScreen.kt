@@ -146,6 +146,28 @@ fun DownloadManagerScreen(
         )
     }
 
+    val sendPause: (DownloadTaskEntity) -> Unit = { task ->
+        context.startForegroundService(
+            Intent(context, DownloadManagerService::class.java).apply {
+                action = DownloadManagerService.ACTION_PAUSE
+                putExtra(DownloadManagerService.EXTRA_TASK_ID, task.id)
+            }
+        )
+    }
+
+    val sendStop: (DownloadTaskEntity) -> Unit = { task ->
+        context.startForegroundService(
+            Intent(context, DownloadManagerService::class.java).apply {
+                action = DownloadManagerService.ACTION_STOP
+                putExtra(DownloadManagerService.EXTRA_TASK_ID, task.id)
+            }
+        )
+    }
+
+    // Active task for TopAppBar controls
+    val activeTask = tasks.find { it.status == DownloadTaskEntity.STATUS_DOWNLOADING }
+    val pausedTask = tasks.find { it.status == DownloadTaskEntity.STATUS_PENDING && it.downloadedBytes > 0 }
+
     // Notify parent when a model finishes downloading
     LaunchedEffect(tasks) {
         tasks.filter { it.status == DownloadTaskEntity.STATUS_COMPLETED }.forEach { task ->
@@ -165,6 +187,42 @@ fun DownloadManagerScreen(
                     navigationIcon = {
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, stringResource(R.string.close))
+                        }
+                    },
+                    actions = {
+                        // ── Global download controls ──
+                        // Active download → Pause + Stop
+                        if (activeTask != null && activeState is DownloadManagerService.DownloadManagerState.Active) {
+                            val s = activeState as DownloadManagerService.DownloadManagerState.Active
+                            if (s.status == DownloadTaskEntity.STATUS_DOWNLOADING) {
+                                IconButton(onClick = { sendPause(activeTask) }) {
+                                    Icon(Icons.Default.Pause,
+                                        contentDescription = stringResource(R.string.pause),
+                                        tint = Color(0xFFFF9800),
+                                    )
+                                }
+                                IconButton(onClick = { sendStop(activeTask) }) {
+                                    Icon(Icons.Default.Stop,
+                                        contentDescription = stringResource(R.string.stop),
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
+                        }
+                        // Paused task → Resume + Stop
+                        if (pausedTask != null && activeTask == null) {
+                            IconButton(onClick = { sendResume(pausedTask) }) {
+                                Icon(Icons.Default.PlayArrow,
+                                    contentDescription = stringResource(R.string.resume),
+                                    tint = Color(0xFF4CAF50),
+                                )
+                            }
+                            IconButton(onClick = { sendStop(pausedTask) }) {
+                                Icon(Icons.Default.Stop,
+                                    contentDescription = stringResource(R.string.stop),
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

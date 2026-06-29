@@ -125,6 +125,8 @@
     <string name="resume">Resume</string>
     <string name="retry">Retry</string>
     <string name="cancel">Cancel</string>
+    <string name="pause">Pause</string>
+    <string name="stop">Stop</string>
     <string name="extracting">Extracting…</string>
     <string name="extracting_model">Extracting %s…</string>
     <string name="unsupport_npu">Your device is not supported. Try the CPU model please.</string>

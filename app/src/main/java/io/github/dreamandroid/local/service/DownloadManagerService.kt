@@ -61,6 +61,8 @@ class DownloadManagerService : Service() {
         const val ACTION_START = "action_dm_start"
         const val ACTION_CANCEL = "action_dm_cancel"
         const val ACTION_RESUME = "action_dm_resume"
+        const val ACTION_PAUSE = "action_dm_pause"
+        const val ACTION_STOP = "action_dm_stop"
 
         const val EXTRA_TASK_ID = "task_id"
     }
@@ -95,6 +97,14 @@ class DownloadManagerService : Service() {
                 val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return START_NOT_STICKY
                 startForeground(NOTIFICATION_ID, createNotification("Resuming...", 0f))
                 processQueue()
+            }
+            ACTION_PAUSE -> {
+                val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return START_NOT_STICKY
+                pauseTask(taskId)
+            }
+            ACTION_STOP -> {
+                val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return START_NOT_STICKY
+                stopTask(taskId)
             }
             ACTION_CANCEL -> {
                 val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return START_NOT_STICKY
@@ -292,6 +302,55 @@ class DownloadManagerService : Service() {
                 zis.closeEntry()
                 entry = zis.nextEntry
             }
+        }
+    }
+
+    /**
+     * Pause the active download — cancel the coroutine job but KEEP the temp
+     * file and partial progress in Room so the user can resume later.
+     */
+    private fun pauseTask(taskId: String) {
+        currentJob?.cancel()
+        currentJob = null
+
+        serviceScope.launch {
+            val dao = db.downloadTaskDao()
+            val task = dao.getById(taskId) ?: return@launch
+
+            // Mark as PENDING (with preserved downloadedBytes for resume)
+            dao.updateStatus(
+                taskId,
+                DownloadTaskEntity.STATUS_PENDING,
+            )
+            emitState(task, 0f, task.downloadedBytes, task.totalBytes, DownloadTaskEntity.STATUS_PENDING)
+            updateNotification(task.modelName, 0f)
+            stopServiceIfIdle()
+        }
+    }
+
+    /**
+     * Stop and fully clean a task — cancels the job, deletes temp files,
+     * and removes the Room record entirely.
+     */
+    private fun stopTask(taskId: String) {
+        currentJob?.cancel()
+        currentJob = null
+
+        serviceScope.launch {
+            val dao = db.downloadTaskDao()
+            val task = dao.getById(taskId) ?: return@launch
+
+            // Clean temp file
+            val tempFile = File(cacheDir, "dm_temp/${task.id}.tmp")
+            if (tempFile.exists()) tempFile.delete()
+
+            // Clean extract temp dir
+            val extractDir = File(cacheDir, "dm_temp/${task.id}_extract")
+            if (extractDir.exists()) extractDir.deleteRecursively()
+
+            dao.delete(taskId)
+            emitState(task, 0f, 0, task.totalBytes, DownloadTaskEntity.STATUS_CANCELLED)
+            stopServiceIfIdle()
         }
     }
 
