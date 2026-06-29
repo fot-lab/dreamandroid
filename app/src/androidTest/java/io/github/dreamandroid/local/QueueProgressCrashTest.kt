@@ -499,7 +499,7 @@ class QueueProgressCrashTest {
         try {
             // Approach 1: Look for a focused or editable text field
             val textFields = device.findObjects(By.clazz("android.widget.EditText"))
-            if (textFields != null && textFields.isNotEmpty) {
+            if (textFields != null && textFields.isNotEmpty()) {
                 val tf = textFields[0]
                 tf.click()
                 Thread.sleep(300)
@@ -560,6 +560,7 @@ class QueueProgressCrashTest {
             )
         } catch (e: Exception) {
             fail("injectFakeTask failed: ${e.javaClass.simpleName}: ${e.message}\n${e.stackTraceToString()}")
+            throw e  // unreachable — fail() throws, but satisfies Kotlin type inference (String vs Unit)
         }
     }
 
