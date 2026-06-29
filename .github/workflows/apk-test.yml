@@ -235,6 +235,19 @@ jobs:
             echo "✅ Remaining tests: PASSED"
           fi
 
+          # ── Pull tab screenshots (captured by TabNavigationSmokeTest) ──
+          echo "Pulling tab screenshots..."
+          mkdir -p screenshots
+
+          for TAB in Models Queue Generate Upscale Gallery; do
+            adb pull "/sdcard/tab_${TAB}.png" "screenshots/" 2>/dev/null && \
+              echo "✅ Pulled $TAB" || \
+              echo "WARNING: pull $TAB failed (file may not exist)"
+          done
+
+          echo "=== Screenshots pulled ==="
+          ls -l screenshots/ || echo "WARNING: no screenshots directory"
+
           if [ "$OVERALL_FAILED" -eq 1 ]; then
             echo ""
             echo "❌ ONE OR MORE TEST PHASES FAILED"
@@ -259,35 +272,7 @@ jobs:
           disable-animations: true
           script: sh ./test-script.sh
 
-      # ── Capture screenshots ──
-      - name: Capture tab screenshots
-        if: always()
-        continue-on-error: true
-        run: |
-          set -uo pipefail
-
-          adb shell am start -n io.github.dreamandroid.local/.MainActivity 2>/dev/null || echo "WARNING: app start failed"
-          sleep 4
-
-          mkdir -p screenshots
-
-          TABS="Models:108:1840 Queue:324:1840 Generate:540:1840 Upscale:756:1840 Browse:972:1840"
-
-          for ENTRY in $TABS; do
-            NAME="$(echo "$ENTRY" | cut -d: -f1)"
-            X="$(echo "$ENTRY" | cut -d: -f2)"
-            Y="$(echo "$ENTRY" | cut -d: -f3)"
-            echo "Switching to $NAME tab (tap $X,$Y)..."
-            adb shell input tap "$X" "$Y" || echo "WARNING: tap $NAME failed"
-            sleep 1.5
-            adb shell screencap -p "/sdcard/tab_${NAME}.png" 2>/dev/null && \
-              adb pull "/sdcard/tab_${NAME}.png" "screenshots/" 2>/dev/null && \
-              echo "✅ Captured $NAME" || \
-              echo "WARNING: screencap/pull $NAME failed"
-          done
-
-          echo "=== Screenshots captured ==="
-          ls -l screenshots/ || echo "WARNING: no screenshots directory"
+      # ── Screenshots captured by TabNavigationSmokeTest during instrumentation ──
 
       # ── Upload tab screenshots ──
       - name: Upload tab screenshots
