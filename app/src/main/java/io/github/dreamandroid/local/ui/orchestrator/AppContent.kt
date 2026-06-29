@@ -10,6 +10,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -28,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -271,6 +271,7 @@ fun AppContent() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(hintHeightDp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline)
                                 .pointerInput(Unit) {
                                     var totalDrag = 0f
                                     detectVerticalDragGestures(
@@ -292,7 +293,7 @@ fun AppContent() {
                                 imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
-                                tint = Color.Gray.copy(alpha = 0.4f),
+                                tint = MaterialTheme.colorScheme.outline,
                             )
                         }
                     }
@@ -383,6 +384,7 @@ fun AppContent() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(hintHeightDp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline)
                                 .pointerInput(Unit) {
                                     var totalDrag = 0f
                                     detectVerticalDragGestures(
@@ -404,7 +406,7 @@ fun AppContent() {
                                 imageVector = Icons.Default.KeyboardArrowUp,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
-                                tint = Color.Gray.copy(alpha = 0.4f),
+                                tint = MaterialTheme.colorScheme.outline,
                             )
                         }
                     }
@@ -583,7 +585,7 @@ private fun QueueStarAnimation(
     Icon(
         imageVector = Icons.Default.Work,
         contentDescription = null,
-        tint = Color(0xFFFFD700), // gold
+        tint = MaterialTheme.colorScheme.tertiary,
         modifier = Modifier
             .offset { IntOffset(cx.toInt(), cy.toInt()) }
             .graphicsLayer {
@@ -650,7 +652,7 @@ private fun ExpandableIconRow(
                         tint = if (slot.onClick != null)
                             MaterialTheme.colorScheme.onSurfaceVariant
                         else
-                            Color.Gray.copy(alpha = 0.4f),
+                            MaterialTheme.colorScheme.outline,
                     )
                 }
                 if (slot.label != null) {
@@ -660,7 +662,7 @@ private fun ExpandableIconRow(
                         color = if (slot.onClick != null)
                             MaterialTheme.colorScheme.onSurfaceVariant
                         else
-                            Color.Gray.copy(alpha = 0.4f),
+                            MaterialTheme.colorScheme.outline,
                         maxLines = 1,
                     )
                 }

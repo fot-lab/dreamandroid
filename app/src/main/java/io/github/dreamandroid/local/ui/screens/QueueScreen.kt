@@ -602,7 +602,7 @@ private fun statusColor(status: TaskStatus, processingActive: Boolean): Color {
             MaterialTheme.colorScheme.primary
         else
             MaterialTheme.colorScheme.tertiary
-        TaskStatus.COMPLETED -> Color(0xFF4CAF50)
+        TaskStatus.COMPLETED -> MaterialTheme.colorScheme.primary
         TaskStatus.ERROR -> MaterialTheme.colorScheme.error
         TaskStatus.CANCELLED -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     }
