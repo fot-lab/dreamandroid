@@ -10,6 +10,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -187,8 +188,6 @@ fun AppContent() {
         )
     }
 
-    // NOTE: DownloadManagerScreen moved inside the outer Box (after Scaffold)
-    // to ensure correct z-ordering — it must render ON TOP of the Scaffold.
 
     // ── Queue-fly animation callbacks ──
     val onQueueAnimationRequest: () -> Unit = remember(queueAnimEnabled) {
@@ -365,7 +364,12 @@ fun AppContent() {
                                 ExpandableSlot(Icons.Default.Info, "Info"),
                                 ExpandableSlot(Icons.Default.Delete, "Delete"),
                                 ExpandableSlot(Icons.Default.Person, "Person"),
-                                ExpandableSlot(Icons.Default.ArrowDownward, "Download"),
+                                ExpandableSlot(Icons.Default.ArrowDownward, "Download",
+                                    onClick = {
+                                        modelsViewModel.showDownloadManager = true
+                                        isBottomBarExpanded = false
+                                    },
+                                ),
                                 ExpandableSlot(Icons.Default.Settings, "Settings"),
                             ),
                         )
@@ -452,57 +456,71 @@ fun AppContent() {
             },
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                when (mainViewModel.selectedTab) {
-                    BottomTab.Models -> AppContentTabModels(
-                        drawerState = drawerState,
-                        snackbarHostState = snackbarHostState,
-                        modelsViewModel = modelsViewModel,
-                        loadedModelId = loadedModelId,
-                        loadedModelType = loadedModelType,
-                        isModelLoaded = isModelLoaded,
-                        isModelLoading = isModelLoading,
-                        isUpscaleModelLoaded = isUpscaleModelLoaded,
-                        persistedUpscalerId = persistedUpscalerId,
+                // ── Download Manager — content-level peer module ──
+                // Appears in the same content slot as tab screens (Queue / Models
+                // / Generate / Browse). Not shown in the main NavigationBar;
+                // reachable via + menu in Models tab or expanded bottom bar.
+                if (modelsViewModel.showDownloadManager) {
+                    DownloadManagerScreen(
+                        onClose = { modelsViewModel.showDownloadManager = false },
+                        onModelStateChanged = { modelId ->
+                            modelsViewModel.modelRepository.refreshModelState(modelId)
+                            modelsViewModel.modelRefreshVersion++
+                        },
                     )
-                    BottomTab.Queue -> AppContentTabQueue(
-                        drawerState = drawerState,
-                        snackbarHostState = snackbarHostState,
-                        queueViewModel = queueViewModel,
-                        tasks = queueTasks,
-                        batchGroups = queueBatchGroups,
-                        processingActive = queueProcessing,
-                        queuePaused = queuePaused,
-                        hasPendingTasks = queueHasPending,
-                        recordRepository = recordRepository,
-                    )
-                    BottomTab.Generate -> AppContentTabGenerate(
-                        drawerState = drawerState,
-                        snackbarHostState = snackbarHostState,
-                        modelsViewModel = modelsViewModel,
-                        generateViewModel = generateViewModel,
-                        queueRepository = queueViewModel.queueRepository,
-                        loadedModelId = loadedModelId,
-                        loadedModelType = loadedModelType,
-                        recordRepository = recordRepository,
-                        onQueueAnimationRequest = onQueueAnimationRequest,
-                        queueAnimEnabled = queueAnimEnabled,
-                        onQueueAnimEnabledChange = onQueueAnimEnabledChange,
-                        onGenParamAddQueuePositioned = onGenParamAddQueuePositioned,
-                    )
-                    BottomTab.Upscale -> AppContentTabUpscale(
-                        drawerState = drawerState,
-                        snackbarHostState = snackbarHostState,
-                        loadedModelId = loadedModelId,
-                        loadedModelType = loadedModelType,
-                    )
-                    BottomTab.Browse -> AppContentTabBrowse(
-                        drawerState = drawerState,
-                        snackbarHostState = snackbarHostState,
-                        browseViewModel = browseViewModel,
-                        recordRepository = recordRepository,
-                        browseLayoutMode = browseLayoutMode,
-                        onToggleLayout = onToggleLayout,
-                    )
+                } else {
+                    when (mainViewModel.selectedTab) {
+                        BottomTab.Models -> AppContentTabModels(
+                            drawerState = drawerState,
+                            snackbarHostState = snackbarHostState,
+                            modelsViewModel = modelsViewModel,
+                            loadedModelId = loadedModelId,
+                            loadedModelType = loadedModelType,
+                            isModelLoaded = isModelLoaded,
+                            isModelLoading = isModelLoading,
+                            isUpscaleModelLoaded = isUpscaleModelLoaded,
+                            persistedUpscalerId = persistedUpscalerId,
+                        )
+                        BottomTab.Queue -> AppContentTabQueue(
+                            drawerState = drawerState,
+                            snackbarHostState = snackbarHostState,
+                            queueViewModel = queueViewModel,
+                            tasks = queueTasks,
+                            batchGroups = queueBatchGroups,
+                            processingActive = queueProcessing,
+                            queuePaused = queuePaused,
+                            hasPendingTasks = queueHasPending,
+                            recordRepository = recordRepository,
+                        )
+                        BottomTab.Generate -> AppContentTabGenerate(
+                            drawerState = drawerState,
+                            snackbarHostState = snackbarHostState,
+                            modelsViewModel = modelsViewModel,
+                            generateViewModel = generateViewModel,
+                            queueRepository = queueViewModel.queueRepository,
+                            loadedModelId = loadedModelId,
+                            loadedModelType = loadedModelType,
+                            recordRepository = recordRepository,
+                            onQueueAnimationRequest = onQueueAnimationRequest,
+                            queueAnimEnabled = queueAnimEnabled,
+                            onQueueAnimEnabledChange = onQueueAnimEnabledChange,
+                            onGenParamAddQueuePositioned = onGenParamAddQueuePositioned,
+                        )
+                        BottomTab.Upscale -> AppContentTabUpscale(
+                            drawerState = drawerState,
+                            snackbarHostState = snackbarHostState,
+                            loadedModelId = loadedModelId,
+                            loadedModelType = loadedModelType,
+                        )
+                        BottomTab.Browse -> AppContentTabBrowse(
+                            drawerState = drawerState,
+                            snackbarHostState = snackbarHostState,
+                            browseViewModel = browseViewModel,
+                            recordRepository = recordRepository,
+                            browseLayoutMode = browseLayoutMode,
+                            onToggleLayout = onToggleLayout,
+                        )
+                    }
                 }
             }
         }
@@ -521,19 +539,6 @@ fun AppContent() {
                     )
                 }
             }
-        }
-
-        // ── Download Manager overlay (full-screen, topmost) ──
-        // Placed last in the Box → highest z-order, renders ABOVE the Scaffold
-        // and the queue-fly animation.
-        if (modelsViewModel.showDownloadManager) {
-            DownloadManagerScreen(
-                onClose = { modelsViewModel.showDownloadManager = false },
-                onModelStateChanged = { modelId ->
-                    modelsViewModel.modelRepository.refreshModelState(modelId)
-                    modelsViewModel.modelRefreshVersion++
-                },
-            )
         }
     }
 }
@@ -592,12 +597,14 @@ private fun QueueStarAnimation(
 /**
  * A slot in an expandable bottom bar row.
  *
- * @param icon  icon to display (null = empty slot)
- * @param label label text below the icon (null = no label)
+ * @param icon    icon to display (null = empty slot)
+ * @param label   label text below the icon (null = no label)
+ * @param onClick click callback (null = non-interactive placeholder)
  */
 private data class ExpandableSlot(
     val icon: ImageVector?,
     val label: String?,
+    val onClick: (() -> Unit)? = null,
 )
 
 /**
@@ -626,7 +633,13 @@ private fun ExpandableIconRow(
     ) {
         slots.take(5).forEach { slot ->
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (slot.onClick != null) {
+                        Modifier.clickable { slot.onClick.invoke() }
+                    } else {
+                        Modifier
+                    }),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -634,14 +647,20 @@ private fun ExpandableIconRow(
                     Icon(
                         imageVector = slot.icon,
                         contentDescription = slot.label,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (slot.onClick != null)
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        else
+                            Color.Gray.copy(alpha = 0.4f),
                     )
                 }
                 if (slot.label != null) {
                     Text(
                         text = slot.label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (slot.onClick != null)
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        else
+                            Color.Gray.copy(alpha = 0.4f),
                         maxLines = 1,
                     )
                 }
