@@ -405,6 +405,13 @@
     <string name="nav_upscale">放大</string>
     <string name="nav_browse">图库</string>
 
+    <!-- Expanded Navigation Bar -->
+    <string name="nav_expand_info">信息</string>
+    <string name="nav_expand_recycle">回收</string>
+    <string name="nav_expand_person">个人</string>
+    <string name="nav_expand_download">下载</string>
+    <string name="nav_expand_settings">设置</string>
+
     <string name="no_model_loaded">未加载模型</string>
     <string name="generate_model_not_loaded">生成模型未加载</string>
     <string name="upscale_model_not_loaded">放大模型未加载</string>

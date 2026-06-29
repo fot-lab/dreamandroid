@@ -291,7 +291,7 @@ fun AppContent() {
                             Icon(
                                 imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxSize(0.6f),
+                                modifier = Modifier.fillMaxSize(),
                                 tint = Color.Gray.copy(alpha = 0.4f),
                             )
                         }
@@ -361,16 +361,16 @@ fun AppContent() {
                         ExpandableIconRow(
                             rowHeightPx = navBarHeightPx,
                             slots = listOf(
-                                ExpandableSlot(Icons.Default.Info, "Info"),
-                                ExpandableSlot(Icons.Default.Delete, "Delete"),
-                                ExpandableSlot(Icons.Default.Person, "Person"),
-                                ExpandableSlot(Icons.Default.ArrowDownward, "Download",
+                                ExpandableSlot(Icons.Default.Info, stringResource(R.string.nav_expand_info)),
+                                ExpandableSlot(Icons.Default.Delete, stringResource(R.string.nav_expand_recycle)),
+                                ExpandableSlot(Icons.Default.Person, stringResource(R.string.nav_expand_person)),
+                                ExpandableSlot(Icons.Default.ArrowDownward, stringResource(R.string.nav_expand_download),
                                     onClick = {
                                         modelsViewModel.showDownloadManager = true
                                         isBottomBarExpanded = false
                                     },
                                 ),
-                                ExpandableSlot(Icons.Default.Settings, "Settings"),
+                                ExpandableSlot(Icons.Default.Settings, stringResource(R.string.nav_expand_settings)),
                             ),
                         )
                     }
@@ -403,7 +403,7 @@ fun AppContent() {
                             Icon(
                                 imageVector = Icons.Default.KeyboardArrowUp,
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxSize(0.6f),
+                                modifier = Modifier.fillMaxSize(),
                                 tint = Color.Gray.copy(alpha = 0.4f),
                             )
                         }

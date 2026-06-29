@@ -371,6 +371,13 @@
     <string name="nav_upscale">업스케일</string>
     <string name="nav_browse">갤러리</string>
 
+    <!-- Expanded Navigation Bar -->
+    <string name="nav_expand_info">정보</string>
+    <string name="nav_expand_recycle">재활용</string>
+    <string name="nav_expand_person">개인</string>
+    <string name="nav_expand_download">다운로드</string>
+    <string name="nav_expand_settings">설정</string>
+
     <string name="stop_generation">생성 중지</string>
     <string name="added_to_queue">%d개의 작업이 큐에 추가됨</string>
     <string name="no_model_loaded">모델이 로드되지 않음</string>

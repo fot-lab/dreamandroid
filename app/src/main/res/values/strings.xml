@@ -415,6 +415,13 @@
     <string name="nav_upscale">Upscale</string>
     <string name="nav_browse">Gallery</string>
 
+    <!-- Expanded Navigation Bar -->
+    <string name="nav_expand_info">Info</string>
+    <string name="nav_expand_recycle">Recycle</string>
+    <string name="nav_expand_person">Person</string>
+    <string name="nav_expand_download">Download</string>
+    <string name="nav_expand_settings">Settings</string>
+
     <!-- Model Management -->
     <string name="load_model">Start model service</string>
     <string name="unload_model">Stop model service</string>

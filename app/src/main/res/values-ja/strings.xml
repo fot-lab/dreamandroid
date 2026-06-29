@@ -343,6 +343,13 @@
     <string name="nav_upscale">アップスケール</string>
     <string name="nav_browse">ギャラリー</string>
 
+    <!-- Expanded Navigation Bar -->
+    <string name="nav_expand_info">情報</string>
+    <string name="nav_expand_recycle">リサイクル</string>
+    <string name="nav_expand_person">個人</string>
+    <string name="nav_expand_download">ダウンロード</string>
+    <string name="nav_expand_settings">設定</string>
+
     <string name="stop_generation">生成停止</string>
     <string name="added_to_queue">%d 件のタスクをキューに追加しました</string>
     <string name="no_model_loaded">モデル未読み込み</string>
