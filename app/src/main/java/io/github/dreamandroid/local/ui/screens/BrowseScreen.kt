@@ -310,7 +310,7 @@ fun BrowseScreen(
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxWidth(),
-                        beyondBoundsPageCount = 1,
+                        beyondViewportPageCount = 1,
                     ) { page ->
                         val pageItem = displayItems[page]
                         AsyncImage(
@@ -394,7 +394,7 @@ fun BrowseScreen(
                         HorizontalPager(
                             state = previewPagerState,
                             modifier = Modifier.fillMaxWidth(),
-                            beyondBoundsPageCount = 1,
+                            beyondViewportPageCount = 1,
                         ) { page ->
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
