@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -28,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -188,8 +191,40 @@ fun BrowseScreen(
         )
     }
 
+    // ── Compute filtered display items (hoisted for dialog pager access) ──
+    val displayItems = remember(historyItems, filterModelIds) {
+        historyItems.filter { item ->
+            filterModelIds.isEmpty() || item.modelId in filterModelIds
+        }
+    }
+
     // ── Single Item Detail / Delete Dialog ──
-    browseViewModel.showHistoryDetailDialog?.let { item ->
+    browseViewModel.showHistoryDetailDialog?.let { _ ->
+        val pagerState = rememberPagerState(
+            initialPage = 0,
+            pageCount = { displayItems.size },
+        )
+
+        // Sync: tap thumbnail → scroll pager to matching index
+        LaunchedEffect(browseViewModel.showHistoryDetailDialog?.id) {
+            val item = browseViewModel.showHistoryDetailDialog ?: return@LaunchedEffect
+            val idx = displayItems.indexOfFirst { it.id == item.id }
+            if (idx >= 0 && idx != pagerState.currentPage) {
+                pagerState.scrollToPage(idx)
+            }
+        }
+
+        // Sync: swipe pager → update dialog item (actions apply to current page)
+        LaunchedEffect(pagerState.currentPage) {
+            displayItems.getOrNull(pagerState.currentPage)?.let { newItem ->
+                if (browseViewModel.showHistoryDetailDialog?.id != newItem.id) {
+                    browseViewModel.showHistoryDetailDialog = newItem
+                }
+            }
+        }
+
+        val currentItem = displayItems.getOrNull(pagerState.currentPage) ?: return@let
+
         var showDelete by remember { mutableStateOf(false) }
         if (showDelete) {
             AlertDialog(
@@ -199,9 +234,7 @@ fun BrowseScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            scope.launch {
-                                browseViewModel.deleteSingleItem(item)
-                            }
+                            scope.launch { browseViewModel.deleteSingleItem(currentItem) }
                             showDelete = false
                         }
                     ) {
@@ -226,7 +259,7 @@ fun BrowseScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = item.modelId,
+                        text = currentItem.modelId,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -234,7 +267,7 @@ fun BrowseScreen(
                     Row {
                         IconButton(onClick = {
                             scope.launch(Dispatchers.IO) {
-                                val ok = browseViewModel.saveSingleToGallery(context, item)
+                                val ok = browseViewModel.saveSingleToGallery(context, currentItem)
                                 if (ok) {
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(context, context.getString(R.string.image_saved), Toast.LENGTH_SHORT).show()
@@ -246,10 +279,8 @@ fun BrowseScreen(
                         }
                         IconButton(onClick = {
                             scope.launch {
-                                recordRepository?.let { browseViewModel.saveSingleParams(item, it) }
-                                Toast.makeText(
-                                    context, context.getString(R.string.parameters_saved), Toast.LENGTH_SHORT,
-                                ).show()
+                                recordRepository?.let { browseViewModel.saveSingleParams(currentItem, it) }
+                                Toast.makeText(context, context.getString(R.string.parameters_saved), Toast.LENGTH_SHORT).show()
                             }
                         }) {
                             Icon(Icons.Default.Bookmark, stringResource(R.string.save_info),
@@ -266,27 +297,45 @@ fun BrowseScreen(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(item.imageFile.absolutePath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Generated image",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Fit,
+                    // Page indicator
+                    Text(
+                        text = "${pagerState.currentPage + 1} / ${displayItems.size}",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(4.dp))
-                    if (item.params.prompt.isNotEmpty()) {
+
+                    // Swipeable image pager
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth(),
+                        beyondBoundsPageCount = 1,
+                    ) { page ->
+                        val pageItem = displayItems[page]
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(pageItem.imageFile.absolutePath)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Generated image",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+
+                    // Metadata for current page (outside pager for stable layout)
+                    if (currentItem.params.prompt.isNotEmpty()) {
                         Text(
                             text = stringResource(R.string.image_prompt),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            text = item.params.prompt,
+                            text = currentItem.params.prompt,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
@@ -294,14 +343,14 @@ fun BrowseScreen(
                     }
                     Text(
                         text = stringResource(R.string.result_params).format(
-                            item.params.steps.toString(), item.params.cfgScale,
-                            item.params.seed?.toString() ?: "-",
+                            currentItem.params.steps.toString(), currentItem.params.cfgScale,
+                            currentItem.params.seed?.toString() ?: "-",
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = "${item.params.width}×${item.params.height} · ${formatBrowseTime(item.params.generationTime)}",
+                        text = "${currentItem.params.width}×${currentItem.params.height} · ${formatBrowseTime(currentItem.params.generationTime)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -311,8 +360,21 @@ fun BrowseScreen(
     }
 
     // ── Preview Overlay ──
-    browseViewModel.showHistoryDetailDialog?.let { item ->
+    browseViewModel.showHistoryDetailDialog?.let { _ ->
         if (browseViewModel.isPreviewMode) {
+            val previewPagerState = rememberPagerState(
+                initialPage = 0,
+                pageCount = { displayItems.size },
+            )
+
+            LaunchedEffect(browseViewModel.showHistoryDetailDialog?.id) {
+                val item = browseViewModel.showHistoryDetailDialog ?: return@LaunchedEffect
+                val idx = displayItems.indexOfFirst { it.id == item.id }
+                if (idx >= 0 && idx != previewPagerState.currentPage) {
+                    previewPagerState.scrollToPage(idx)
+                }
+            }
+
             AlertDialog(
                 onDismissRequest = { browseViewModel.isPreviewMode = false },
                 confirmButton = {
@@ -321,15 +383,30 @@ fun BrowseScreen(
                     }
                 },
                 text = {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(item.imageFile.absolutePath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Preview",
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = ContentScale.Fit,
-                    )
+                    Column {
+                        Text(
+                            text = "${previewPagerState.currentPage + 1} / ${displayItems.size}",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        HorizontalPager(
+                            state = previewPagerState,
+                            modifier = Modifier.fillMaxWidth(),
+                            beyondBoundsPageCount = 1,
+                        ) { page ->
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(displayItems[page].imageFile.absolutePath)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "Preview",
+                                modifier = Modifier.fillMaxWidth(),
+                                contentScale = ContentScale.Fit,
+                            )
+                        }
+                    }
                 },
             )
         }
@@ -337,12 +414,6 @@ fun BrowseScreen(
 
     // ── Main Content ──
     Column(modifier = modifier.fillMaxSize()) {
-
-        val displayItems = remember(historyItems, filterModelIds) {
-            historyItems.filter { item ->
-                filterModelIds.isEmpty() || item.modelId in filterModelIds
-            }
-        }
 
         if (displayItems.isEmpty()) {
             Box(

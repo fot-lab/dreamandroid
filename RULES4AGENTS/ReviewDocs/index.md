@@ -1,8 +1,8 @@
 # Architecture Review — Issue Index
 
-> 版本: 19.0
-> 更新日期: 2026-06-24
-> Phase A~F+startup 审计 (66 总数, 57 Fixed/Won'tFix, 9 剩余)
+> 版本: 20.0
+> 更新日期: 2026-06-29
+> Phase A~F+startup+ViewModel 审计 (67 总数, 57 Fixed/Won'tFix, 10 剩余)
 
 > **编码规则与写入规范**: 详见入口文件 [REVIEW.md](../REVIEW.md)。
 
@@ -45,6 +45,7 @@
 | UILA-COMP-0006 | P1 | 超大 Kotlin 文件拆分 (Phase 1-4 完成, ModelRunScreen -86%; Phase 5 deferred) | Fully Fixed | [detail/UILA-COMP-0006.md](detail/UILA-COMP-0006.md) |
 | UILA-COMP-0007 | P1 | ModelRunScreen 遗留代码分析与拆分 (Phase 4: 4471→610, -86%) | Fully Fixed | [detail/UILA-COMP-0007.md](detail/UILA-COMP-0007.md) |
 | UILA-COMP-0008 | P3 | MainActivity.onCreate() 未使用 val app 变量 (重构遗留) | Newly Discovered | [detail/UILA-COMP-0008.md](detail/UILA-COMP-0008.md) |
+| UILA-COMP-0009 | P3 | MainViewModel 误用 AndroidViewModel (纯状态持有者无需 Application) | Newly Discovered | [detail/UILA-COMP-0009.md](detail/UILA-COMP-0009.md) |
 | HTTP-CLNT-0001 | P1 | 4 个 OkHttpClient 无复用 | Fully Fixed | [detail/HTTP-CLNT-0001.md](detail/HTTP-CLNT-0001.md) |
 | HTTP-CLNT-0002 | P1 | Health check 每次新建 client | Fully Fixed | [detail/HTTP-CLNT-0002.md](detail/HTTP-CLNT-0002.md) |
 | HTTP-CLNT-0003 | P2 | 超时配置不一致 | Fully Fixed | [detail/HTTP-CLNT-0003.md](detail/HTTP-CLNT-0003.md) |
