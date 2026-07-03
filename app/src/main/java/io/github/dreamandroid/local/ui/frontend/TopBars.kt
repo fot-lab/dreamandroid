@@ -343,6 +343,9 @@ fun GenerateTopBar(
     onRecordsDeselectAll: () -> Unit = {},
     onLoadSelectedRecord: () -> Unit = {},
     onDeleteSelectedRecords: () -> Unit = {},
+    onRecordsSave: () -> Unit = {},
+    onRecordsExport: () -> Unit = {},
+    onRecordsImport: () -> Unit = {},
     onPlayButtonPositioned: (Offset) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -397,6 +400,11 @@ fun GenerateTopBar(
                     Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.generate_image))
                 }
             } else {
+                if (selectedRecordCount >= 1) {
+                    IconButton(onClick = onRecordsSave) {
+                        Icon(Icons.Default.Save, contentDescription = stringResource(R.string.record_save))
+                    }
+                }
                 if (selectedRecordCount == 1) {
                     IconButton(onClick = onLoadSelectedRecord) {
                         Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.load_record))
@@ -450,6 +458,27 @@ fun GenerateTopBar(
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Deselect, contentDescription = null)
+                            },
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.record_export)) },
+                            onClick = {
+                                showGenerateMenu = false
+                                onRecordsExport()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Upload, contentDescription = null)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.record_import)) },
+                            onClick = {
+                                showGenerateMenu = false
+                                onRecordsImport()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Download, contentDescription = null)
                             },
                         )
                     }

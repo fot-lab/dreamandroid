@@ -441,6 +441,15 @@
     <string name="tab_parameters">パラメータ</string>
     <string name="tab_records">レコード</string>
     <string name="load_record">エディタに読み込む</string>
+    <string name="record_save">ファイルに保存</string>
+    <string name="record_export">エクスポート</string>
+    <string name="record_import">インポート</string>
+    <string name="export_success">%d 件のレコードをエクスポートしました</string>
+    <string name="export_failed">エクスポート失敗：%s</string>
+    <string name="import_success">%d 件のレコードをインポートしました</string>
+    <string name="import_failed">インポート失敗：%s</string>
+    <string name="import_schema_mismatch">データ構造が一致しません</string>
+    <string name="ok">OK</string>
     <string name="delete_record_confirm">選択したレコードを削除しますか？この操作は取り消せません。</string>
     <string name="queue_anim_toggle">キュー追加アニメーション</string>
 

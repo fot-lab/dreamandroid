@@ -1,7 +1,11 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
 import android.content.Context
+import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -18,6 +22,7 @@ import io.github.dreamandroid.local.data.GenerateParameterRecord
 import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.data.ModelRepository
 import io.github.dreamandroid.local.data.RecordRepository
+import io.github.dreamandroid.local.data.RecordSource
 import io.github.dreamandroid.local.service.QueueRepository
 import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.frontend.GenerateTopBar
@@ -25,7 +30,14 @@ import io.github.dreamandroid.local.ui.frontend.TabGenerateScreen
 import io.github.dreamandroid.local.ui.screens.run.inferAspectRatioString
 import io.github.dreamandroid.local.ui.viewmodel.GenerateViewModel
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Generate tab: ModalNavigationDrawer (empty) + Scaffold + GenerateTopBar + TabGenerateScreen.
@@ -59,6 +71,80 @@ fun AppContentTabGenerate(
     var recordsList by remember { mutableStateOf(emptyList<GenerateParameterRecord>()) }
     val selectedRecordCount = selectedRecordIds.size
     var showDeleteRecordsDialog by remember { mutableStateOf(false) }
+    var showImportErrorDialog by remember { mutableStateOf(false) }
+    var importErrorDetails by remember { mutableStateOf("") }
+
+    // ── Export launcher: save selected records as JSON file ──
+    val dateFormat = remember { SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val selectedRecords = recordsList.filter { it.id in selectedRecordIds }
+                val jsonArray = GenerateParameterRecord.listToJsonArray(selectedRecords)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(jsonArray.toString(2).toByteArray(Charsets.UTF_8))
+                    }
+                }
+                selectedRecordIds = emptySet()
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.export_success, selectedRecords.size)
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Export failed", e)
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.export_failed, e.message ?: "")
+                    )
+                }
+            }
+        }
+    }
+
+    // ── Import launcher: pick JSON file and import records after validation ──
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val jsonString = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
+                        ?: throw Exception("Cannot read file")
+                }
+                val jsonArray = JSONArray(jsonString)
+                // Validate schema
+                val errors = validateRecordSchema(jsonArray)
+                if (errors.isNotEmpty()) {
+                    importErrorDetails = errors.joinToString("\n")
+                    showImportErrorDialog = true
+                    return@launch
+                }
+                // Convert and import
+                val records = GenerateParameterRecord.listFromJsonArray(jsonArray)
+                withContext(Dispatchers.IO) {
+                    records.forEach { recordRepository.addRecord(it) }
+                }
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.import_success, records.size)
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Import failed", e)
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.import_failed, e.message ?: "")
+                    )
+                }
+            }
+        }
+    }
 
     // ── Reset all generation params to defaults ──
     val onGenTaskParamReset: () -> Unit = {
@@ -144,6 +230,9 @@ fun AppContentTabGenerate(
         }
     }
     val onDeleteSelectedRecords: () -> Unit = { showDeleteRecordsDialog = true }
+    val onRecordsSave: () -> Unit = { exportLauncher.launch("dreamandroid_records_${dateFormat.format(Date())}.json") }
+    val onRecordsExport: () -> Unit = { exportLauncher.launch("dreamandroid_records_${dateFormat.format(Date())}.json") }
+    val onRecordsImport: () -> Unit = { importLauncher.launch(arrayOf("application/json")) }
 
     // ── Delete records confirmation dialog ──
     if (showDeleteRecordsDialog) {
@@ -170,6 +259,20 @@ fun AppContentTabGenerate(
             dismissButton = {
                 TextButton(onClick = { showDeleteRecordsDialog = false }) {
                     Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    // ── Import schema mismatch dialog ──
+    if (showImportErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportErrorDialog = false },
+            title = { Text(stringResource(R.string.import_schema_mismatch)) },
+            text = { Text(importErrorDetails) },
+            confirmButton = {
+                TextButton(onClick = { showImportErrorDialog = false }) {
+                    Text(stringResource(R.string.ok))
                 }
             },
         )
@@ -233,6 +336,9 @@ fun AppContentTabGenerate(
                     onRecordsDeselectAll = onRecordsDeselectAll,
                     onLoadSelectedRecord = onLoadSelectedRecord,
                     onDeleteSelectedRecords = onDeleteSelectedRecords,
+                    onRecordsSave = onRecordsSave,
+                    onRecordsExport = onRecordsExport,
+                    onRecordsImport = onRecordsImport,
                     onPlayButtonPositioned = onGenParamAddQueuePositioned,
                 )
             },
@@ -285,4 +391,83 @@ fun AppContentTabGenerate(
             }
         }
     }
+}
+
+private const val TAG = "AppContentTabGen"
+
+/** Required fields for [GenerateParameterRecord] with their expected JSON types. */
+private val RECORD_REQUIRED_FIELDS = listOf(
+    "id" to "string",
+    "prompt" to "string",
+    "modelId" to "string",
+    "steps" to "number",
+    "cfg" to "number",
+    "width" to "number",
+    "height" to "number",
+    "sampler" to "string",
+    "timestamp" to "number",
+    "source" to "string",
+)
+
+/**
+ * Validates that every object in [jsonArray] matches the [GenerateParameterRecord] schema.
+ * Returns a list of human-readable error messages (empty = valid).
+ */
+private fun validateRecordSchema(jsonArray: JSONArray): List<String> {
+    val errors = mutableListOf<String>()
+
+    for (i in 0 until jsonArray.length()) {
+        val obj = jsonArray.getJSONObject(i)
+        val recordIndex = i + 1
+
+        // Check required fields exist with correct type
+        for ((field, expectedType) in RECORD_REQUIRED_FIELDS) {
+            if (!obj.has(field)) {
+                errors.add("Record $recordIndex: missing required field '$field'")
+                continue
+            }
+            val value = obj.get(field)
+            val actualType = when {
+                value is String -> "string"
+                value is Number -> "number"
+                value is Boolean -> "boolean"
+                else -> value.javaClass.simpleName.lowercase()
+            }
+            if (actualType != expectedType) {
+                // Allow nullable seed to be null
+                if (field == "seed" && value == null) continue
+                errors.add("Record $recordIndex: field '$field' expected $expectedType but got $actualType")
+            }
+        }
+
+        // Validate optional fields types if present
+        listOf("negativePrompt" to "string", "seed" to "number").forEach { (field, expectedType) ->
+            if (obj.has(field) && !obj.isNull(field)) {
+                val value = obj.get(field)
+                val actualType = when {
+                    value is String -> "string"
+                    value is Number -> "number"
+                    value is Boolean -> "boolean"
+                    else -> value.javaClass.simpleName.lowercase()
+                }
+                if (actualType != expectedType) {
+                    errors.add("Record $recordIndex: field '$field' expected $expectedType but got $actualType")
+                }
+            }
+        }
+
+        // Validate "source" enum value
+        if (obj.has("source")) {
+            val sourceValue = obj.optString("source", "")
+            if (!sourceValue.isNullOrEmpty()) {
+                try {
+                    RecordSource.valueOf(sourceValue)
+                } catch (_: IllegalArgumentException) {
+                    errors.add("Record $recordIndex: 'source' value '$sourceValue' is invalid (expected QUEUE or GALLERY)")
+                }
+            }
+        }
+    }
+
+    return errors
 }

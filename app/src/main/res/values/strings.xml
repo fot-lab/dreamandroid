@@ -499,6 +499,15 @@
     <string name="tab_parameters">Parameters</string>
     <string name="tab_records">Records</string>
     <string name="load_record">Load to editor</string>
+    <string name="record_save">Save to file</string>
+    <string name="record_export">Export</string>
+    <string name="record_import">Import</string>
+    <string name="export_success">%d record(s) exported successfully</string>
+    <string name="export_failed">Export failed: %s</string>
+    <string name="import_success">%d record(s) imported successfully</string>
+    <string name="import_failed">Import failed: %s</string>
+    <string name="import_schema_mismatch">Schema Mismatch</string>
+    <string name="ok">OK</string>
     <string name="delete_record_confirm">Delete selected record(s)? This action cannot be undone.</string>
     <string name="queue_anim_toggle">Add-to-queue animation</string>
 

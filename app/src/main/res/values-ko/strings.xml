@@ -432,6 +432,15 @@
     <string name="tab_parameters">파라미터</string>
     <string name="tab_records">기록</string>
     <string name="load_record">에디터로 불러오기</string>
+    <string name="record_save">파일로 저장</string>
+    <string name="record_export">내보내기</string>
+    <string name="record_import">가져오기</string>
+    <string name="export_success">%d개의 기록을 내보냈습니다</string>
+    <string name="export_failed">내보내기 실패: %s</string>
+    <string name="import_success">%d개의 기록을 가져왔습니다</string>
+    <string name="import_failed">가져오기 실패: %s</string>
+    <string name="import_schema_mismatch">데이터 구조 불일치</string>
+    <string name="ok">확인</string>
     <string name="delete_record_confirm">선택한 기록을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</string>
     <string name="queue_anim_toggle">대기열 추가 애니메이션</string>
 

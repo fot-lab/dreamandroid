@@ -481,6 +481,15 @@
     <string name="tab_parameters">参数</string>
     <string name="tab_records">记录</string>
     <string name="load_record">加载到编辑器</string>
+    <string name="record_save">保存到文件</string>
+    <string name="record_export">导出</string>
+    <string name="record_import">导入</string>
+    <string name="export_success">成功导出 %d 条记录</string>
+    <string name="export_failed">导出失败：%s</string>
+    <string name="import_success">成功导入 %d 条记录</string>
+    <string name="import_failed">导入失败：%s</string>
+    <string name="import_schema_mismatch">数据结构不匹配</string>
+    <string name="ok">确定</string>
     <string name="delete_record_confirm">确认删除选中的记录？此操作不可撤销。</string>
     <string name="queue_anim_toggle">添加到队列动画</string>
 
