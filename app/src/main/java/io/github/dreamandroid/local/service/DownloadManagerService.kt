@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.Model
 import io.github.dreamandroid.local.data.db.download.DownloadDatabase
+import io.github.dreamandroid.local.data.db.download.DownloadTaskDao
 import io.github.dreamandroid.local.data.db.download.DownloadTaskEntity
 import io.github.dreamandroid.local.service.http.HttpClientProvider
 import java.io.File
