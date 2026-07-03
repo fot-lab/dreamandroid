@@ -404,15 +404,13 @@ fun GenerateTopBar(
                     IconButton(onClick = onRecordsSave) {
                         Icon(Icons.Default.Save, contentDescription = stringResource(R.string.record_save))
                     }
+                    IconButton(onClick = onDeleteSelectedRecords) {
+                        Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                    }
                 }
                 if (selectedRecordCount == 1) {
                     IconButton(onClick = onLoadSelectedRecord) {
                         Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.load_record))
-                    }
-                }
-                if (selectedRecordCount >= 1) {
-                    IconButton(onClick = onDeleteSelectedRecords) {
-                        Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }

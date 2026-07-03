@@ -231,7 +231,7 @@ fun AppContentTabGenerate(
     }
     val onDeleteSelectedRecords: () -> Unit = { showDeleteRecordsDialog = true }
     val onRecordsSave: () -> Unit = { exportLauncher.launch("dreamandroid_records_${dateFormat.format(Date())}.json") }
-    val onRecordsExport: () -> Unit = { exportLauncher.launch("dreamandroid_records_${dateFormat.format(Date())}.json") }
+    val onRecordsExport: () -> Unit = onRecordsSave
     val onRecordsImport: () -> Unit = { importLauncher.launch(arrayOf("application/json")) }
 
     // ── Delete records confirmation dialog ──
