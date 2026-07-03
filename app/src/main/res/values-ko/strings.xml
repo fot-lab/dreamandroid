@@ -2,6 +2,66 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">DreamHub</string>
 
+    <!-- Common -->
+    <!-- Actions -->
+    <string name="confirm">확인</string>
+    <string name="cancel">취소</string>
+    <string name="save">저장</string>
+    <string name="close">닫기</string>
+    <string name="back">뒤로</string>
+    <string name="delete">삭제</string>
+    <string name="delete_model">모델 삭제</string>
+    <string name="delete_confirm">선택한 모델 %s개를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
+    <string name="yes">예</string>
+    <string name="got_it">알겠습니다!</string>
+    <string name="help">도움말</string>
+    <string name="download">다운로드</string>
+    <string name="reset">초기화</string>
+    <string name="undo">실행 취소</string>
+    <string name="redo">다시 실행</string>
+    <string name="share">공유</string>
+    <string name="update">업데이트</string>
+    <string name="extracting">추출 중…</string>
+    <string name="select_all">모두 선택</string>
+    <string name="deselect_all">모두 선택 해제</string>
+    <string name="invert_selection">선택 반전</string>
+
+    <!-- Status -->
+    <string name="downloaded">다운로드 완료</string>
+    <string name="delete_success">삭제됨</string>
+    <string name="delete_failed">삭제 중 오류 발생</string>
+    <string name="download_complete">다운로드 완료</string>
+    <string name="download_failed">다운로드 실패</string>
+
+    <!-- Labels -->
+    <string name="settings">설정</string>
+    <string name="appearance">화면</string>
+    <string name="about_app">참고</string>
+    <string name="must_read">이 앱은 CPU/GPU와 일부 Qualcomm NPU에서 Stable Diffusion 이미지 생성을 실행할 수 있습니다.\n\nSD1.5 모델은 Hexagon V68 아키텍처 이상의 Snapdragon NPU에서 지원됩니다.\n\nSDXL 모델은 Snapdragon 8 Gen 3 이상 기기에서 지원됩니다.\n\n사용 중인 칩이 위 범위에 해당하지 않으면 CPU/GPU에서만 실행할 수 있습니다.\n\n이 프로젝트는 https://github.com/xororz/local-dream 의 포크입니다.\n\n이 소프트웨어는 학습 목적으로만 제공됩니다. 문제가 발생하면 직접 해결하시기 바랍니다. 어떠한 기술 지원이나 서비스도 제공되지 않습니다.\n\n이 소프트웨어는 "있는 그대로" 제공되며, 어떠한 명시적 또는 묵시적 보증도 하지 않습니다. 사용에 따른 위험은 본인이 부담합니다.</string>
+    <string name="backend_settings">백엔드</string>
+    <string name="generation_settings">생성</string>
+    <string name="health_check_settings">헬스 체크</string>
+    <string name="download_settings_section">다운로드</string>
+    <string name="download_source">다운로드 소스</string>
+    <string name="feature_settings">기능 설정</string>
+    <string name="file_manager">파일 관리자</string>
+    <string name="version_label">버전: %1$s</string>
+
+    <!-- Theme -->
+    <string name="theme_preset">색상 테마</string>
+    <string name="theme_preset_hint">동적 색상을 사용하지 않을 때 적용됩니다</string>
+    <string name="dynamic_color">동적 색상</string>
+    <string name="dynamic_color_hint">배경화면 색상에 맞춥니다(Android 12+)</string>
+    <string name="dark_mode">다크 모드</string>
+    <string name="dark_mode_system">시스템</string>
+    <string name="dark_mode_light">라이트</string>
+    <string name="dark_mode_dark">다크</string>
+    <string name="oled_black">OLED 순수 검정</string>
+    <string name="oled_black_hint">AMOLED 화면에서 전력 절약을 위해 완전 검정 배경 사용</string>
+    <string name="theme_tangerine">탠저린</string>
+    <string name="theme_forest">포레스트</string>
+    <string name="theme_ocean">오션</string>
+    <string name="theme_amber">앰버</string>
     <!-- Models -->
     <string name="anythingv5_description">애니풍 이미지 생성</string>
     <string name="sdxl_base_description">SDXL 범용 이미지 생성</string>
@@ -44,56 +104,20 @@
     <string name="backend_notify_title">SD 모델 백엔드</string>
     <string name="generating_notify">이미지 생성 중…</string>
 
-    <!-- Common -->
-    <string name="settings">설정</string>
-    <string name="appearance">화면</string>
-    <string name="theme_preset">색상 테마</string>
-    <string name="theme_preset_hint">동적 색상을 사용하지 않을 때 적용됩니다</string>
-    <string name="dynamic_color">동적 색상</string>
-    <string name="dynamic_color_hint">배경화면 색상에 맞춥니다(Android 12+)</string>
-    <string name="dark_mode">다크 모드</string>
-    <string name="dark_mode_system">시스템</string>
-    <string name="dark_mode_light">라이트</string>
-    <string name="dark_mode_dark">다크</string>
-    <string name="oled_black">OLED 순수 검정</string>
-    <string name="oled_black_hint">AMOLED 화면에서 전력 절약을 위해 완전 검정 배경 사용</string>
-    <string name="backend_settings">백엔드</string>
-    <string name="generation_settings">생성</string>
-    <string name="health_check_settings">헬스 체크</string>
-    <string name="download_settings_section">다운로드</string>
-    <string name="version_label">버전: %1$s</string>
-    <string name="theme_tangerine">탠저린</string>
-    <string name="theme_forest">포레스트</string>
-    <string name="theme_ocean">오션</string>
-    <string name="theme_amber">앰버</string>
-    <string name="confirm">확인</string>
-    <string name="cancel">취소</string>
-    <string name="save">저장</string>
-    <string name="back">뒤로</string>
-    <string name="close">닫기</string>
-    <string name="delete">삭제</string>
-    <string name="delete_model">모델 삭제</string>
-    <string name="delete_confirm">선택한 모델 %s개를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
-    <string name="got_it">알겠습니다!</string>
-    <string name="yes">예</string>
-    <string name="about_app">참고</string>
-    <string name="must_read">이 앱은 CPU/GPU와 일부 Qualcomm NPU에서 Stable Diffusion 이미지 생성을 실행할 수 있습니다.\n\nSD1.5 모델은 Hexagon V68 아키텍처 이상의 Snapdragon NPU에서 지원됩니다.\n\nSDXL 모델은 Snapdragon 8 Gen 3 이상 기기에서 지원됩니다.\n\n사용 중인 칩이 위 범위에 해당하지 않으면 CPU/GPU에서만 실행할 수 있습니다.\n\n이 프로젝트는 https://github.com/xororz/local-dream 의 포크입니다.\n\n이 소프트웨어는 학습 목적으로만 제공됩니다. 문제가 발생하면 직접 해결하시기 바랍니다. 어떠한 기술 지원이나 서비스도 제공되지 않습니다.\n\n이 소프트웨어는 "있는 그대로" 제공되며, 어떠한 명시적 또는 묵시적 보증도 하지 않습니다. 사용에 따른 위험은 본인이 부담합니다.</string>
-    <string name="help">도움말</string>
-
     <!-- Model List Screen -->
     <string name="available_models">사용 가능한 모델</string>
     <plurals name="selected_items">
         <item quantity="other">%d개 선택됨</item>
     </plurals>
-    <string name="download">다운로드</string>
+    
     <string name="download_from">다운로드 소스</string>
     <string name="download_settings_hint">Hugging Face 또는 다른 미러 URL에서 다운로드</string>
     <string name="source_huggingface">Hugging Face</string>
     <string name="source_hf_mirror">hf-mirror</string>
     <string name="source_custom">사용자 지정</string>
-    <string name="downloaded">다운로드 완료</string>
-    <string name="delete_success">삭제됨</string>
-    <string name="delete_failed">삭제 중 오류 발생</string>
+    
+    
+    
     <string name="cannot_download">다운로드할 수 없음</string>
     <string name="cannot_download_hint">모델을 다운로드하는 중입니다. 잠시 기다려 주세요.</string>
     <string name="download_model">모델 다운로드</string>
@@ -118,8 +142,8 @@
     <!-- Inpaint Screen -->
     <string name="set_inpaint_area">인페인트 영역 설정</string>
     <string name="inpaint_hint">인페인트할 영역을 칠하세요</string>
-    <string name="undo">실행 취소</string>
-    <string name="redo">다시 실행</string>
+    
+    
     <string name="brush_color">브러시 색상</string>
 
     <!-- Run Screen -->
@@ -166,7 +190,7 @@
     <string name="deleted_count_with_failed" tools:ignore="PluralsCandidate">%1$d개 항목 삭제 성공, %2$d개 실패</string>
     <string name="confirm_exit">종료 확인</string>
     <string name="confirm_exit_hint">생성이 진행 중입니다. 종료하면 현재 생성이 중단됩니다. 종료하시겠습니까?</string>
-    <string name="reset">초기화</string>
+    
     <string name="reset_hint">모든 파라미터를 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
     <string name="media_permission_hint">img2img 생성에는 미디어 권한이 필요합니다</string>
     <string name="backend_failed">백엔드 시작에 실패했습니다. 기기가 지원되지 않을 수 있습니다.</string>
@@ -183,9 +207,9 @@
     <string name="reproduce">재사용</string>
     <string name="reproduce_params_title">파라미터 재사용</string>
     <string name="reproduce_params_hint">프롬프트 페이지에 적용할 항목을 선택하세요.</string>
-    <string name="select_all">모두 선택</string>
-    <string name="invert_selection">선택 반전</string>
-    <string name="deselect_all">모두 선택 해제</string>
+    
+    
+    
     <string name="result_params">스텝: %1$s / CFG: %2$.1f / 시드: %3$s</string>
     <string name="result_params_2">크기: %1$sx%2$s / 시간: %3$s / %4$s</string>
     <string name="params_detail">세부 정보</string>
@@ -201,7 +225,7 @@
     <string name="opencl_warning">GPU 런타임 경고: 각 해상도에서 처음 실행할 때 캐시 파일을 생성하므로 느릴 수 있습니다. 이후 실행은 훨씬 빨라집니다.</string>
 
     <!-- Parameter Share -->
-    <string name="share">공유</string>
+    
     <string name="share_params_title">파라미터 공유</string>
     <string name="share_params_hint">복사할 필드를 선택하세요. 결과는 클립보드에 복사되어 어디에나 붙여넣을 수 있습니다.</string>
     <string name="share_use_base64">Base64 인코딩</string>
@@ -232,7 +256,7 @@
     <string name="loading_model">모델 로드 중…</string>
 
     <!-- File Manager -->
-    <string name="file_manager">파일 관리자</string>
+    
     <string name="delete_file">파일 삭제</string>
     <string name="delete_file_confirm">\"%s\" 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
     <string name="file_deleted">파일을 삭제했습니다</string>
@@ -249,8 +273,8 @@
     <string name="cache_cleared">캐시를 지웠습니다</string>
 
     <!-- Settings -->
-    <string name="download_source">다운로드 소스</string>
-    <string name="feature_settings">기능 설정</string>
+    
+    
 
     <!-- Custom Model -->
     <string name="add_custom_model">사용자 지정 모델 추가</string>
@@ -317,9 +341,9 @@
     <string name="model_download_channel">모델 다운로드</string>
     <string name="model_download_channel_desc">모델 다운로드 진행률 알림</string>
     <string name="downloading_model">%s 다운로드 중</string>
-    <string name="download_complete">다운로드 완료</string>
-    <string name="download_failed">다운로드 실패</string>
-    <string name="update">업데이트</string>
+    
+    
+    
     <string name="upgrade_model">모델 업그레이드</string>
     <string name="upgrade_model_hint">%s의 새 버전을 사용할 수 있습니다. 업그레이드하시겠습니까?</string>
     <string name="download_background_hint">다운로드는 백그라운드에서 계속됩니다. 다른 앱으로 전환해도 됩니다.</string>
@@ -332,7 +356,7 @@
     <string name="aspect_ratio_custom_hint">양의 정수 두 개를 입력하세요(예: 21 9)</string>
     <string name="aspect_ratio_invalid">잘못된 비율입니다. 양의 정수 두 개여야 합니다.</string>
     <string name="scheduler">스케줄러</string>
-    <string name="extracting">추출 중…</string>
+    
 
     <!-- History migration -->
     <string name="migration_title">기록을 가져오는 중</string>
@@ -410,4 +434,5 @@
     <string name="load_record">에디터로 불러오기</string>
     <string name="delete_record_confirm">선택한 기록을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</string>
     <string name="queue_anim_toggle">대기열 추가 애니메이션</string>
+
 </resources>

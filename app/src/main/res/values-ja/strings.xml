@@ -1,6 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">DreamHub</string>
+
+    <!-- Common -->
+    <!-- Actions -->
+    <string name="confirm">決定</string>
+    <string name="cancel">取り消す</string>
+    <string name="save">保存</string>
+    <string name="close">閉じる</string>
+    <string name="back">戻る</string>
+    <string name="delete">削除</string>
+    <string name="delete_model">モデルの消去</string>
+    <string name="delete_confirm">指定された %s のモデルを削除しますか？この操作は取り消せません！</string>
+    <string name="yes">はい</string>
+    <string name="got_it">わかった</string>
+    <string name="help">ヘルプ</string>
+    <string name="download">ダウンロード</string>
+    <string name="reset">リセット</string>
+    <string name="undo">元に戻す</string>
+    <string name="redo">やり直す</string>
+    <string name="share">共有</string>
+    <string name="update">更新</string>
+    <string name="extracting">抽出中…</string>
+    <string name="select_all">すべて選択</string>
+    <string name="deselect_all">すべて解除</string>
+    <string name="invert_selection">選択を反転</string>
+
+    <!-- Status -->
+    <string name="downloaded">ダウンロード済み</string>
+    <string name="delete_success">削除完了</string>
+    <string name="delete_failed">削除エラー</string>
+    <string name="download_complete">ダウンロード完了</string>
+    <string name="download_failed">ダウンロード失敗</string>
+
+    <!-- Labels -->
+    <string name="settings">設定</string>
+    <string name="appearance">外観</string>
+    <string name="about_app">重要</string>
+    <string name="must_read">このアプリは、CPU/GPU および一部の Qualcomm 製 NPU 上で Stable Diffusion による画像生成を実行できます。\n\nSD1.5 モデルは、Hexagon V68 アーキテクチャ以降の Snapdragon NPU で動作します。\n\nSDXL モデルは、Snapdragon 8 Gen 3 以降のデバイスで動作します。\n\n上記に該当しないチップでは、CPU/GPU のみでの実行となります。\n\nこのプロジェクトは\nhttps://github.com/xororz/local-dream\nのフォークです。\n\n本ソフトウェアは学習目的で提供されています。問題が発生した場合はご自身で解決してください。技術サポートやサービスは一切提供されません。\n\n本ソフトウェアは「現状有姿」で提供され、いかなる明示的または黙示的な保証もありません。自己責任でご利用ください。</string>
+    <string name="backend_settings">バックエンド</string>
+    <string name="generation_settings">生成</string>
+    <string name="health_check_settings">ヘルスチェック</string>
+    <string name="download_settings_section">ダウンロード</string>
+    <string name="download_source">ダウンロード先</string>
+    <string name="feature_settings">機能設定</string>
+    <string name="file_manager">ファイル管理</string>
+    <string name="version_label">バージョン：%1$s</string>
+
+    <!-- Theme -->
+    <string name="theme_preset">テーマカラー</string>
+    <string name="theme_preset_hint">ダイナミックカラーがオフの時に適用</string>
+    <string name="dynamic_color">ダイナミックカラー</string>
+    <string name="dynamic_color_hint">壁紙の色に合わせる (Android 12+)</string>
+    <string name="dark_mode">ダークモード</string>
+    <string name="dark_mode_system">システム</string>
+    <string name="dark_mode_light">ライト</string>
+    <string name="dark_mode_dark">ダーク</string>
+    <string name="oled_black">OLED 純黒</string>
+    <string name="oled_black_hint">AMOLEDディスプレイで完全な黒背景を使用して電力を節約</string>
+    <string name="theme_tangerine">オレンジ</string>
+    <string name="theme_forest">フォレスト</string>
+    <string name="theme_ocean">オーシャン</string>
+    <string name="theme_amber">アンバー</string>
     <string name="anythingv5_description">Anime Image Generation</string>
     <string name="sdxl_base_description">SDXL General Image Generation</string>
     <string name="illustriousv16_description">WAI Illustrious SDXL v16</string>
@@ -40,53 +101,53 @@
     <string name="backend_notify">バックエンドサービス実行中</string>
     <string name="backend_notify_title">SD モデルのバックエンド</string>
     <string name="generating_notify">画像の生成中…</string>
-    <string name="settings">設定</string>
-    <string name="appearance">外観</string>
-    <string name="theme_preset">テーマカラー</string>
-    <string name="theme_preset_hint">ダイナミックカラーがオフの時に適用</string>
-    <string name="dynamic_color">ダイナミックカラー</string>
-    <string name="dynamic_color_hint">壁紙の色に合わせる (Android 12+)</string>
-    <string name="dark_mode">ダークモード</string>
-    <string name="dark_mode_system">システム</string>
-    <string name="dark_mode_light">ライト</string>
-    <string name="dark_mode_dark">ダーク</string>
-    <string name="oled_black">OLED 純黒</string>
-    <string name="oled_black_hint">AMOLEDディスプレイで完全な黒背景を使用して電力を節約</string>
-    <string name="backend_settings">バックエンド</string>
-    <string name="generation_settings">生成</string>
-    <string name="health_check_settings">ヘルスチェック</string>
-    <string name="download_settings_section">ダウンロード</string>
-    <string name="version_label">バージョン：%1$s</string>
-    <string name="theme_tangerine">オレンジ</string>
-    <string name="theme_forest">フォレスト</string>
-    <string name="theme_ocean">オーシャン</string>
-    <string name="theme_amber">アンバー</string>
-    <string name="confirm">決定</string>
-    <string name="cancel">取り消す</string>
-    <string name="save">保存</string>
-    <string name="back">戻る</string>
-    <string name="close">閉じる</string>
-    <string name="delete">削除</string>
-    <string name="delete_model">モデルの消去</string>
-    <string name="delete_confirm">指定された %s のモデルを削除しますか？この操作は取り消せません！</string>
-    <string name="got_it">わかった</string>
-    <string name="yes">はい</string>
-    <string name="about_app">重要</string>
-    <string name="must_read">このアプリは、CPU/GPU および一部の Qualcomm 製 NPU 上で Stable Diffusion による画像生成を実行できます。\n\nSD1.5 モデルは、Hexagon V68 アーキテクチャ以降の Snapdragon NPU で動作します。\n\nSDXL モデルは、Snapdragon 8 Gen 3 以降のデバイスで動作します。\n\n上記に該当しないチップでは、CPU/GPU のみでの実行となります。\n\nこのプロジェクトは\nhttps://github.com/xororz/local-dream\nのフォークです。\n\n本ソフトウェアは学習目的で提供されています。問題が発生した場合はご自身で解決してください。技術サポートやサービスは一切提供されません。\n\n本ソフトウェアは「現状有姿」で提供され、いかなる明示的または黙示的な保証もありません。自己責任でご利用ください。</string>
-    <string name="help">ヘルプ</string>
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     <string name="available_models">利用可能なモデル</string>
     <plurals name="selected_items">
         <item quantity="other">%d 選択</item>
     </plurals>
-    <string name="download">ダウンロード</string>
+    
     <string name="download_from">ダウンロード先</string>
     <string name="download_settings_hint">huggingface または 他のミラーのURL</string>
     <string name="source_huggingface">Hugging Face</string>
     <string name="source_hf_mirror">hf-mirror</string>
     <string name="source_custom">カスタム</string>
-    <string name="downloaded">ダウンロード済み</string>
-    <string name="delete_success">削除完了</string>
-    <string name="delete_failed">削除エラー</string>
+    
+    
+    
     <string name="cannot_download">ダウンロードできません</string>
     <string name="cannot_download_hint">モデルをダウンロード中です。お待ちください。</string>
     <string name="download_model">モデルをダウンロード</string>
@@ -108,8 +169,8 @@
     <string name="crop_hint">ドラッグして切り抜き範囲を調整</string>
     <string name="set_inpaint_area">インペイント範囲を設定</string>
     <string name="inpaint_hint">インペイントしたい部分を塗ってください</string>
-    <string name="undo">元に戻す</string>
-    <string name="redo">やり直す</string>
+    
+    
     <string name="brush_color">ブラシの色</string>
     <string name="prompt_settings">プロンプト</string>
     <string name="advanced_settings">詳細</string>
@@ -154,7 +215,7 @@
     <string name="deleted_count_with_failed" tools:ignore="PluralsCandidate">%1$d 個のアイテムを正常に削除しましたが、%2$d 個のアイテムは削除できませんでした</string>
     <string name="confirm_exit">閉じてよろしいですか？</string>
     <string name="confirm_exit_hint">生成中です。終了してもよろしいですか?</string>
-    <string name="reset">リセット</string>
+    
     <string name="reset_hint">すべてのパラメータをリセットしますか? この操作は元に戻せません。</string>
     <string name="media_permission_hint">img2img生成にはメディア許可が必要です</string>
     <string name="backend_failed">バックエンドの起動に失敗しました。デバイスがサポートされていない可能性があります。</string>
@@ -169,9 +230,9 @@
     <string name="reproduce">コピー</string>
     <string name="reproduce_params_title">パラメータを再現</string>
     <string name="reproduce_params_hint">プロンプトページに適用する項目を選択してください。</string>
-    <string name="select_all">すべて選択</string>
-    <string name="invert_selection">選択を反転</string>
-    <string name="deselect_all">すべて解除</string>
+    
+    
+    
     <string name="result_params">ステップ: %1$s / CFG: %2$.1f / シード: %3$s</string>
     <string name="result_params_2">サイズ: %1$s×%2$s / 処理時間: %3$s / %4$s</string>
     <string name="params_detail">パラメータの詳細</string>
@@ -187,7 +248,7 @@
     <string name="opencl_warning">GPUランタイムに関する警告：各解像度での最初の実行はキャッシュファイルを生成するため、処理速度が遅くなります。その後の実行は大幅に高速化されます。</string>
 
     <!-- パラメータ共有 -->
-    <string name="share">共有</string>
+    
     <string name="share_params_title">パラメータを共有</string>
     <string name="share_params_hint">共有する項目を選択してください。JSON としてクリップボードに書き込まれ、任意の方法で送信できます。</string>
     <string name="share_use_base64">Base64 エンコード</string>
@@ -212,7 +273,7 @@
     <string name="unknown_error">不明なエラー</string>
     <string name="image_saved">画像をギャラリーに保存しました</string>
     <string name="loading_model">モデルの読み込み中…</string>
-    <string name="file_manager">ファイル管理</string>
+    
     <string name="delete_file">ファイルを削除</string>
     <string name="delete_file_confirm">ファイル「%s」を削除してもよろしいですか?</string>
     <string name="file_deleted">ファイルが正常に削除されました</string>
@@ -227,8 +288,8 @@
     <string name="clear_cache_with_size">キャッシュを消去 (%s)</string>
     <string name="clear_cache_confirm">このモデルのキャッシュディレクトリを消去しますか？プロンプトキャッシュと OpenCL キャッシュは次回使用時に再生成されます。</string>
     <string name="cache_cleared">キャッシュを消去しました</string>
-    <string name="download_source">ダウンロード先</string>
-    <string name="feature_settings">機能設定</string>
+    
+    
     <string name="add_custom_model">カスタムモデルを追加</string>
     <string name="add_custom_npu_model">カスタムNPUモデルを追加</string>
     <string name="custom_model">カスタムモデル</string>
@@ -289,9 +350,9 @@
     <string name="model_download_channel">モデルのダウンロード</string>
     <string name="model_download_channel_desc">モデルのダウンロード進行状況の通知</string>
     <string name="downloading_model">%sをダウンロード中</string>
-    <string name="download_complete">ダウンロード完了</string>
-    <string name="download_failed">ダウンロード失敗</string>
-    <string name="update">更新</string>
+    
+    
+    
     <string name="upgrade_model">モデルをアップグレード</string>
     <string name="upgrade_model_hint">%s の新しいバージョンが利用可能です。アップグレードしますか？</string>
     <string name="download_background_hint">ダウンロードはバックグラウンドで続行されます。他のアプリに切り替えることができます。</string>
@@ -304,7 +365,7 @@
     <string name="aspect_ratio_custom_hint">正の整数を2つ入力（例: 21 9）</string>
     <string name="aspect_ratio_invalid">無効な比率です。2つの正の整数を入力してください。</string>
     <string name="scheduler">スケジューラー</string>
-    <string name="extracting">抽出中…</string>
+    
 
     <!-- History migration -->
     <string name="migration_title">履歴をインポート中</string>
@@ -382,4 +443,5 @@
     <string name="load_record">エディタに読み込む</string>
     <string name="delete_record_confirm">選択したレコードを削除しますか？この操作は取り消せません。</string>
     <string name="queue_anim_toggle">キュー追加アニメーション</string>
+
 </resources>

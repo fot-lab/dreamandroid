@@ -2,6 +2,75 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">DreamHub</string>
 
+    <!-- Common -->
+    <!-- Actions -->
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="close">Close</string>
+    <string name="back">Back</string>
+    <string name="delete">Delete</string>
+    <string name="delete_model">Delete Model</string>
+    <string name="delete_confirm">Delete selected %s models? This action cannot be undone.</string>
+    <string name="yes">Yes</string>
+    <string name="got_it">Got It!</string>
+    <string name="help">Help</string>
+    <string name="download">Download</string>
+    <string name="resume">Resume</string>
+    <string name="retry">Retry</string>
+    <string name="pause">Pause</string>
+    <string name="stop">Stop</string>
+    <string name="reset">Reset</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="share">Share</string>
+    <string name="update">Update</string>
+    <string name="extracting">Extracting…</string>
+    <string name="select_all">Select all</string>
+    <string name="deselect_all">Deselect all</string>
+    <string name="invert_selection">Invert selection</string>
+
+    <!-- Status -->
+    <string name="downloaded">Downloaded</string>
+    <string name="delete_success">Deleted</string>
+    <string name="delete_failed">Error in deletion</string>
+    <string name="download_complete">Download complete</string>
+    <string name="download_failed">Download failed</string>
+
+    <!-- Labels -->
+    <string name="settings">Settings</string>
+    <string name="appearance">Appearance</string>
+    <string name="about_app">Note</string>
+    <string name="must_read">This APP supports running stable diffusion image generation on CPU/GPU and some Qualcomm NPUs.\n\nSD1.5 models are supported on Snapdragon NPUs with Hexagon V68 architecture or newer.\n\nSDXL models are supported on Snapdragon 8 Gen 3 and newer devices.\n\nIf your chip is outside the above scope, you can only run on CPU/GPU.\n\nThis project is a fork of https://github.com/xororz/local-dream\n\nThis software is provided for learning purposes only. If you encounter any issues, please resolve them yourself. No technical support or service is provided.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. USE AT YOUR OWN RISK.</string>
+    <string name="backend_settings">Backend</string>
+    <string name="generation_settings">Generation</string>
+    <string name="health_check_settings">Health Check</string>
+    <string name="download_settings_section">Downloads</string>
+    <string name="download_source">Download Source</string>
+    <string name="feature_settings">Feature Settings</string>
+    <string name="file_manager">File Manager</string>
+    <string name="version_label">Version: %1$s</string>
+    <string name="debug_section">Debug</string>
+    <string name="debug_queue">Queue Debug</string>
+    <string name="debug_queue_hint">Enable verbose logging for queue operations</string>
+    <string name="debug_model">Model Debug</string>
+    <string name="debug_model_hint">Enable verbose logging for model operations</string>
+
+    <!-- Theme -->
+    <string name="theme_preset">Color theme</string>
+    <string name="theme_preset_hint">Used when dynamic color is off</string>
+    <string name="dynamic_color">Dynamic color</string>
+    <string name="dynamic_color_hint">Match colors to your wallpaper (Android 12+)</string>
+    <string name="dark_mode">Dark mode</string>
+    <string name="dark_mode_system">System</string>
+    <string name="dark_mode_light">Light</string>
+    <string name="dark_mode_dark">Dark</string>
+    <string name="oled_black">OLED pure black</string>
+    <string name="oled_black_hint">Use true black background on AMOLED screens to save power</string>
+    <string name="theme_tangerine">Tangerine</string>
+    <string name="theme_forest">Forest</string>
+    <string name="theme_ocean">Ocean</string>
+    <string name="theme_amber">Amber</string>
     <!-- Models -->
     <string name="anythingv5_description">Anime Image Generation</string>
     <string name="sdxl_base_description">SDXL General Image Generation</string>
@@ -54,62 +123,21 @@
     <string name="backend_notify_title">SD Model Backend</string>
     <string name="generating_notify">Image Generating…</string>
 
-    <!-- Common -->
-    <string name="settings">Settings</string>
-    <string name="appearance">Appearance</string>
-    <string name="theme_preset">Color theme</string>
-    <string name="theme_preset_hint">Used when dynamic color is off</string>
-    <string name="dynamic_color">Dynamic color</string>
-    <string name="dynamic_color_hint">Match colors to your wallpaper (Android 12+)</string>
-    <string name="dark_mode">Dark mode</string>
-    <string name="dark_mode_system">System</string>
-    <string name="dark_mode_light">Light</string>
-    <string name="dark_mode_dark">Dark</string>
-    <string name="oled_black">OLED pure black</string>
-    <string name="oled_black_hint">Use true black background on AMOLED screens to save power</string>
-    <string name="backend_settings">Backend</string>
-    <string name="generation_settings">Generation</string>
-    <string name="health_check_settings">Health Check</string>
-    <string name="download_settings_section">Downloads</string>
-    <string name="version_label">Version: %1$s</string>
-    <string name="theme_tangerine">Tangerine</string>
-    <string name="theme_forest">Forest</string>
-    <string name="theme_ocean">Ocean</string>
-    <string name="theme_amber">Amber</string>
-    <string name="confirm">Confirm</string>
-    <string name="cancel">Cancel</string>
-    <string name="save">Save</string>
-    <string name="back">Back</string>
-    <string name="close">Close</string>
-    <string name="delete">Delete</string>
-    <string name="delete_model">Delete Model</string>
-    <string name="delete_confirm">Delete selected %s models? This action cannot be undone.</string>
-    <string name="got_it">Got It!</string>
-    <string name="yes">Yes</string>
-    <string name="debug_section">Debug</string>
-    <string name="debug_queue">Queue Debug</string>
-    <string name="debug_queue_hint">Enable verbose logging for queue operations</string>
-    <string name="debug_model">Model Debug</string>
-    <string name="debug_model_hint">Enable verbose logging for model operations</string>
-    <string name="about_app">Note</string>
-    <string name="must_read">This APP supports running stable diffusion image generation on CPU/GPU and some Qualcomm NPUs.\n\nSD1.5 models are supported on Snapdragon NPUs with Hexagon V68 architecture or newer.\n\nSDXL models are supported on Snapdragon 8 Gen 3 and newer devices.\n\nIf your chip is outside the above scope, you can only run on CPU/GPU.\n\nThis project is a fork of https://github.com/xororz/local-dream\n\nThis software is provided for learning purposes only. If you encounter any issues, please resolve them yourself. No technical support or service is provided.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. USE AT YOUR OWN RISK.</string>
-    <string name="help">Help</string>
-
     <!-- Model List Screen -->
     <string name="available_models">Available Models</string>
     <plurals name="selected_items">
         <item quantity="one">%d Selected</item>
         <item quantity="other">%d Selected</item>
     </plurals>
-    <string name="download">Download</string>
+    
     <string name="download_from">Download From</string>
     <string name="download_settings_hint">Download from huggingface or other mirror url</string>
     <string name="source_huggingface">Hugging Face</string>
     <string name="source_hf_mirror">hf-mirror</string>
     <string name="source_custom">Custom</string>
-    <string name="downloaded">Downloaded</string>
-    <string name="delete_success">Deleted</string>
-    <string name="delete_failed">Error in deletion</string>
+    
+    
+    
     <string name="cannot_download">Cannot Download</string>
     <string name="cannot_download_hint">A model is being downloaded, please wait.</string>
     <string name="download_model">Download Model</string>
@@ -122,11 +150,11 @@
     <string name="downloading_progress">%1$s / %2$s</string>
     <string name="download_paused">Paused (%1$s downloaded)</string>
     <string name="queued">Waiting in queue…</string>
-    <string name="resume">Resume</string>
-    <string name="retry">Retry</string>
-    <string name="pause">Pause</string>
-    <string name="stop">Stop</string>
-    <string name="extracting">Extracting…</string>
+    
+    
+    
+    
+    
     <string name="extracting_model">Extracting %s…</string>
     <string name="unsupport_npu">Your device is not supported. Try the CPU model please.</string>
     <string name="cpu_models">CPU Models</string>
@@ -148,8 +176,8 @@
     <!-- Inpaint Screen -->
     <string name="set_inpaint_area">Set Inpaint Area</string>
     <string name="inpaint_hint">Paint over the areas you want to inpaint</string>
-    <string name="undo">Undo</string>
-    <string name="redo">Redo</string>
+    
+    
     <string name="brush_color">Brush Color</string>
 
     <!-- Run Screen -->
@@ -201,7 +229,7 @@
     <string name="deleted_count_with_failed" tools:ignore="PluralsCandidate">Successfully deleted %1$d items, failed %2$d items</string>
     <string name="confirm_exit">Confirm to Exit</string>
     <string name="confirm_exit_hint">Generation in progress, Are you sure to Exit?</string>
-    <string name="reset">Reset</string>
+    
     <string name="reset_hint">Reset all parameters? This action cannot be undone. </string>
     <string name="media_permission_hint">Media permission is needed for img2img generation</string>
     <string name="backend_failed">Backend start failed. Maybe your device is not supported.</string>
@@ -218,9 +246,9 @@
     <string name="reproduce">Reproduce</string>
     <string name="reproduce_params_title">Reproduce Parameters</string>
     <string name="reproduce_params_hint">Pick the fields to apply to the prompt page.</string>
-    <string name="select_all">Select all</string>
-    <string name="invert_selection">Invert selection</string>
-    <string name="deselect_all">Deselect all</string>
+    
+    
+    
     <string name="result_params">steps: %1$s / CFG: %2$.1f / seed: %3$s</string>
     <string name="result_params_2">size: %1$sx%2$s / time: %3$s / %4$s</string>
     <string name="params_detail">Details</string>
@@ -236,7 +264,7 @@
     <string name="opencl_warning">GPU runtime warning: The first run at each resolution will be slow as it generates cache files. Subsequent runs will be much faster.</string>
 
     <!-- Parameter Share -->
-    <string name="share">Share</string>
+    
     <string name="share_params_title">Share Parameters</string>
     <string name="share_params_hint">Pick the fields to copy. The result is written to the clipboard so you can paste it anywhere.</string>
     <string name="share_use_base64">Base64 encoding</string>
@@ -274,7 +302,7 @@
     <string name="loading_model">Loading model…</string>
 
     <!-- File Manager -->
-    <string name="file_manager">File Manager</string>
+    
     <string name="delete_file">Delete File</string>
     <string name="delete_file_confirm">Are you sure you want to delete the file \"%s\"?</string>
     <string name="file_deleted">File deleted successfully</string>
@@ -292,8 +320,8 @@
     <string name="cache_cleared">Cache cleared</string>
 
     <!-- Settings -->
-    <string name="download_source">Download Source</string>
-    <string name="feature_settings">Feature Settings</string>
+    
+    
 
     <!-- Custom Model -->
     <string name="add_custom_model">Add Custom Model</string>
@@ -360,9 +388,9 @@
     <string name="model_download_channel">Model Downloads</string>
     <string name="model_download_channel_desc">Notifications for model download progress</string>
     <string name="downloading_model">Downloading %s</string>
-    <string name="download_complete">Download complete</string>
-    <string name="download_failed">Download failed</string>
-    <string name="update">Update</string>
+    
+    
+    
     <string name="upgrade_model">Upgrade Model</string>
     <string name="upgrade_model_hint">A new version of %s is available. Do you want to upgrade?</string>
     <string name="download_background_hint">Download continues in the background. You can switch to other apps.</string>
@@ -375,7 +403,6 @@
     <string name="aspect_ratio_custom_hint">Enter two positive integers (e.g. 21 9)</string>
     <string name="aspect_ratio_invalid">Invalid ratio. Must be two positive integers.</string>
     <string name="scheduler">Scheduler</string>
-    <string name="extracting">Extracting…</string>
 
     <!-- History migration -->
     <string name="migration_title">Importing history</string>
@@ -474,4 +501,5 @@
     <string name="load_record">Load to editor</string>
     <string name="delete_record_confirm">Delete selected record(s)? This action cannot be undone.</string>
     <string name="queue_anim_toggle">Add-to-queue animation</string>
+
 </resources>

@@ -2,6 +2,75 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">DreamHub</string>
 
+    <!-- Common -->
+    <!-- Actions -->
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="save">保存</string>
+    <string name="close">关闭</string>
+    <string name="back">返回</string>
+    <string name="delete">删除</string>
+    <string name="delete_model">删除模型</string>
+    <string name="delete_confirm">确定要删除选中的 %s 个模型吗？此操作不可恢复</string>
+    <string name="yes">是</string>
+    <string name="got_it">知道了!</string>
+    <string name="help">帮助</string>
+    <string name="download">下载</string>
+    <string name="resume">继续</string>
+    <string name="retry">重试</string>
+    <string name="pause">暂停</string>
+    <string name="stop">停止</string>
+    <string name="reset">恢复默认参数</string>
+    <string name="undo">撤销</string>
+    <string name="redo">重做</string>
+    <string name="share">分享</string>
+    <string name="update">更新</string>
+    <string name="extracting">解压中…</string>
+    <string name="select_all">全选</string>
+    <string name="deselect_all">全不选</string>
+    <string name="invert_selection">反选</string>
+
+    <!-- Status -->
+    <string name="downloaded">已下载</string>
+    <string name="delete_success">删除成功</string>
+    <string name="delete_failed">删除过程出错</string>
+    <string name="download_complete">下载完成</string>
+    <string name="download_failed">下载失败</string>
+
+    <!-- Labels -->
+    <string name="settings">设置</string>
+    <string name="appearance">外观</string>
+    <string name="about_app">须知</string>
+    <string name="must_read">此APP支持在CPU/GPU和部分高通NPU上运行stable diffusion图像生成。\n\n支持在 Hexagon V68 架构及以上的骁龙 NPU 上运行 SD1.5 模型。\n\n支持在骁龙 8 Gen 3 及更新的设备上运行 SDXL 模型。\n\n若您的芯片不在上述范围内，则只能使用 CPU/GPU 运行。\n\n本项目基于 https://github.com/xororz/local-dream 的fork。\n\n本软件仅供学习参考，如有问题请自行解决，不提供任何技术支持与服务。\n\n本软件按"原样"提供，不附带任何形式的明示或默示担保。使用风险自负。</string>
+    <string name="backend_settings">后端</string>
+    <string name="generation_settings">生成</string>
+    <string name="health_check_settings">健康检查</string>
+    <string name="download_settings_section">下载</string>
+    <string name="download_source">下载源</string>
+    <string name="feature_settings">功能设置</string>
+    <string name="file_manager">文件管理器</string>
+    <string name="version_label">版本：%1$s</string>
+    <string name="debug_section">调试</string>
+    <string name="debug_queue">队列调试</string>
+    <string name="debug_queue_hint">启用队列操作的详细日志</string>
+    <string name="debug_model">模型调试</string>
+    <string name="debug_model_hint">启用模型操作的详细日志</string>
+
+    <!-- Theme -->
+    <string name="theme_preset">配色主题</string>
+    <string name="theme_preset_hint">关闭动态颜色后生效</string>
+    <string name="dynamic_color">动态颜色</string>
+    <string name="dynamic_color_hint">跟随系统壁纸取色 (Android 12+)</string>
+    <string name="dark_mode">深色模式</string>
+    <string name="dark_mode_system">跟随系统</string>
+    <string name="dark_mode_light">浅色</string>
+    <string name="dark_mode_dark">深色</string>
+    <string name="oled_black">OLED 纯黑</string>
+    <string name="oled_black_hint">在 AMOLED 屏幕上使用纯黑背景以节省电量</string>
+    <string name="theme_tangerine">暖橙</string>
+    <string name="theme_forest">森林</string>
+    <string name="theme_ocean">海洋</string>
+    <string name="theme_amber">琥珀</string>
     <!-- Models -->
     <string name="anythingv5_description">动漫图像生成模型</string>
     <string name="sdxl_base_description">SDXL 通用图像生成模型</string>
@@ -52,61 +121,20 @@
     <string name="backend_notify_title">SD模型后端</string>
     <string name="generating_notify">图像生成中…</string>
 
-    <!-- Common -->
-    <string name="settings">设置</string>
-    <string name="appearance">外观</string>
-    <string name="theme_preset">配色主题</string>
-    <string name="theme_preset_hint">关闭动态颜色后生效</string>
-    <string name="dynamic_color">动态颜色</string>
-    <string name="dynamic_color_hint">跟随系统壁纸取色 (Android 12+)</string>
-    <string name="dark_mode">深色模式</string>
-    <string name="dark_mode_system">跟随系统</string>
-    <string name="dark_mode_light">浅色</string>
-    <string name="dark_mode_dark">深色</string>
-    <string name="oled_black">OLED 纯黑</string>
-    <string name="oled_black_hint">在 AMOLED 屏幕上使用纯黑背景以节省电量</string>
-    <string name="backend_settings">后端</string>
-    <string name="generation_settings">生成</string>
-    <string name="health_check_settings">健康检查</string>
-    <string name="download_settings_section">下载</string>
-    <string name="version_label">版本：%1$s</string>
-    <string name="theme_tangerine">暖橙</string>
-    <string name="theme_forest">森林</string>
-    <string name="theme_ocean">海洋</string>
-    <string name="theme_amber">琥珀</string>
-    <string name="confirm">确定</string>
-    <string name="cancel">取消</string>
-    <string name="save">保存</string>
-    <string name="back">返回</string>
-    <string name="close">关闭</string>
-    <string name="delete">删除</string>
-    <string name="delete_model">删除模型</string>
-    <string name="delete_confirm">确定要删除选中的 %s 个模型吗？此操作不可恢复</string>
-    <string name="got_it">知道了!</string>
-    <string name="yes">是</string>
-    <string name="debug_section">调试</string>
-    <string name="debug_queue">队列调试</string>
-    <string name="debug_queue_hint">启用队列操作的详细日志</string>
-    <string name="debug_model">模型调试</string>
-    <string name="debug_model_hint">启用模型操作的详细日志</string>
-    <string name="about_app">须知</string>
-    <string name="must_read">此APP支持在CPU/GPU和部分高通NPU上运行stable diffusion图像生成。\n\n支持在 Hexagon V68 架构及以上的骁龙 NPU 上运行 SD1.5 模型。\n\n支持在骁龙 8 Gen 3 及更新的设备上运行 SDXL 模型。\n\n若您的芯片不在上述范围内，则只能使用 CPU/GPU 运行。\n\n本项目基于 https://github.com/xororz/local-dream 的fork。\n\n本软件仅供学习参考，如有问题请自行解决，不提供任何技术支持与服务。\n\n本软件按"原样"提供，不附带任何形式的明示或默示担保。使用风险自负。</string>
-    <string name="help">帮助</string>
-
     <!-- Model List Screen -->
     <string name="available_models">可用模型</string>
     <plurals name="selected_items">
         <item quantity="other">已选择 %d 项</item>
     </plurals>
-    <string name="download">下载</string>
+    
     <string name="download_from">下载地址</string>
     <string name="download_settings_hint">设置模型下载地址\n默认为https://huggingface.co/\n国内用户可使用镜像https://hf-mirror.com/</string>
     <string name="source_huggingface">Hugging Face</string>
     <string name="source_hf_mirror">hf-mirror</string>
     <string name="source_custom">自定义</string>
-    <string name="downloaded">已下载</string>
-    <string name="delete_success">删除成功</string>
-    <string name="delete_failed">删除过程出错</string>
+    
+    
+    
     <string name="cannot_download">无法下载</string>
     <string name="cannot_download_hint">当前有模型正在下载，请等待下载完成后再尝试</string>
     <string name="download_model">下载模型</string>
@@ -119,11 +147,11 @@
     <string name="downloading_progress">%1$s / %2$s</string>
     <string name="download_paused">已暂停（已下载 %1$s）</string>
     <string name="queued">排队等待中…</string>
-    <string name="resume">继续</string>
-    <string name="retry">重试</string>
-    <string name="pause">暂停</string>
-    <string name="stop">停止</string>
-    <string name="extracting">解压中…</string>
+    
+    
+    
+    
+    
     <string name="extracting_model">正在解压 %s…</string>
     <string name="unsupport_npu">您的设备暂不支持，请使用CPU版本</string>
     <string name="cpu_models">CPU Models</string>
@@ -144,8 +172,8 @@
     <!-- Inpaint Screen -->
     <string name="set_inpaint_area">设置重绘区域</string>
     <string name="inpaint_hint">在图像上涂抹你想要重绘的区域</string>
-    <string name="undo">撤销</string>
-    <string name="redo">重做</string>
+    
+    
     <string name="brush_color">笔刷颜色</string>
 
     <!-- Run Screen -->
@@ -192,7 +220,7 @@
     <string name="deleted_count_with_failed" tools:ignore="PluralsCandidate">成功删除 %1$d 项，失败 %2$d 项</string>
     <string name="confirm_exit">确定退出</string>
     <string name="confirm_exit_hint">图片正在生成中，确定要退出吗？</string>
-    <string name="reset">恢复默认参数</string>
+    
     <string name="reset_hint">确定要将所有参数（包括提示词）恢复为默认值吗？此操作不可撤销。</string>
     <string name="media_permission_hint">img2img功能需要媒体权限</string>
     <string name="backend_failed">后端启动失败，您的设备可能不受支持</string>
@@ -209,9 +237,9 @@
     <string name="reproduce">复制</string>
     <string name="reproduce_params_title">复用参数</string>
     <string name="reproduce_params_hint">选择要应用到提示词页面的字段。</string>
-    <string name="select_all">全选</string>
-    <string name="invert_selection">反选</string>
-    <string name="deselect_all">全不选</string>
+    
+    
+    
     <string name="result_params">步数: %1$s / CFG: %2$.1f / 种子: %3$s</string>
     <string name="result_params_2">尺寸: %1$sx%2$s / 耗时: %3$s / %4$s</string>
     <string name="params_detail">生成参数详情</string>
@@ -227,7 +255,7 @@
     <string name="opencl_warning">GPU运行时警告：每个分辨率的首次运行会比较慢，这会生成缓存文件。后续运行会快一些。</string>
 
     <!-- 参数分享 -->
-    <string name="share">分享</string>
+    
     <string name="share_params_title">分享参数</string>
     <string name="share_params_hint">勾选要分享的字段，将以 JSON 形式写入剪贴板，便于通过任意方式发送。</string>
     <string name="share_use_base64">Base64 编码</string>
@@ -265,7 +293,7 @@
     <string name="loading_model">模型加载中…</string>
 
     <!-- File Manager -->
-    <string name="file_manager">文件管理器</string>
+    
     <string name="delete_file">删除文件</string>
     <string name="delete_file_confirm">确定要删除文件 \"%s\" 吗？</string>
     <string name="file_deleted">文件删除成功</string>
@@ -282,8 +310,8 @@
     <string name="cache_cleared">缓存已清除</string>
 
     <!-- Settings -->
-    <string name="download_source">下载源</string>
-    <string name="feature_settings">功能设置</string>
+    
+    
 
     <!-- Custom Model -->
     <string name="add_custom_model">添加自定义模型</string>
@@ -350,9 +378,9 @@
     <string name="model_download_channel">模型下载</string>
     <string name="model_download_channel_desc">模型下载进度通知</string>
     <string name="downloading_model">正在下载 %s</string>
-    <string name="download_complete">下载完成</string>
-    <string name="download_failed">下载失败</string>
-    <string name="update">更新</string>
+    
+    
+    
     <string name="upgrade_model">升级模型</string>
     <string name="upgrade_model_hint">%s 有新版本可用，是否要升级？</string>
     <string name="download_background_hint">下载将在后台继续进行，您可以切换到其他应用</string>
@@ -365,7 +393,6 @@
     <string name="aspect_ratio_custom_hint">输入两个正整数（如 21 9）</string>
     <string name="aspect_ratio_invalid">无效的比例，必须为两个正整数。</string>
     <string name="scheduler">调度器</string>
-    <string name="extracting">解压中…</string>
 
     <!-- History migration -->
     <string name="migration_title">正在导入历史记录</string>
@@ -456,4 +483,5 @@
     <string name="load_record">加载到编辑器</string>
     <string name="delete_record_confirm">确认删除选中的记录？此操作不可撤销。</string>
     <string name="queue_anim_toggle">添加到队列动画</string>
+
 </resources>
