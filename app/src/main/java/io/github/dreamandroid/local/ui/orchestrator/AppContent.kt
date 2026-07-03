@@ -10,7 +10,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -271,7 +271,7 @@ fun AppContent() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(hintHeightDp)
-                                .border(1.dp, MaterialTheme.colorScheme.outline)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .pointerInput(Unit) {
                                     var totalDrag = 0f
                                     detectVerticalDragGestures(
@@ -293,7 +293,7 @@ fun AppContent() {
                                 imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
-                                tint = MaterialTheme.colorScheme.outline,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -384,7 +384,7 @@ fun AppContent() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(hintHeightDp)
-                                .border(1.dp, MaterialTheme.colorScheme.outline)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .pointerInput(Unit) {
                                     var totalDrag = 0f
                                     detectVerticalDragGestures(
@@ -406,7 +406,7 @@ fun AppContent() {
                                 imageVector = Icons.Default.KeyboardArrowUp,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
-                                tint = MaterialTheme.colorScheme.outline,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
