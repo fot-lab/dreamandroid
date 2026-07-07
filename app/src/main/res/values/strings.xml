@@ -511,5 +511,22 @@
     <string name="delete_record_confirm">Delete selected record(s)? This action cannot be undone.</string>
     <string name="queue_anim_toggle">Add-to-queue animation</string>
     <string name="cfg_fine_step_toggle">CFG Scale fine step (0.01)</string>
+    <string name="sampler_label">Sampler</string>
+    <string name="denoise_curve_label">Denoise Curve</string>
+    <string name="denoise_karras">Karras</string>
+    <string name="cfg_scale">CFG Scale: %s</string>
+    <string name="width_short">W</string>
+    <string name="height_short">H</string>
+    <string name="cpu_width">Width: %d</string>
+    <string name="cpu_height">Height: %d</string>
+    <string name="runtime_label">Runtime</string>
+    <string name="runtime_cpu">CPU</string>
+    <string name="runtime_gpu">GPU</string>
+    <string name="no_saved_records">No saved records</string>
+    <string name="no_saved_records_hint">Save prompts from Queue or Gallery to see them here</string>
+    <string name="empty_prompt">(empty prompt)</string>
+    <string name="a11y_decrease">Decrease</string>
+    <string name="a11y_increase">Increase</string>
+    <string name="a11y_clear">Clear</string>
 
 </resources>

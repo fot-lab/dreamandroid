@@ -238,7 +238,7 @@ fun GenerateScreen(
                             saveAllFields()
                         },
                     ) {
-                        Icon(Icons.Default.Remove, "Decrease")
+                        Icon(Icons.Default.Remove, stringResource(R.string.a11y_decrease))
                     }
                     var batchFieldFocused by remember { mutableStateOf(false) }
                     OutlinedTextField(
@@ -283,7 +283,7 @@ fun GenerateScreen(
                             saveAllFields()
                         },
                     ) {
-                        Icon(Icons.Default.Add, "Increase")
+                        Icon(Icons.Default.Add, stringResource(R.string.a11y_increase))
                     }
                 }
             }
@@ -413,7 +413,7 @@ fun GenerateScreen(
                             saveAllFields()
                         }
                     },
-                    label = { Text("W") },
+                    label = { Text(stringResource(R.string.width_short)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier
@@ -444,7 +444,7 @@ fun GenerateScreen(
                             saveAllFields()
                         }
                     },
-                    label = { Text("H") },
+                    label = { Text(stringResource(R.string.height_short)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier
@@ -484,8 +484,10 @@ fun GenerateScreen(
             val cfgSteps = if (cfgFineGranularity) 2899 else 57
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    if (cfgFineGranularity) "CFG Scale: %.2f".format(cfg)
-                    else "CFG Scale: %.1f".format(cfg),
+                    stringResource(
+                        R.string.cfg_scale,
+                        if (cfgFineGranularity) "%.2f".format(cfg) else "%.1f".format(cfg),
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Slider(
@@ -507,7 +509,7 @@ fun GenerateScreen(
             )
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "采样器",
+                    stringResource(R.string.sampler_label),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Row(
@@ -539,12 +541,12 @@ fun GenerateScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "降噪曲线",
+                        stringResource(R.string.denoise_curve_label),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        "Karras",
+                        stringResource(R.string.denoise_karras),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.alpha(if (karrasSupported) 1f else 0.4f),
                     )
@@ -576,7 +578,7 @@ fun GenerateScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Width: $width", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.cpu_width, width), style = MaterialTheme.typography.labelSmall)
                             Slider(
                                 value = width.toFloat(),
                                 onValueChange = {
@@ -588,7 +590,7 @@ fun GenerateScreen(
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Height: $height", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.cpu_height, height), style = MaterialTheme.typography.labelSmall)
                             Slider(
                                 value = height.toFloat(),
                                 onValueChange = {
@@ -608,17 +610,17 @@ fun GenerateScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Runtime", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.runtime_label), style = MaterialTheme.typography.bodyMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = !useOpenCL,
                             onClick = { onUseOpenCLChange(false); saveAllFields() },
-                            label = { Text("CPU") },
+                            label = { Text(stringResource(R.string.runtime_cpu)) },
                         )
                         FilterChip(
                             selected = useOpenCL,
                             onClick = { onUseOpenCLChange(true); saveAllFields() },
-                            label = { Text("GPU") },
+                            label = { Text(stringResource(R.string.runtime_gpu)) },
                         )
                     }
                 }
@@ -641,7 +643,7 @@ fun GenerateScreen(
                 trailingIcon = {
                     if (seed.isNotEmpty()) {
                         IconButton(onClick = { onSeedChange(""); saveAllFields() }) {
-                            Icon(Icons.Default.Clear, "clear")
+                            Icon(Icons.Default.Clear, stringResource(R.string.a11y_clear))
                         }
                     }
                 },
@@ -691,13 +693,13 @@ private fun RecordsTabContent(
                 )
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "No saved records",
+                    stringResource(R.string.no_saved_records),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Save prompts from Queue or Gallery to see them here",
+                    stringResource(R.string.no_saved_records_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
@@ -772,7 +774,7 @@ private fun RecordCard(
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = record.prompt.ifEmpty { "(empty prompt)" },
+                        text = record.prompt.ifEmpty { stringResource(R.string.empty_prompt) },
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -798,7 +800,7 @@ private fun RecordCard(
                     if (record.seed != null) {
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "Seed: ${record.seed}",
+                            text = stringResource(R.string.basic_seed, record.seed),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

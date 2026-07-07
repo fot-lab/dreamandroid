@@ -453,5 +453,22 @@
     <string name="delete_record_confirm">選択したレコードを削除しますか？この操作は取り消せません。</string>
     <string name="queue_anim_toggle">キュー追加アニメーション</string>
     <string name="cfg_fine_step_toggle">CFG Scale 細かいステップ (0.01)</string>
+    <string name="sampler_label">サンプラー</string>
+    <string name="denoise_curve_label">ノイズ除去カーブ</string>
+    <string name="denoise_karras">Karras</string>
+    <string name="cfg_scale">CFG Scale: %s</string>
+    <string name="width_short">幅</string>
+    <string name="height_short">高</string>
+    <string name="cpu_width">幅: %d</string>
+    <string name="cpu_height">高さ: %d</string>
+    <string name="runtime_label">ランタイム</string>
+    <string name="runtime_cpu">CPU</string>
+    <string name="runtime_gpu">GPU</string>
+    <string name="no_saved_records">保存された記録なし</string>
+    <string name="no_saved_records_hint">キューまたはギャラリーから保存するとここに表示</string>
+    <string name="empty_prompt">（空のプロンプト）</string>
+    <string name="a11y_decrease">減らす</string>
+    <string name="a11y_increase">増やす</string>
+    <string name="a11y_clear">クリア</string>
 
 </resources>
