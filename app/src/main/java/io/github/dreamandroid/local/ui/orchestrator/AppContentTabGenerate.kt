@@ -65,6 +65,10 @@ fun AppContentTabGenerate(
     val scope = rememberCoroutineScope()
     val generationPreferences = remember { GenerationPreferences(context) }
 
+    // ── CFG fine granularity setting ──
+    val cfgFineGranularity by generationPreferences.observeCfgFineGranularity()
+        .collectAsState(initial = false)
+
     // ── Records tab selection state ──
     var selectedGenerateTab by remember { mutableIntStateOf(0) }
     var selectedRecordIds by remember { mutableStateOf(setOf<String>()) }
@@ -318,6 +322,23 @@ fun AppContentTabGenerate(
                         onCheckedChange = onQueueAnimEnabledChange,
                     )
                 }
+                // CFG fine granularity toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.cfg_fine_step_toggle),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = cfgFineGranularity,
+                        onCheckedChange = { scope.launch { generationPreferences.setCfgFineGranularity(it) } },
+                    )
+                }
             }
         },
     ) {
@@ -387,6 +408,7 @@ fun AppContentTabGenerate(
                     negativePromptTokenCount = generateViewModel.negativePromptTokenCount,
                     negativePromptTokenMax = generateViewModel.negativePromptTokenMax,
                     negativePromptOverflowOffset = generateViewModel.negativePromptOverflowOffset,
+                    cfgFineGranularity = cfgFineGranularity,
                 )
             }
         }

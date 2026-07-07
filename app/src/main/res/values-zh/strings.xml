@@ -492,5 +492,6 @@
     <string name="ok">确定</string>
     <string name="delete_record_confirm">确认删除选中的记录？此操作不可撤销。</string>
     <string name="queue_anim_toggle">添加到队列动画</string>
+    <string name="cfg_fine_step_toggle">CFG Scale 精细步长 (0.01)</string>
 
 </resources>

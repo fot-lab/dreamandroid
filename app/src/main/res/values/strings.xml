@@ -510,5 +510,6 @@
     <string name="ok">OK</string>
     <string name="delete_record_confirm">Delete selected record(s)? This action cannot be undone.</string>
     <string name="queue_anim_toggle">Add-to-queue animation</string>
+    <string name="cfg_fine_step_toggle">CFG Scale fine step (0.01)</string>
 
 </resources>

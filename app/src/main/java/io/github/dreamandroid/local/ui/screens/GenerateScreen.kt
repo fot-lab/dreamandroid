@@ -99,6 +99,7 @@ fun GenerateScreen(
     negativePromptTokenCount: Int = 0,
     negativePromptTokenMax: Int = 77,
     negativePromptOverflowOffset: Int = -1,
+    cfgFineGranularity: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -497,16 +498,18 @@ fun GenerateScreen(
             }
 
             // CFG Scale
+            val cfgSteps = if (cfgFineGranularity) 2899 else 57
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "CFG Scale: %.1f".format(cfg),
+                    if (cfgFineGranularity) "CFG Scale: %.2f".format(cfg)
+                    else "CFG Scale: %.1f".format(cfg),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Slider(
                     value = cfg,
                     onValueChange = { onCfgChange(it); saveAllFields() },
                     valueRange = 1f..30f,
-                    steps = 57,
+                    steps = cfgSteps,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
