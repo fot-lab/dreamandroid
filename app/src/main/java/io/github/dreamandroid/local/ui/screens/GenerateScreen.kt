@@ -218,21 +218,18 @@ fun GenerateScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-            Spacer(Modifier.height(4.dp))
-
             // ---- Batch Count (moved to top, above prompt) ----
             var batchText by remember(batchCounts) { mutableStateOf(batchCounts.toString()) }
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Text(
                     stringResource(R.string.batch_count_label),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     FilledIconButton(
                         onClick = {
                             val newVal = (batchCounts - 1).coerceAtLeast(1)
@@ -240,11 +237,9 @@ fun GenerateScreen(
                             batchText = newVal.toString()
                             saveAllFields()
                         },
-                        modifier = Modifier.size(40.dp),
                     ) {
                         Icon(Icons.Default.Remove, "Decrease")
                     }
-                    Spacer(Modifier.width(12.dp))
                     var batchFieldFocused by remember { mutableStateOf(false) }
                     OutlinedTextField(
                         value = batchText,
@@ -268,7 +263,6 @@ fun GenerateScreen(
                         singleLine = true,
                         textStyle = MaterialTheme.typography.titleMedium,
                         modifier = Modifier
-                            .width(80.dp)
                             .onFocusChanged { state ->
                                 batchFieldFocused = state.isFocused
                                 if (!state.isFocused) {
@@ -281,7 +275,6 @@ fun GenerateScreen(
                                 }
                             },
                     )
-                    Spacer(Modifier.width(12.dp))
                     FilledIconButton(
                         onClick = {
                             val newVal = (batchCounts + 1).coerceAtMost(60)
@@ -289,7 +282,6 @@ fun GenerateScreen(
                             batchText = newVal.toString()
                             saveAllFields()
                         },
-                        modifier = Modifier.size(40.dp),
                     ) {
                         Icon(Icons.Default.Add, "Increase")
                     }
@@ -398,8 +390,6 @@ fun GenerateScreen(
             )
 
             // ---- Width / Height (screen-level, below negative prompt) ----/
-            Spacer(Modifier.height(8.dp))
-
             var widthText by remember(width) { mutableStateOf(width.toString()) }
             var heightText by remember(height) { mutableStateOf(height.toString()) }
             var widthFocused by remember { mutableStateOf(false) }
@@ -475,13 +465,6 @@ fun GenerateScreen(
 
             HorizontalDivider()
 
-            // ---- Flattened Advanced Settings ----
-            Text(
-                stringResource(R.string.advanced_settings),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
             // Steps
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -527,7 +510,6 @@ fun GenerateScreen(
                     "采样器",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Spacer(Modifier.height(4.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -624,9 +606,9 @@ fun GenerateScreen(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text("Runtime", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.width(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = !useOpenCL,
@@ -665,7 +647,6 @@ fun GenerateScreen(
                 },
             )
 
-            Spacer(Modifier.height(16.dp))
         } // end Parameters tab Column
 
             1 -> {
