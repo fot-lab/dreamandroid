@@ -218,73 +218,68 @@ fun GenerateScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-            // ---- Batch Count (moved to top, above prompt) ----
+            // ---- Batch Count ----
             var batchText by remember(batchCounts) { mutableStateOf(batchCounts.toString()) }
+            var batchFieldFocused by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    stringResource(R.string.batch_count_label),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilledIconButton(
-                        onClick = {
-                            val newVal = (batchCounts - 1).coerceAtLeast(1)
-                            onBatchCountsChange(newVal)
-                            batchText = newVal.toString()
-                            saveAllFields()
-                        },
-                    ) {
-                        Icon(Icons.Default.Remove, stringResource(R.string.a11y_decrease))
-                    }
-                    var batchFieldFocused by remember { mutableStateOf(false) }
-                    OutlinedTextField(
-                        value = batchText,
-                        onValueChange = { newText ->
-                            // Allow typing digits (including empty)
-                            if (newText.isEmpty()) {
-                                batchText = newText
-                                return@OutlinedTextField
-                            }
-                            val digits = newText.filter { it.isDigit() }
-                            // While focused, show raw digits; clamp only on commit
-                            batchText = digits
-                            val num = digits.toIntOrNull()
-                            if (num != null && !batchFieldFocused) {
+                FilledIconButton(
+                    onClick = {
+                        val newVal = (batchCounts - 1).coerceAtLeast(1)
+                        onBatchCountsChange(newVal)
+                        batchText = newVal.toString()
+                        saveAllFields()
+                    },
+                ) {
+                    Icon(Icons.Default.Remove, stringResource(R.string.a11y_decrease))
+                }
+                OutlinedTextField(
+                    value = batchText,
+                    onValueChange = { newText ->
+                        // Allow typing digits (including empty)
+                        if (newText.isEmpty()) {
+                            batchText = newText
+                            return@OutlinedTextField
+                        }
+                        val digits = newText.filter { it.isDigit() }
+                        // While focused, show raw digits; clamp only on commit
+                        batchText = digits
+                        val num = digits.toIntOrNull()
+                        if (num != null && !batchFieldFocused) {
+                            val clamped = num.coerceIn(1, 60)
+                            batchText = clamped.toString()
+                            onBatchCountsChange(clamped)
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.titleMedium,
+                    label = { Text(stringResource(R.string.batch_count_label)) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .onFocusChanged { state ->
+                            batchFieldFocused = state.isFocused
+                            if (!state.isFocused) {
+                                // On focus lost, clamp the value
+                                val num = batchText.toIntOrNull() ?: batchCounts
                                 val clamped = num.coerceIn(1, 60)
                                 batchText = clamped.toString()
                                 onBatchCountsChange(clamped)
+                                saveAllFields()
                             }
                         },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier
-                            .onFocusChanged { state ->
-                                batchFieldFocused = state.isFocused
-                                if (!state.isFocused) {
-                                    // On focus lost, clamp the value
-                                    val num = batchText.toIntOrNull() ?: batchCounts
-                                    val clamped = num.coerceIn(1, 60)
-                                    batchText = clamped.toString()
-                                    onBatchCountsChange(clamped)
-                                    saveAllFields()
-                                }
-                            },
-                    )
-                    FilledIconButton(
-                        onClick = {
-                            val newVal = (batchCounts + 1).coerceAtMost(60)
-                            onBatchCountsChange(newVal)
-                            batchText = newVal.toString()
-                            saveAllFields()
-                        },
-                    ) {
-                        Icon(Icons.Default.Add, stringResource(R.string.a11y_increase))
-                    }
+                )
+                FilledIconButton(
+                    onClick = {
+                        val newVal = (batchCounts + 1).coerceAtMost(60)
+                        onBatchCountsChange(newVal)
+                        batchText = newVal.toString()
+                        saveAllFields()
+                    },
+                ) {
+                    Icon(Icons.Default.Add, stringResource(R.string.a11y_increase))
                 }
             }
 
@@ -473,11 +468,6 @@ fun GenerateScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        stringResource(R.string.generation_steps),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
                     FilledIconButton(onClick = {
                         val newVal = (steps - 1f).coerceAtLeast(1f)
                         onStepsChange(newVal)
@@ -506,16 +496,19 @@ fun GenerateScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         textStyle = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.onFocusChanged { state ->
-                            stepsFocused = state.isFocused
-                            if (!state.isFocused) {
-                                val num = stepsText.toIntOrNull() ?: steps.roundToInt()
-                                val clamped = num.coerceIn(1, 50)
-                                stepsText = clamped.toString()
-                                onStepsChange(clamped.toFloat())
-                                saveAllFields()
-                            }
-                        },
+                        label = { Text(stringResource(R.string.generation_steps)) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { state ->
+                                stepsFocused = state.isFocused
+                                if (!state.isFocused) {
+                                    val num = stepsText.toIntOrNull() ?: steps.roundToInt()
+                                    val clamped = num.coerceIn(1, 50)
+                                    stepsText = clamped.toString()
+                                    onStepsChange(clamped.toFloat())
+                                    saveAllFields()
+                                }
+                            },
                     )
                     FilledIconButton(onClick = {
                         val newVal = (steps + 1f).coerceAtMost(50f)
@@ -553,11 +546,6 @@ fun GenerateScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        stringResource(R.string.cfg_scale),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
                     FilledIconButton(onClick = {
                         val newVal = (cfg - cfgStep).coerceAtLeast(1f)
                         onCfgChange(newVal)
@@ -591,16 +579,19 @@ fun GenerateScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         textStyle = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.onFocusChanged { state ->
-                            cfgFocused = state.isFocused
-                            if (!state.isFocused) {
-                                val num = cfgText.toFloatOrNull() ?: cfg
-                                val clamped = num.coerceIn(1f, 30f)
-                                cfgText = "%.${cfgDecimals}f".format(clamped)
-                                onCfgChange(clamped)
-                                saveAllFields()
-                            }
-                        },
+                        label = { Text(stringResource(R.string.cfg_scale)) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { state ->
+                                cfgFocused = state.isFocused
+                                if (!state.isFocused) {
+                                    val num = cfgText.toFloatOrNull() ?: cfg
+                                    val clamped = num.coerceIn(1f, 30f)
+                                    cfgText = "%.${cfgDecimals}f".format(clamped)
+                                    onCfgChange(clamped)
+                                    saveAllFields()
+                                }
+                            },
                     )
                     FilledIconButton(onClick = {
                         val newVal = (cfg + cfgStep).coerceAtMost(30f)
