@@ -227,7 +227,7 @@
 
     <!-- Parameter Settings -->
     <string name="generation_params">生成参数</string>
-    <string name="steps">生成步数: %d</string>
+    <string name="generation_steps">生成步数</string>
     <string name="image_size">图像尺寸: %1$dx%2$d</string>
     <string name="random_seed">随机种子 (可选)</string>
     <string name="invalid_seed_format">无效种子 — 必须为空或数字</string>
@@ -496,7 +496,7 @@
     <string name="sampler_label">采样器</string>
     <string name="denoise_curve_label">降噪曲线</string>
     <string name="denoise_karras">Karras</string>
-    <string name="cfg_scale">CFG Scale: %s</string>
+    <string name="cfg_scale">CFG Scale</string>
     <string name="width_short">宽</string>
     <string name="height_short">高</string>
     <string name="cpu_width">宽度: %d</string>

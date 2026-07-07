@@ -197,7 +197,7 @@
 
     <!-- Parameter Settings -->
     <string name="generation_params">생성 파라미터</string>
-    <string name="steps">스텝: %d</string>
+    <string name="generation_steps">스텝</string>
     <string name="image_size">이미지 크기: %1$dx%2$d</string>
     <string name="random_seed">랜덤 시드(선택 사항)</string>
     <string name="invalid_seed_format">잘못된 시드 — 비어 있거나 숫자여야 합니다</string>
@@ -447,7 +447,7 @@
     <string name="sampler_label">샘플러</string>
     <string name="denoise_curve_label">노이즈 제거 커브</string>
     <string name="denoise_karras">Karras</string>
-    <string name="cfg_scale">CFG Scale: %s</string>
+    <string name="cfg_scale">CFG Scale</string>
     <string name="width_short">너비</string>
     <string name="height_short">높이</string>
     <string name="cpu_width">너비: %d</string>

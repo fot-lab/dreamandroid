@@ -601,13 +601,13 @@ fun AdvancedSettingsDialog(
 
                 // Steps
                 Column {
-                    Text(stringResource(R.string.steps, state.steps.roundToInt()), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.generation_steps), style = MaterialTheme.typography.bodyMedium)
                     Slider(value = state.steps, onValueChange = onStepsChange, valueRange = 1f..50f, steps = 48, modifier = Modifier.fillMaxWidth())
                 }
 
                 // CFG
                 Column {
-                    Text("CFG Scale: %.1f".format(state.cfg), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.cfg_scale), style = MaterialTheme.typography.bodyMedium)
                     Slider(value = state.cfg, onValueChange = onCfgChange, valueRange = 1f..30f, steps = 57, modifier = Modifier.fillMaxWidth())
                 }
 

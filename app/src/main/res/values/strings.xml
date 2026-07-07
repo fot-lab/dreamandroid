@@ -236,7 +236,7 @@
 
     <!-- Parameter Settings -->
     <string name="generation_params">Generation Params</string>
-    <string name="steps">Steps: %d</string>
+    <string name="generation_steps">Steps</string>
     <string name="image_size">Image Size: %1$dx%2$d</string>
     <string name="random_seed">Random Seed (Optional)</string>
     <string name="invalid_seed_format">Invalid seed — must be empty or a number</string>
@@ -514,7 +514,7 @@
     <string name="sampler_label">Sampler</string>
     <string name="denoise_curve_label">Denoise Curve</string>
     <string name="denoise_karras">Karras</string>
-    <string name="cfg_scale">CFG Scale: %s</string>
+    <string name="cfg_scale">CFG Scale</string>
     <string name="width_short">W</string>
     <string name="height_short">H</string>
     <string name="cpu_width">Width: %d</string>

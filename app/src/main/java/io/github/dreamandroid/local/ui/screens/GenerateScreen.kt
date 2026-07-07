@@ -466,40 +466,168 @@ fun GenerateScreen(
             HorizontalDivider()
 
             // Steps
+            var stepsText by remember(steps) { mutableStateOf(steps.roundToInt().toString()) }
+            var stepsFocused by remember { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    stringResource(R.string.steps, steps.roundToInt()),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.generation_steps),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    FilledIconButton(onClick = {
+                        val newVal = (steps - 1f).coerceAtLeast(1f)
+                        onStepsChange(newVal)
+                        stepsText = newVal.roundToInt().toString()
+                        saveAllFields()
+                    }) {
+                        Icon(Icons.Default.Remove, stringResource(R.string.a11y_decrease))
+                    }
+                    OutlinedTextField(
+                        value = stepsText,
+                        onValueChange = { newText ->
+                            if (newText.isEmpty()) {
+                                stepsText = newText
+                                return@OutlinedTextField
+                            }
+                            val digits = newText.filter { it.isDigit() }
+                            stepsText = digits
+                            val num = digits.toIntOrNull()
+                            if (num != null && !stepsFocused) {
+                                val clamped = num.coerceIn(1, 50)
+                                stepsText = clamped.toString()
+                                onStepsChange(clamped.toFloat())
+                                saveAllFields()
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.onFocusChanged { state ->
+                            stepsFocused = state.isFocused
+                            if (!state.isFocused) {
+                                val num = stepsText.toIntOrNull() ?: steps.roundToInt()
+                                val clamped = num.coerceIn(1, 50)
+                                stepsText = clamped.toString()
+                                onStepsChange(clamped.toFloat())
+                                saveAllFields()
+                            }
+                        },
+                    )
+                    FilledIconButton(onClick = {
+                        val newVal = (steps + 1f).coerceAtMost(50f)
+                        onStepsChange(newVal)
+                        stepsText = newVal.roundToInt().toString()
+                        saveAllFields()
+                    }) {
+                        Icon(Icons.Default.Add, stringResource(R.string.a11y_increase))
+                    }
+                }
                 Slider(
                     value = steps,
-                    onValueChange = { onStepsChange(it); saveAllFields() },
+                    onValueChange = {
+                        onStepsChange(it)
+                        stepsText = it.roundToInt().toString()
+                        saveAllFields()
+                    },
                     valueRange = 1f..50f,
                     steps = 48,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
 
+            HorizontalDivider()
+
             // CFG Scale
-            val cfgSteps = if (cfgFineGranularity) 2899 else 57
+            val cfgStep = if (cfgFineGranularity) 0.01f else 0.1f
+            val cfgDecimals = if (cfgFineGranularity) 2 else 1
+            var cfgText by remember(cfg, cfgFineGranularity) {
+                mutableStateOf("%.${cfgDecimals}f".format(cfg))
+            }
+            var cfgFocused by remember { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    stringResource(
-                        R.string.cfg_scale,
-                        if (cfgFineGranularity) "%.2f".format(cfg) else "%.1f".format(cfg),
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.cfg_scale),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    FilledIconButton(onClick = {
+                        val newVal = (cfg - cfgStep).coerceAtLeast(1f)
+                        onCfgChange(newVal)
+                        cfgText = "%.${cfgDecimals}f".format(newVal)
+                        saveAllFields()
+                    }) {
+                        Icon(Icons.Default.Remove, stringResource(R.string.a11y_decrease))
+                    }
+                    OutlinedTextField(
+                        value = cfgText,
+                        onValueChange = { newText ->
+                            if (newText.isEmpty()) {
+                                cfgText = newText
+                                return@OutlinedTextField
+                            }
+                            val filtered = newText.filter { it.isDigit() || it == '.' }
+                            val dotIdx = filtered.indexOf('.')
+                            val cleaned = if (dotIdx >= 0) {
+                                filtered.substring(0, dotIdx + 1) +
+                                    filtered.substring(dotIdx + 1).filter { it.isDigit() }
+                            } else filtered
+                            cfgText = cleaned
+                            val num = cleaned.toFloatOrNull()
+                            if (num != null && !cfgFocused) {
+                                val clamped = num.coerceIn(1f, 30f)
+                                cfgText = "%.${cfgDecimals}f".format(clamped)
+                                onCfgChange(clamped)
+                                saveAllFields()
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.onFocusChanged { state ->
+                            cfgFocused = state.isFocused
+                            if (!state.isFocused) {
+                                val num = cfgText.toFloatOrNull() ?: cfg
+                                val clamped = num.coerceIn(1f, 30f)
+                                cfgText = "%.${cfgDecimals}f".format(clamped)
+                                onCfgChange(clamped)
+                                saveAllFields()
+                            }
+                        },
+                    )
+                    FilledIconButton(onClick = {
+                        val newVal = (cfg + cfgStep).coerceAtMost(30f)
+                        onCfgChange(newVal)
+                        cfgText = "%.${cfgDecimals}f".format(newVal)
+                        saveAllFields()
+                    }) {
+                        Icon(Icons.Default.Add, stringResource(R.string.a11y_increase))
+                    }
+                }
+                val cfgSliderSteps = if (cfgFineGranularity) 2899 else 57
                 Slider(
                     value = cfg,
-                    onValueChange = { onCfgChange(it); saveAllFields() },
+                    onValueChange = {
+                        onCfgChange(it)
+                        cfgText = "%.${cfgDecimals}f".format(it)
+                        saveAllFields()
+                    },
                     valueRange = 1f..30f,
-                    steps = cfgSteps,
+                    steps = cfgSliderSteps,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
 
-            // Sampler (采样器)
+            HorizontalDivider()
+
+            // Sampler
             val samplerOptions = listOf(
                 "dpm" to "DPM++ 2M",
                 "dpm_sde" to "DPM++ 2M SDE",
@@ -533,7 +661,9 @@ fun GenerateScreen(
                 }
             }
 
-            // Denoise Curve (降噪曲线)
+            HorizontalDivider()
+
+            // Denoise Curve
             val karrasSupported = sampler != "lcm"
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -625,6 +755,8 @@ fun GenerateScreen(
                     }
                 }
             }
+
+            HorizontalDivider()
 
             // Seed
             val isSeedValid = seed.isEmpty() || seed.toLongOrNull() != null

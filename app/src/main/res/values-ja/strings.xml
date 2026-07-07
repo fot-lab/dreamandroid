@@ -220,7 +220,7 @@
     <string name="media_permission_hint">img2img生成にはメディア許可が必要です</string>
     <string name="backend_failed">バックエンドの起動に失敗しました。デバイスがサポートされていない可能性があります。</string>
     <string name="generation_params">生成パラメータ</string>
-    <string name="steps">ステップ数: %d</string>
+    <string name="generation_steps">ステップ数</string>
     <string name="image_size">画像サイズ: %1$dx%2$d</string>
     <string name="random_seed">ランダムシード(任意)</string>
     <string name="invalid_seed_format">無効なシード — 空または数値である必要があります</string>
@@ -456,7 +456,7 @@
     <string name="sampler_label">サンプラー</string>
     <string name="denoise_curve_label">ノイズ除去カーブ</string>
     <string name="denoise_karras">Karras</string>
-    <string name="cfg_scale">CFG Scale: %s</string>
+    <string name="cfg_scale">CFG Scale</string>
     <string name="width_short">幅</string>
     <string name="height_short">高</string>
     <string name="cpu_width">幅: %d</string>
