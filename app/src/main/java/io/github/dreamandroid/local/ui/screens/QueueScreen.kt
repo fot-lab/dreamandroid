@@ -29,6 +29,7 @@ import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.BatchGroupDisplay
 import io.github.dreamandroid.local.data.GenerationTask
 import io.github.dreamandroid.local.data.TaskStatus
+import io.github.dreamandroid.local.data.formatCfgScale
 
 private const val TAG_QUEUE = "QueueScreenDbg"
 
@@ -301,7 +302,7 @@ private fun TaskCard(
                 ) {
                     Column(modifier = Modifier.padding(top = 8.dp)) {
                         TaskDetailRow("Steps", "${task.steps}")
-                        TaskDetailRow("CFG", "%.1f".format(task.cfg))
+                        TaskDetailRow("CFG", formatCfgScale(task.cfg))
                         TaskDetailRow("Size", "${task.width}x${task.height}")
                         TaskDetailRow("Sampler", task.sampler)
                         if (task.seed != null) TaskDetailRow("Seed", task.seed.toString())

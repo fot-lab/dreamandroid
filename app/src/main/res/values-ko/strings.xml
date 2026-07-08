@@ -210,7 +210,7 @@
     
     
     
-    <string name="result_params">스텝: %1$s / CFG: %2$.1f / 시드: %3$s</string>
+    <string name="result_params">스텝: %1$s / CFG: %2$s / 시드: %3$s</string>
     <string name="result_params_2">크기: %1$sx%2$s / 시간: %3$s / %4$s</string>
     <string name="params_detail">세부 정보</string>
     <string name="basic_params">기본</string>

@@ -5,6 +5,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
+/** Format cfg scale for display: 0.1 precision for normal values, 0.01 for fine-step, raw for any. */
+fun formatCfgScale(cfg: Float): String = when {
+    (cfg * 10f) % 1f == 0f -> "%.1f".format(cfg)
+    (cfg * 100f) % 1f == 0f -> "%.2f".format(cfg)
+    else -> cfg.toString()
+}
+
 /**
  * Source of a saved parameter record.
  */
@@ -34,7 +41,7 @@ data class GenerateParameterRecord(
 ) {
     /** Summary line shown in the record list: "{modelId} · {steps} steps · CFG {cfg} · {width}×{height}" */
     val paramsSummary: String
-        get() = "$modelId · $steps steps · CFG ${"%.1f".format(cfg)} · ${width}×${height}"
+        get() = "$modelId · $steps steps · CFG ${formatCfgScale(cfg)} · ${width}×${height}"
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)

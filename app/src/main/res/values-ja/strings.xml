@@ -233,7 +233,7 @@
     
     
     
-    <string name="result_params">ステップ: %1$s / CFG: %2$.1f / シード: %3$s</string>
+    <string name="result_params">ステップ: %1$s / CFG: %2$s / シード: %3$s</string>
     <string name="result_params_2">サイズ: %1$s×%2$s / 処理時間: %3$s / %4$s</string>
     <string name="params_detail">パラメータの詳細</string>
     <string name="basic_params">基本パラメータ</string>

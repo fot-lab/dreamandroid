@@ -249,7 +249,7 @@
     
     
     
-    <string name="result_params">steps: %1$s / CFG: %2$.1f / seed: %3$s</string>
+    <string name="result_params">steps: %1$s / CFG: %2$s / seed: %3$s</string>
     <string name="result_params_2">size: %1$sx%2$s / time: %3$s / %4$s</string>
     <string name="params_detail">Details</string>
     <string name="basic_params">Basic</string>

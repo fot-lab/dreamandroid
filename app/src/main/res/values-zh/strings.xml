@@ -240,7 +240,7 @@
     
     
     
-    <string name="result_params">步数: %1$s / CFG: %2$.1f / 种子: %3$s</string>
+    <string name="result_params">步数: %1$s / CFG: %2$s / 种子: %3$s</string>
     <string name="result_params_2">尺寸: %1$sx%2$s / 耗时: %3$s / %4$s</string>
     <string name="params_detail">生成参数详情</string>
     <string name="basic_params">基础参数</string>

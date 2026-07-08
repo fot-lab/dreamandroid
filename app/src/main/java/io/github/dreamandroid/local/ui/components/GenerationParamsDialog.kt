@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.GenerationMode
+import io.github.dreamandroid.local.data.formatCfgScale
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.ui.screens.formatBrowseTime
 import io.github.dreamandroid.local.utils.samplerDisplayName
@@ -79,7 +80,7 @@ fun GenerationParamsDialog(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "CFG: %.1f".format(params.cfgScale),
+                        "CFG: ${formatCfgScale(params.cfgScale)}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(

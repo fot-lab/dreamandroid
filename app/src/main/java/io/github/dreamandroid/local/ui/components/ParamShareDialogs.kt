@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.GenerationMode
+import io.github.dreamandroid.local.data.formatCfgScale
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.utils.ImportedParams
 import io.github.dreamandroid.local.utils.ParamShareField
@@ -232,7 +233,7 @@ fun ReproduceParametersDialog(
 
                         ParamShareField.STEPS -> params.steps.toString()
 
-                        ParamShareField.CFG_SCALE -> "%.1f".format(params.cfgScale)
+                        ParamShareField.CFG_SCALE -> formatCfgScale(params.cfgScale)
 
                         ParamShareField.SEED -> params.seed?.toString()
 
@@ -330,7 +331,7 @@ fun ImportParametersDialog(
 
                         ParamShareField.STEPS -> imported.steps?.toString()
 
-                        ParamShareField.CFG_SCALE -> imported.cfgScale?.let { "%.1f".format(it) }
+                        ParamShareField.CFG_SCALE -> imported.cfgScale?.let { formatCfgScale(it) }
 
                         ParamShareField.SEED -> imported.seed?.toString()
 

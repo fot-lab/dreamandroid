@@ -377,7 +377,7 @@ fun ModelRunShareParamsDialog(
                 ParamShareField.PROMPT -> source.prompt
                 ParamShareField.NEGATIVE_PROMPT -> source.negativePrompt
                 ParamShareField.STEPS -> source.steps.toString()
-                ParamShareField.CFG_SCALE -> "%.1f".format(source.cfgScale)
+                ParamShareField.CFG_SCALE -> formatCfgScale(source.cfgScale)
                 ParamShareField.SEED -> source.seed?.toString()
                 ParamShareField.SAMPLER -> samplerDisplayName(source.sampler)
                 ParamShareField.DENOISING_STRENGTH -> "%.2f".format(source.denoisingStrength)
