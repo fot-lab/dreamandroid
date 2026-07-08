@@ -53,6 +53,7 @@ fun TabGenerateScreen(
     negativePromptTokenMax: Int = 77,
     negativePromptOverflowOffset: Int = -1,
     cfgFineGranularity: Boolean = false,
+    acceptAnyCfg: Boolean = false,
     commitAndPersistTrigger: Int = 0,
 ) {
     GenerateScreen(
@@ -97,6 +98,7 @@ fun TabGenerateScreen(
         negativePromptTokenMax = negativePromptTokenMax,
         negativePromptOverflowOffset = negativePromptOverflowOffset,
         cfgFineGranularity = cfgFineGranularity,
+        acceptAnyCfg = acceptAnyCfg,
         commitAndPersistTrigger = commitAndPersistTrigger,
     )
 }

@@ -493,6 +493,7 @@
     <string name="delete_record_confirm">确认删除选中的记录？此操作不可撤销。</string>
     <string name="queue_anim_toggle">添加到队列动画</string>
     <string name="cfg_fine_step_toggle">CFG Scale 精细步长 (0.01)</string>
+    <string name="accept_any_cfg_toggle">接受任意CFG数值（试验性功能）</string>
     <string name="sampler_label">采样器</string>
     <string name="denoise_curve_label">降噪曲线</string>
     <string name="denoise_karras">Karras</string>

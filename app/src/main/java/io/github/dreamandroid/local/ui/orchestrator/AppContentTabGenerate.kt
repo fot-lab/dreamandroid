@@ -69,6 +69,10 @@ fun AppContentTabGenerate(
     val cfgFineGranularity by generationPreferences.observeCfgFineGranularity()
         .collectAsState(initial = false)
 
+    // ── Accept any CFG value setting ──
+    val acceptAnyCfg by generationPreferences.observeAcceptAnyCfg()
+        .collectAsState(initial = false)
+
     // ── Records tab selection state ──
     var selectedGenerateTab by remember { mutableIntStateOf(0) }
     var selectedRecordIds by remember { mutableStateOf(setOf<String>()) }
@@ -342,6 +346,23 @@ fun AppContentTabGenerate(
                         onCheckedChange = { scope.launch { generationPreferences.setCfgFineGranularity(it) } },
                     )
                 }
+                // Accept any CFG value toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.accept_any_cfg_toggle),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = acceptAnyCfg,
+                        onCheckedChange = { scope.launch { generationPreferences.setAcceptAnyCfg(it) } },
+                    )
+                }
             }
         },
     ) {
@@ -412,6 +433,7 @@ fun AppContentTabGenerate(
                     negativePromptTokenMax = generateViewModel.negativePromptTokenMax,
                     negativePromptOverflowOffset = generateViewModel.negativePromptOverflowOffset,
                     cfgFineGranularity = cfgFineGranularity,
+                    acceptAnyCfg = acceptAnyCfg,
                     commitAndPersistTrigger = genCommitAndPersistTrigger,
                 )
             }

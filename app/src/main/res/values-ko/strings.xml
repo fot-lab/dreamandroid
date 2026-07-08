@@ -444,6 +444,7 @@
     <string name="delete_record_confirm">선택한 기록을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</string>
     <string name="queue_anim_toggle">대기열 추가 애니메이션</string>
     <string name="cfg_fine_step_toggle">CFG Scale 미세 단계 (0.01)</string>
+    <string name="accept_any_cfg_toggle">모든 CFG 값 허용 (실험적 기능)</string>
     <string name="sampler_label">샘플러</string>
     <string name="denoise_curve_label">노이즈 제거 커브</string>
     <string name="denoise_karras">Karras</string>

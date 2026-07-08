@@ -100,6 +100,7 @@ fun GenerateScreen(
     negativePromptTokenMax: Int = 77,
     negativePromptOverflowOffset: Int = -1,
     cfgFineGranularity: Boolean = false,
+    acceptAnyCfg: Boolean = false,
     // Trigger: parent increments this to commit all fields + persist before generation
     commitAndPersistTrigger: Int = 0,
 ) {
@@ -544,9 +545,14 @@ fun GenerateScreen(
 
             // CFG Scale
             val cfgStep = if (cfgFineGranularity) 0.01f else 0.1f
-            val cfgDecimals = if (cfgFineGranularity) 2 else 1
-            var cfgText by remember(cfg, cfgFineGranularity) {
-                mutableStateOf("%.${cfgDecimals}f".format(cfg))
+            val cfgDecimals: Int? = if (acceptAnyCfg) null else if (cfgFineGranularity) 2 else 1
+            fun formatCfg(v: Float): String = cfgDecimals?.let { "%.${it}f".format(v) } ?: v.toString()
+            var cfgText by remember(cfg, cfgFineGranularity, acceptAnyCfg) {
+                mutableStateOf(formatCfg(cfg))
+            }
+            // Sync cfgText when acceptAnyCfg & not focused (external cfg changes)
+            if (acceptAnyCfg && !cfgFocused) {
+                LaunchedEffect(cfg) { cfgText = formatCfg(cfg) }
             }
             var cfgFocused by remember { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -554,10 +560,11 @@ fun GenerateScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val cfgLow = if (acceptAnyCfg) Float.NEGATIVE_INFINITY else 1f
                     FilledIconButton(onClick = {
-                        val newVal = (cfg - cfgStep).coerceAtLeast(1f)
+                        val newVal = (cfg - cfgStep).coerceAtLeast(cfgLow)
                         onCfgChange(newVal)
-                        cfgText = "%.${cfgDecimals}f".format(newVal)
+                        cfgText = formatCfg(newVal)
                         saveAllFields()
                     }) {
                         Icon(Icons.Default.Remove, stringResource(R.string.a11y_decrease))
@@ -569,17 +576,31 @@ fun GenerateScreen(
                                 cfgText = newText
                                 return@OutlinedTextField
                             }
-                            val filtered = newText.filter { it.isDigit() || it == '.' }
-                            val dotIdx = filtered.indexOf('.')
-                            val cleaned = if (dotIdx >= 0) {
-                                filtered.substring(0, dotIdx + 1) +
-                                    filtered.substring(dotIdx + 1).filter { it.isDigit() }
-                            } else filtered
-                        cfgText = cleaned
-                        val num = cleaned.toFloatOrNull()
-                        if (num != null) {
-                            onCfgChange(num.coerceIn(1f, 30f))
-                        }
+                            if (acceptAnyCfg) {
+                                // Accept any valid float string: optional leading '-', digits, one '.'
+                                val allowed = newText.filter { it.isDigit() || it == '.' || it == '-' }
+                                if (allowed.isEmpty()) return@OutlinedTextField
+                                if (allowed.count { it == '-' } > (if (allowed.startsWith('-')) 1 else 0)) return@OutlinedTextField
+                                val dotCount = allowed.count { it == '.' }
+                                if (dotCount > 1) return@OutlinedTextField
+                                if (dotCount == 1) {
+                                    val dotIdx = allowed.indexOf('.')
+                                    if (allowed.indexOf('.', dotIdx + 1) >= 0) return@OutlinedTextField
+                                }
+                                cfgText = allowed
+                                val num = allowed.toFloatOrNull()
+                                if (num != null) onCfgChange(num)
+                            } else {
+                                val filtered = newText.filter { it.isDigit() || it == '.' }
+                                val dotIdx = filtered.indexOf('.')
+                                val cleaned = if (dotIdx >= 0) {
+                                    filtered.substring(0, dotIdx + 1) +
+                                        filtered.substring(dotIdx + 1).filter { it.isDigit() }
+                                } else filtered
+                                cfgText = cleaned
+                                val num = cleaned.toFloatOrNull()
+                                if (num != null) onCfgChange(num.coerceIn(1f, 30f))
+                            }
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -590,35 +611,50 @@ fun GenerateScreen(
                             .onFocusChanged { state ->
                                 cfgFocused = state.isFocused
                                 if (!state.isFocused) {
-                                    val num = cfgText.toFloatOrNull() ?: cfg
-                                    val clamped = num.coerceIn(1f, 30f)
-                                    cfgText = "%.${cfgDecimals}f".format(clamped)
-                                    onCfgChange(clamped)
-                                    saveFieldsImmediate()
+                                    val num = cfgText.toFloatOrNull()
+                                    if (acceptAnyCfg) {
+                                        if (num != null) {
+                                            onCfgChange(num)
+                                            saveFieldsImmediate()
+                                        } else {
+                                            // fallback: restore current cfg
+                                            cfgText = formatCfg(cfg)
+                                        }
+                                    } else {
+                                        val clamped = (num ?: cfg).coerceIn(1f, 30f)
+                                        cfgText = formatCfg(clamped)
+                                        onCfgChange(clamped)
+                                        saveFieldsImmediate()
+                                    }
                                 }
                             },
                     )
                     FilledIconButton(onClick = {
-                        val newVal = (cfg + cfgStep).coerceAtMost(30f)
+                        val cfgHigh = if (acceptAnyCfg) Float.MAX_VALUE else 30f
+                        val newVal = (cfg + cfgStep).coerceAtMost(cfgHigh)
                         onCfgChange(newVal)
-                        cfgText = "%.${cfgDecimals}f".format(newVal)
+                        cfgText = formatCfg(newVal)
                         saveAllFields()
                     }) {
                         Icon(Icons.Default.Add, stringResource(R.string.a11y_increase))
                     }
                 }
-                val cfgSliderSteps = if (cfgFineGranularity) 2899 else 57
-                Slider(
-                    value = cfg,
-                    onValueChange = {
-                        onCfgChange(it)
-                        cfgText = "%.${cfgDecimals}f".format(it)
-                        saveAllFields()
-                    },
-                    valueRange = 1f..30f,
-                    steps = cfgSliderSteps,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (!acceptAnyCfg) {
+                    val cfgSliderSteps = if (cfgFineGranularity) 2899 else 57
+                    Slider(
+                        value = cfg,
+                        onValueChange = {
+                            onCfgChange(it)
+                            cfgText = formatCfg(it)
+                            saveAllFields()
+                        },
+                        valueRange = 1f..30f,
+                        steps = cfgSliderSteps,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
             }
 
             HorizontalDivider()
@@ -796,9 +832,15 @@ fun GenerateScreen(
                     stepsText.toIntOrNull()?.coerceIn(1, 50)?.let {
                         stepsText = it.toString(); onStepsChange(it.toFloat())
                     }
-                    // CFG Scale: clamp + push
-                    cfgText.toFloatOrNull()?.coerceIn(1f, 30f)?.let {
-                        cfgText = "%.${cfgDecimals}f".format(it); onCfgChange(it)
+                    // CFG Scale: clamp + push (or raw push for acceptAnyCfg)
+                    cfgText.toFloatOrNull()?.let { num ->
+                        if (acceptAnyCfg) {
+                            onCfgChange(num)
+                        } else {
+                            val clamped = num.coerceIn(1f, 30f)
+                            cfgText = formatCfg(clamped)
+                            onCfgChange(clamped)
+                        }
                     }
                     // Clear focus so any in-progress editing is finalized
                     focusManager.clearFocus()

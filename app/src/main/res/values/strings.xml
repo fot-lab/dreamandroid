@@ -511,6 +511,7 @@
     <string name="delete_record_confirm">Delete selected record(s)? This action cannot be undone.</string>
     <string name="queue_anim_toggle">Add-to-queue animation</string>
     <string name="cfg_fine_step_toggle">CFG Scale fine step (0.01)</string>
+    <string name="accept_any_cfg_toggle">Accept any CFG scale value (experimental)</string>
     <string name="sampler_label">Sampler</string>
     <string name="denoise_curve_label">Denoise Curve</string>
     <string name="denoise_karras">Karras</string>

@@ -453,6 +453,7 @@
     <string name="delete_record_confirm">選択したレコードを削除しますか？この操作は取り消せません。</string>
     <string name="queue_anim_toggle">キュー追加アニメーション</string>
     <string name="cfg_fine_step_toggle">CFG Scale 細かいステップ (0.01)</string>
+    <string name="accept_any_cfg_toggle">任意のCFG値を受け入れる（実験的機能）</string>
     <string name="sampler_label">サンプラー</string>
     <string name="denoise_curve_label">ノイズ除去カーブ</string>
     <string name="denoise_karras">Karras</string>

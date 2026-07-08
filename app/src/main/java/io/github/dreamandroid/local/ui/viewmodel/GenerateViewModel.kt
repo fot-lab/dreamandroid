@@ -72,7 +72,7 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
         if (genNegativePrompt.isEmpty() && p.negativePrompt.isNotEmpty()) genNegativePrompt = p.negativePrompt
         if (genBatchCounts == 1 && p.batchCounts > 1) genBatchCounts = p.batchCounts
         if (p.steps > 0) genSteps = p.steps
-        if (p.cfgScale > 0) genCfg = p.cfgScale
+        if (p.cfgScale != 7f) genCfg = p.cfgScale
         if (p.seed.isNotEmpty()) genSeed = p.seed
         genSampler = p.sampler
         genDenoiseCurve = p.denoiseCurve

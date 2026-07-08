@@ -39,6 +39,7 @@ class GenerationPreferences(private val context: Context) {
     private val BROWSE_LAYOUT_MODE_KEY = stringPreferencesKey("browse_layout_mode")
     private val QUEUE_ANIM_ENABLED_KEY = booleanPreferencesKey("queue_anim_enabled")
     private val CFG_FINE_GRANULARITY_KEY = booleanPreferencesKey("cfg_fine_granularity")
+    private val ACCEPT_ANY_CFG_KEY = booleanPreferencesKey("accept_any_cfg")
 
     // Screen-level (global) keys — persist across model switches
     private val GLOBAL_PROMPT_KEY = stringPreferencesKey("global_prompt")
@@ -95,6 +96,16 @@ class GenerationPreferences(private val context: Context) {
 
     suspend fun setCfgFineGranularity(value: Boolean) {
         context.dataStore.edit { it[CFG_FINE_GRANULARITY_KEY] = value }
+    }
+
+    fun observeAcceptAnyCfg(): Flow<Boolean> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { it[ACCEPT_ANY_CFG_KEY] ?: false }
+
+    suspend fun setAcceptAnyCfg(value: Boolean) {
+        context.dataStore.edit { it[ACCEPT_ANY_CFG_KEY] = value }
     }
 
     suspend fun saveBaseUrl(url: String) {
