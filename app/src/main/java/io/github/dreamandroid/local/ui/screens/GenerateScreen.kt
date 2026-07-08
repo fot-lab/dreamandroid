@@ -550,11 +550,11 @@ fun GenerateScreen(
             var cfgText by remember(cfg, cfgFineGranularity, acceptAnyCfg) {
                 mutableStateOf(formatCfg(cfg))
             }
+            var cfgFocused by remember { mutableStateOf(false) }
             // Sync cfgText when acceptAnyCfg & not focused (external cfg changes)
             if (acceptAnyCfg && !cfgFocused) {
                 LaunchedEffect(cfg) { cfgText = formatCfg(cfg) }
             }
-            var cfgFocused by remember { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
