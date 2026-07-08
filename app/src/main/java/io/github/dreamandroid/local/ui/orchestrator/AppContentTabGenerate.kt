@@ -201,7 +201,10 @@ fun AppContentTabGenerate(
         }
     }
 
+    var genCommitAndPersistTrigger by remember { mutableIntStateOf(0) }
+
     val onGenTaskAddToQueue: () -> Unit = {
+        genCommitAndPersistTrigger++ // triggers commit + persist in GenerateScreen
         loadedModelId?.let { mid ->
             val count = if (generateViewModel.genSeed.isNotBlank()) 1
             else generateViewModel.genBatchCounts.coerceAtLeast(1)
@@ -409,6 +412,7 @@ fun AppContentTabGenerate(
                     negativePromptTokenMax = generateViewModel.negativePromptTokenMax,
                     negativePromptOverflowOffset = generateViewModel.negativePromptOverflowOffset,
                     cfgFineGranularity = cfgFineGranularity,
+                    commitAndPersistTrigger = genCommitAndPersistTrigger,
                 )
             }
         }

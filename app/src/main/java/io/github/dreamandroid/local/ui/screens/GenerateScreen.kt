@@ -100,6 +100,8 @@ fun GenerateScreen(
     negativePromptTokenMax: Int = 77,
     negativePromptOverflowOffset: Int = -1,
     cfgFineGranularity: Boolean = false,
+    // Trigger: parent increments this to commit all fields + persist before generation
+    commitAndPersistTrigger: Int = 0,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -149,34 +151,51 @@ fun GenerateScreen(
         }
     }
 
-    fun saveAllFields() {
-        scope.launch(Dispatchers.IO) {
-            // Screen-level fields — persist regardless of model
-            generationPreferences.saveGlobalFields(
+    var saveJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    suspend fun writeAllFields() {
+        // Screen-level fields — persist regardless of model
+        generationPreferences.saveGlobalFields(
+            prompt = prompt,
+            negativePrompt = negativePrompt,
+            batchCounts = batchCounts,
+            width = width,
+            height = height,
+        )
+        // Per-model fields
+        if (modelId != null) {
+            generationPreferences.saveAllFields(
+                modelId = modelId,
                 prompt = prompt,
                 negativePrompt = negativePrompt,
-                batchCounts = batchCounts,
+                steps = steps,
+                cfgScale = cfg,
+                seed = seed,
                 width = width,
                 height = height,
+                denoisingStrength = denoiseStrength,
+                useOpenCL = useOpenCL,
+                batchCounts = batchCounts,
+                sampler = sampler,
+                aspectRatio = inferAspectRatioString(width, height),
             )
-            // Per-model fields
-            if (modelId != null) {
-                generationPreferences.saveAllFields(
-                    modelId = modelId,
-                    prompt = prompt,
-                    negativePrompt = negativePrompt,
-                    steps = steps,
-                    cfgScale = cfg,
-                    seed = seed,
-                    width = width,
-                    height = height,
-                    denoisingStrength = denoiseStrength,
-                    useOpenCL = useOpenCL,
-                    batchCounts = batchCounts,
-                    sampler = sampler,
-                    aspectRatio = inferAspectRatioString(width, height),
-                )
-            }
+        }
+    }
+
+    /** Debounced save: cancels previous pending job, saves after 1s delay. */
+    fun saveAllFields() {
+        saveJob?.cancel()
+        saveJob = scope.launch(Dispatchers.IO) {
+            delay(1000)
+            writeAllFields()
+        }
+    }
+
+    /** Immediate save — used on focus loss when the user has finished editing. */
+    fun saveFieldsImmediate() {
+        saveJob?.cancel()
+        scope.launch(Dispatchers.IO) {
+            writeAllFields()
         }
     }
 
@@ -247,10 +266,8 @@ fun GenerateScreen(
                         // While focused, show raw digits; clamp only on commit
                         batchText = digits
                         val num = digits.toIntOrNull()
-                        if (num != null && !batchFieldFocused) {
-                            val clamped = num.coerceIn(1, 60)
-                            batchText = clamped.toString()
-                            onBatchCountsChange(clamped)
+                        if (num != null) {
+                            onBatchCountsChange(num.coerceIn(1, 60))
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -267,7 +284,7 @@ fun GenerateScreen(
                                 val clamped = num.coerceIn(1, 60)
                                 batchText = clamped.toString()
                                 onBatchCountsChange(clamped)
-                                saveAllFields()
+                                saveFieldsImmediate()
                             }
                         },
                 )
@@ -397,14 +414,11 @@ fun GenerateScreen(
                 OutlinedTextField(
                     value = widthText,
                     onValueChange = { newText ->
-                        // Allow free typing; clamp only on focus loss
                         val digits = newText.filter { it.isDigit() }
                         widthText = digits
                         val num = digits.toIntOrNull()
-                        if (num != null && !widthFocused) {
-                            val clamped = num.coerceIn(64, 4096)
-                            widthText = clamped.toString()
-                            onWidthChange(clamped)
+                        if (num != null) {
+                            onWidthChange(num.coerceIn(64, 4096))
                             saveAllFields()
                         }
                     },
@@ -420,7 +434,7 @@ fun GenerateScreen(
                                 val clamped = num.coerceIn(64, 4096)
                                 widthText = clamped.toString()
                                 onWidthChange(clamped)
-                                saveAllFields()
+                                saveFieldsImmediate()
                             }
                         },
                     shape = MaterialTheme.shapes.medium,
@@ -428,14 +442,11 @@ fun GenerateScreen(
                 OutlinedTextField(
                     value = heightText,
                     onValueChange = { newText ->
-                        // Allow free typing; clamp only on focus loss
                         val digits = newText.filter { it.isDigit() }
                         heightText = digits
                         val num = digits.toIntOrNull()
-                        if (num != null && !heightFocused) {
-                            val clamped = num.coerceIn(64, 4096)
-                            heightText = clamped.toString()
-                            onHeightChange(clamped)
+                        if (num != null) {
+                            onHeightChange(num.coerceIn(64, 4096))
                             saveAllFields()
                         }
                     },
@@ -451,7 +462,7 @@ fun GenerateScreen(
                                 val clamped = num.coerceIn(64, 4096)
                                 heightText = clamped.toString()
                                 onHeightChange(clamped)
-                                saveAllFields()
+                                saveFieldsImmediate()
                             }
                         },
                     shape = MaterialTheme.shapes.medium,
@@ -484,14 +495,11 @@ fun GenerateScreen(
                                 return@OutlinedTextField
                             }
                             val digits = newText.filter { it.isDigit() }
-                            stepsText = digits
-                            val num = digits.toIntOrNull()
-                            if (num != null && !stepsFocused) {
-                                val clamped = num.coerceIn(1, 50)
-                                stepsText = clamped.toString()
-                                onStepsChange(clamped.toFloat())
-                                saveAllFields()
-                            }
+                        stepsText = digits
+                        val num = digits.toIntOrNull()
+                        if (num != null) {
+                            onStepsChange(num.coerceIn(1, 50).toFloat())
+                        }
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -506,7 +514,7 @@ fun GenerateScreen(
                                     val clamped = num.coerceIn(1, 50)
                                     stepsText = clamped.toString()
                                     onStepsChange(clamped.toFloat())
-                                    saveAllFields()
+                                    saveFieldsImmediate()
                                 }
                             },
                     )
@@ -567,14 +575,11 @@ fun GenerateScreen(
                                 filtered.substring(0, dotIdx + 1) +
                                     filtered.substring(dotIdx + 1).filter { it.isDigit() }
                             } else filtered
-                            cfgText = cleaned
-                            val num = cleaned.toFloatOrNull()
-                            if (num != null && !cfgFocused) {
-                                val clamped = num.coerceIn(1f, 30f)
-                                cfgText = "%.${cfgDecimals}f".format(clamped)
-                                onCfgChange(clamped)
-                                saveAllFields()
-                            }
+                        cfgText = cleaned
+                        val num = cleaned.toFloatOrNull()
+                        if (num != null) {
+                            onCfgChange(num.coerceIn(1f, 30f))
+                        }
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -589,7 +594,7 @@ fun GenerateScreen(
                                     val clamped = num.coerceIn(1f, 30f)
                                     cfgText = "%.${cfgDecimals}f".format(clamped)
                                     onCfgChange(clamped)
-                                    saveAllFields()
+                                    saveFieldsImmediate()
                                 }
                             },
                     )
@@ -753,7 +758,7 @@ fun GenerateScreen(
             val isSeedValid = seed.isEmpty() || seed.toLongOrNull() != null
             OutlinedTextField(
                 value = seed,
-                onValueChange = { onSeedChange(it); saveAllFields() },
+                onValueChange = { onSeedChange(it) },
                 label = { Text(stringResource(R.string.random_seed)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
@@ -765,12 +770,41 @@ fun GenerateScreen(
                 } else null,
                 trailingIcon = {
                     if (seed.isNotEmpty()) {
-                        IconButton(onClick = { onSeedChange(""); saveAllFields() }) {
+                        IconButton(onClick = { onSeedChange("") }) {
                             Icon(Icons.Default.Clear, stringResource(R.string.a11y_clear))
                         }
                     }
                 },
             )
+        
+            // ── Commit all fields + persist when parent requests (before generate) ──
+            LaunchedEffect(commitAndPersistTrigger) {
+                if (commitAndPersistTrigger > 0) {
+                    // Batch Count: clamp + push
+                    batchText.toIntOrNull()?.coerceIn(1, 60)?.let {
+                        batchText = it.toString(); onBatchCountsChange(it)
+                    }
+                    // Width: clamp + push
+                    widthText.toIntOrNull()?.coerceIn(64, 4096)?.let {
+                        widthText = it.toString(); onWidthChange(it)
+                    }
+                    // Height: clamp + push
+                    heightText.toIntOrNull()?.coerceIn(64, 4096)?.let {
+                        heightText = it.toString(); onHeightChange(it)
+                    }
+                    // Steps: clamp + push
+                    stepsText.toIntOrNull()?.coerceIn(1, 50)?.let {
+                        stepsText = it.toString(); onStepsChange(it.toFloat())
+                    }
+                    // CFG Scale: clamp + push
+                    cfgText.toFloatOrNull()?.coerceIn(1f, 30f)?.let {
+                        cfgText = "%.${cfgDecimals}f".format(it); onCfgChange(it)
+                    }
+                    // Clear focus so any in-progress editing is finalized
+                    focusManager.clearFocus()
+                    saveFieldsImmediate()
+                }
+            }
 
         } // end Parameters tab Column
 
