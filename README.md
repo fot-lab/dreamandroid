@@ -6,9 +6,16 @@
 > This is a **fork** of [xororz/local-dream](https://github.com/xororz/local-dream),
 > focused on **build CI** and **UI redesign**.
 >
-> This fork adapts the codebase to older Android SDK releases and 
-> removes experimental Material3 APIs that were present in upstream.
+> This fork adapts the codebase to older Android SDK releases and
+> removs experimental Material3 APIs that were present in upstream.
+> The frontend and backend are refactored for an improved architecture
+> with redesigned intuitive UI, task queue support, history save/export/import and many more.
 
+## User Guide 
+
+No standalone manual provided here. 
+Please refer to the upstream [user guide](https://ld-guide.chino.icu/) 
+of [xororz/local-dream](https://github.com/xororz/local-dream).
 ---
 
 ## Version
@@ -63,7 +70,3 @@ This project is a fork of [xororz/local-dream](https://github.com/xororz/local-d
 This project inherits the license of the original [xororz/local-dream](https://github.com/xororz/local-dream) repository at fork time: CC-BY-NC. See [LICENSE](LICENSE).
 
 ---
-
-## User Guide (from upstream xororz/local-dream)
-
-For certain reasons, all guides and documentation from upstream are at  [Guide Site](https://ld-guide.chino.icu).
