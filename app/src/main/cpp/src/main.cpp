@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -71,6 +72,15 @@
 
 namespace {
 constexpr int kUpscaleMinEdge = 192;   // minimum edge before upscale pre-resize
+
+// Signal-safe pointer to the HTTP server; set before listen(), read by
+// handleShutdownSignal().  Uses sig_atomic_t style access — only written
+// once before listen() and never written concurrently with the handler.
+httplib::Server *g_svr = nullptr;
+
+void handleShutdownSignal(int /*signum*/) {
+    if (g_svr) g_svr->stop();  // httplib::Server::stop() is async-signal-safe
+}
 } // anonymous namespace
 
 
@@ -362,7 +372,11 @@ int main(int argc, char **argv) {
     // ─── Listen ──────────────────────────────────────────────────────────
     std::cout << "Server listening on " << appCtx.conf.listen_address
               << ":" << appCtx.conf.port << std::endl;
+    std::signal(SIGTERM, handleShutdownSignal);
+    std::signal(SIGINT,  handleShutdownSignal);
+    g_svr = &svr;
     svr.listen(appCtx.conf.listen_address.c_str(), appCtx.conf.port);
+    g_svr = nullptr;
 
     // ─── Cleanup ─────────────────────────────────────────────────────────
     auto &m = appCtx.models;
