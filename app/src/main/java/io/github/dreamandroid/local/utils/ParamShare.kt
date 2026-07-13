@@ -1,6 +1,7 @@
 package io.github.dreamandroid.local.utils
 
 import io.github.dreamandroid.local.data.GenerationMode
+import io.github.dreamandroid.local.data.formatCfgScale
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import java.util.Base64
 import org.json.JSONObject
@@ -15,6 +16,53 @@ enum class ParamShareField {
     SCHEDULER,
     DENOISING_STRENGTH,
     MODE,
+
+    // ═══════════════════════════════════════════════════════════════
+    // Canonical preview — use these instead of hand-rolled when blocks
+    // ═══════════════════════════════════════════════════════════════
+    ;
+
+    fun preview(params: GenerationParameters): String? = when (this) {
+        PROMPT -> params.prompt
+        NEGATIVE_PROMPT -> params.negativePrompt
+        STEPS -> params.steps.toString()
+        CFG_SCALE -> formatCfgScale(params.cfgScale)
+        SEED -> params.seed?.toString()
+        SAMPLER -> samplerDisplayName(params.sampler)
+        SCHEDULER -> params.scheduler
+        DENOISING_STRENGTH -> "%.2f".format(params.denoisingStrength)
+        MODE -> null
+    }
+
+    fun preview(imported: ImportedParams): String? = when (this) {
+        PROMPT -> imported.prompt
+        NEGATIVE_PROMPT -> imported.negativePrompt
+        STEPS -> imported.steps?.toString()
+        CFG_SCALE -> imported.cfgScale?.let { formatCfgScale(it) }
+        SEED -> imported.seed?.toString()
+        SAMPLER -> samplerDisplayName(imported.sampler)
+        SCHEDULER -> imported.scheduler
+        DENOISING_STRENGTH -> imported.denoisingStrength?.let { "%.2f".format(it) }
+        MODE -> imported.mode?.name?.lowercase()
+    }
+}
+
+/**
+ * Fields eligible for sharing/reproducing from a [GenerationParameters].
+ * PROMPT / NEGATIVE_PROMPT / STEPS / CFG_SCALE / SAMPLER are always present;
+ * SEED, SCHEDULER, DENOISING_STRENGTH are conditional.
+ */
+fun GenerationParameters.availableShareFields(): List<ParamShareField> = buildList {
+    add(ParamShareField.PROMPT)
+    add(ParamShareField.NEGATIVE_PROMPT)
+    add(ParamShareField.STEPS)
+    add(ParamShareField.CFG_SCALE)
+    if (seed != null) add(ParamShareField.SEED)
+    add(ParamShareField.SAMPLER)
+    if (scheduler.isNotEmpty()) add(ParamShareField.SCHEDULER)
+    if (mode != GenerationMode.UNKNOWN && mode != GenerationMode.TXT2IMG) {
+        add(ParamShareField.DENOISING_STRENGTH)
+    }
 }
 
 data class ImportedParams(

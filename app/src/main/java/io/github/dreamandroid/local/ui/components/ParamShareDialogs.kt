@@ -30,12 +30,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
-import io.github.dreamandroid.local.data.GenerationMode
-import io.github.dreamandroid.local.data.formatCfgScale
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.utils.ImportedParams
 import io.github.dreamandroid.local.utils.ParamShareField
-import io.github.dreamandroid.local.utils.samplerDisplayName
 
 @Composable
 private fun fieldLabel(field: ParamShareField): String = when (field) {
@@ -195,19 +192,7 @@ fun ReproduceParametersDialog(
     onApply: (selected: Set<ParamShareField>) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val available = remember(params) {
-        buildList {
-            add(ParamShareField.PROMPT)
-            add(ParamShareField.NEGATIVE_PROMPT)
-            add(ParamShareField.STEPS)
-            add(ParamShareField.CFG_SCALE)
-            if (params.seed != null) add(ParamShareField.SEED)
-            add(ParamShareField.SAMPLER)
-            if (params.mode != GenerationMode.TXT2IMG) {
-                add(ParamShareField.DENOISING_STRENGTH)
-            }
-        }
-    }
+    val available = remember(params) { params.availableShareFields() }
     val selected = remember(params) {
         mutableStateOf<Set<ParamShareField>>(available.toSet())
     }
@@ -226,24 +211,7 @@ fun ReproduceParametersDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 available.forEach { field ->
-                    val preview = when (field) {
-                        ParamShareField.PROMPT -> params.prompt
-
-                        ParamShareField.NEGATIVE_PROMPT -> params.negativePrompt
-
-                        ParamShareField.STEPS -> params.steps.toString()
-
-                        ParamShareField.CFG_SCALE -> formatCfgScale(params.cfgScale)
-
-                        ParamShareField.SEED -> params.seed?.toString()
-
-                        ParamShareField.SAMPLER -> samplerDisplayName(params.sampler)
-
-                        ParamShareField.DENOISING_STRENGTH ->
-                            "%.2f".format(params.denoisingStrength)
-
-                        ParamShareField.MODE -> null
-                    }
+                    val preview = field.preview(params)
                     FieldRow(
                         field = field,
                         checked = field in selected.value,
@@ -324,24 +292,7 @@ fun ImportParametersDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 available.forEach { field ->
-                    val preview = when (field) {
-                        ParamShareField.PROMPT -> imported.prompt
-
-                        ParamShareField.NEGATIVE_PROMPT -> imported.negativePrompt
-
-                        ParamShareField.STEPS -> imported.steps?.toString()
-
-                        ParamShareField.CFG_SCALE -> imported.cfgScale?.let { formatCfgScale(it) }
-
-                        ParamShareField.SEED -> imported.seed?.toString()
-
-                        ParamShareField.SAMPLER -> samplerDisplayName(imported.sampler)
-
-                        ParamShareField.DENOISING_STRENGTH ->
-                            imported.denoisingStrength?.let { "%.2f".format(it) }
-
-                        ParamShareField.MODE -> imported.mode?.name?.lowercase()
-                    }
+                    val preview = field.preview(imported)
                     FieldRow(
                         field = field,
                         checked = field in selected.value,

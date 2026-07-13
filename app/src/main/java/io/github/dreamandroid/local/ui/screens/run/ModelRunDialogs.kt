@@ -199,13 +199,7 @@ fun ModelRunReproduceParamsDialog(
     ReproduceParametersDialog(
         params = params,
         onApply = { selectedFields ->
-            if (ParamShareField.PROMPT in selectedFields) { state.prompt = params.prompt; state.promptFieldValue = TextFieldValue(state.prompt, TextRange(state.prompt.length)); state.promptSuggestions = emptyList() }
-            if (ParamShareField.NEGATIVE_PROMPT in selectedFields) { state.negativePrompt = params.negativePrompt; state.negativePromptFieldValue = TextFieldValue(state.negativePrompt, TextRange(state.negativePrompt.length)); state.negativePromptSuggestions = emptyList() }
-            if (ParamShareField.STEPS in selectedFields) { state.steps = params.steps.toFloat() }
-            if (ParamShareField.CFG_SCALE in selectedFields) { state.cfg = params.cfgScale }
-            if (ParamShareField.SEED in selectedFields) { state.seed = params.seed?.toString() ?: "" }
-            if (ParamShareField.SAMPLER in selectedFields) { state.sampler = params.sampler }
-            if (ParamShareField.DENOISING_STRENGTH in selectedFields) { state.denoiseStrength = params.denoisingStrength }
+            state.applyReproduceFields(params, selectedFields)
             if (model?.isSdxl == true && useImg2img) {
                 val newRatio = inferAspectRatioString(params.width, params.height)
                 if (newRatio != state.aspectRatio) { state.aspectRatio = newRatio; onClearImg2img() }
@@ -363,27 +357,10 @@ fun ModelRunShareParamsDialog(
     msgShareCopied: String,
 ) {
     val source = state.shareSourceParams ?: return
-    val available = remember(source) {
-        val list = mutableListOf<ParamShareField>()
-        list += ParamShareField.PROMPT; list += ParamShareField.NEGATIVE_PROMPT; list += ParamShareField.STEPS; list += ParamShareField.CFG_SCALE
-        if (source.seed != null) list += ParamShareField.SEED; list += ParamShareField.SAMPLER
-        if (source.mode != GenerationMode.UNKNOWN && source.mode != GenerationMode.TXT2IMG) { list += ParamShareField.DENOISING_STRENGTH }
-        list
-    }
+    val available = remember(source) { source.availableShareFields() }
     ShareParametersDialog(
         availableFields = available,
-        fieldPreview = { field ->
-            when (field) {
-                ParamShareField.PROMPT -> source.prompt
-                ParamShareField.NEGATIVE_PROMPT -> source.negativePrompt
-                ParamShareField.STEPS -> source.steps.toString()
-                ParamShareField.CFG_SCALE -> formatCfgScale(source.cfgScale)
-                ParamShareField.SEED -> source.seed?.toString()
-                ParamShareField.SAMPLER -> samplerDisplayName(source.sampler)
-                ParamShareField.DENOISING_STRENGTH -> "%.2f".format(source.denoisingStrength)
-                ParamShareField.MODE -> source.mode.name.lowercase()
-            }
-        },
+        fieldPreview = { field -> field.preview(source) },
         useBase64Initial = shareUseBase64,
         onUseBase64Changed = { value -> scope.launch { generationPreferences.setShareUseBase64(value) } },
         onConfirm = { selectedFields, useBase64 ->
@@ -422,13 +399,7 @@ fun ModelRunImportParamsDialog(
         clearClipboardInitial = shareClearClipboardOnImport,
         onClearClipboardChanged = { value -> scope.launch { generationPreferences.setShareClearClipboardOnImport(value) } },
         onApply = { selectedFields, clearClipboard ->
-            if (ParamShareField.PROMPT in selectedFields) { imported.prompt?.let { state.prompt = it; state.promptFieldValue = TextFieldValue(it, TextRange(it.length)); state.promptSuggestions = emptyList() } }
-            if (ParamShareField.NEGATIVE_PROMPT in selectedFields) { imported.negativePrompt?.let { state.negativePrompt = it; state.negativePromptFieldValue = TextFieldValue(it, TextRange(it.length)); state.negativePromptSuggestions = emptyList() } }
-            if (ParamShareField.STEPS in selectedFields) { imported.steps?.let { state.steps = it.toFloat() } }
-            if (ParamShareField.CFG_SCALE in selectedFields) { imported.cfgScale?.let { state.cfg = it } }
-            if (ParamShareField.SEED in selectedFields) { state.seed = imported.seed?.toString() ?: "" }
-            if (ParamShareField.SAMPLER in selectedFields) { imported.sampler?.let { state.sampler = it } }
-            if (ParamShareField.DENOISING_STRENGTH in selectedFields) { imported.denoisingStrength?.let { state.denoiseStrength = it } }
+            state.applyImportFields(imported, selectedFields)
             onSaveAll()
             if (clearClipboard) clearClipboardAction()
             state.pendingImport = null
@@ -680,4 +651,52 @@ fun ModelRunCustomAspectRatioDialog(
         }) { Text(stringResource(R.string.confirm)) } },
         dismissButton = { TextButton(onClick = { state.showCustomAspectRatioDialog = false }) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ParamShareField → state applicators (centralized, DRY)
+// ═══════════════════════════════════════════════════════════════
+
+private fun ModelRunState.applyReproduceFields(params: GenerationParameters, fields: Set<ParamShareField>) {
+    for (field in fields) when (field) {
+        ParamShareField.PROMPT -> {
+            prompt = params.prompt
+            promptFieldValue = TextFieldValue(prompt, TextRange(prompt.length))
+            promptSuggestions = emptyList()
+        }
+        ParamShareField.NEGATIVE_PROMPT -> {
+            negativePrompt = params.negativePrompt
+            negativePromptFieldValue = TextFieldValue(negativePrompt, TextRange(negativePrompt.length))
+            negativePromptSuggestions = emptyList()
+        }
+        ParamShareField.STEPS -> steps = params.steps.toFloat()
+        ParamShareField.CFG_SCALE -> cfg = params.cfgScale
+        ParamShareField.SEED -> seed = params.seed?.toString() ?: ""
+        ParamShareField.SAMPLER -> sampler = params.sampler
+        ParamShareField.SCHEDULER -> scheduler = params.scheduler
+        ParamShareField.DENOISING_STRENGTH -> denoiseStrength = params.denoisingStrength
+        ParamShareField.MODE -> {} // no-op
+    }
+}
+
+private fun ModelRunState.applyImportFields(imported: ImportedParams, fields: Set<ParamShareField>) {
+    for (field in fields) when (field) {
+        ParamShareField.PROMPT -> imported.prompt?.let {
+            prompt = it
+            promptFieldValue = TextFieldValue(it, TextRange(it.length))
+            promptSuggestions = emptyList()
+        }
+        ParamShareField.NEGATIVE_PROMPT -> imported.negativePrompt?.let {
+            negativePrompt = it
+            negativePromptFieldValue = TextFieldValue(it, TextRange(it.length))
+            negativePromptSuggestions = emptyList()
+        }
+        ParamShareField.STEPS -> imported.steps?.let { steps = it.toFloat() }
+        ParamShareField.CFG_SCALE -> imported.cfgScale?.let { cfg = it }
+        ParamShareField.SEED -> seed = imported.seed?.toString() ?: ""
+        ParamShareField.SAMPLER -> imported.sampler?.let { sampler = it }
+        ParamShareField.SCHEDULER -> imported.scheduler?.let { scheduler = it }
+        ParamShareField.DENOISING_STRENGTH -> imported.denoisingStrength?.let { denoiseStrength = it }
+        ParamShareField.MODE -> {} // no-op
+    }
 }
