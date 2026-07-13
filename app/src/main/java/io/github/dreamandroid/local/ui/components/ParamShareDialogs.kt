@@ -33,6 +33,8 @@ import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.utils.ImportedParams
 import io.github.dreamandroid.local.utils.ParamShareField
+import io.github.dreamandroid.local.utils.availableShareFields
+import io.github.dreamandroid.local.utils.preview
 
 @Composable
 private fun fieldLabel(field: ParamShareField): String = when (field) {
@@ -42,6 +44,7 @@ private fun fieldLabel(field: ParamShareField): String = when (field) {
     ParamShareField.CFG_SCALE -> stringResource(R.string.share_field_cfg)
     ParamShareField.SEED -> stringResource(R.string.share_field_seed)
     ParamShareField.SAMPLER -> "采样器"
+    ParamShareField.SCHEDULER -> "Scheduler"
     ParamShareField.DENOISING_STRENGTH -> stringResource(R.string.share_field_denoise)
     ParamShareField.MODE -> stringResource(R.string.share_field_mode)
 }
