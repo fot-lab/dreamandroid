@@ -33,8 +33,8 @@ import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.ui.screens.run.GenerationParameters
 import io.github.dreamandroid.local.utils.ImportedParams
 import io.github.dreamandroid.local.utils.ParamShareField
+import io.github.dreamandroid.local.utils.ParamShareField.preview
 import io.github.dreamandroid.local.utils.availableShareFields
-import io.github.dreamandroid.local.utils.preview
 
 @Composable
 private fun fieldLabel(field: ParamShareField): String = when (field) {
