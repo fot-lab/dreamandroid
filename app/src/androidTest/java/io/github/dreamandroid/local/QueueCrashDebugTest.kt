@@ -243,6 +243,7 @@ class QueueCrashDebugTest {
             resultSeed = null,
             errorMessage = null,
             progress = 0f,
+            timeElapsedMs = null,
         )
 
         kotlinx.coroutines.runBlocking {

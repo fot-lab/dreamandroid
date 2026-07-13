@@ -241,12 +241,13 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         updateTask(id) { it.copy(status = TaskStatus.PENDING, progress = 0f) }
     }
 
-    fun markTaskComplete(id: String, bitmapPath: String?, seed: Long?) {
+    fun markTaskComplete(id: String, bitmapPath: String?, seed: Long?, timeElapsedMs: Long = 0L) {
         updateTask(id) {
             it.copy(
                 status = TaskStatus.COMPLETED,
                 resultBitmapPath = bitmapPath,
                 resultSeed = seed,
+                timeElapsedMs = timeElapsedMs,
             )
         }
     }
@@ -401,6 +402,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         resultSeed = resultSeed,
         errorMessage = errorMessage,
         progress = progress,
+        timeElapsedMs = timeElapsedMs,
     )
 
     private fun TaskEntity.toDomain() = GenerationTask(
@@ -428,5 +430,6 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         resultSeed = resultSeed,
         errorMessage = errorMessage,
         progress = progress ?: 0f,
+        timeElapsedMs = timeElapsedMs,
     )
 }

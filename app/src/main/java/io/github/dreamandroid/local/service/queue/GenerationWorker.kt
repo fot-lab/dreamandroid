@@ -154,6 +154,8 @@ class GenerationWorker(
             Log.d(TAG, "Processing task: ${task.id} (${task.prompt.take(50)}...)")
             queueRepository.markTaskProcessing(task.id)
             queueRepository.setProcessingActive(true)
+            // ── Start timing execution (excludes cooldown) ──
+            val startTimeMs = System.currentTimeMillis()
 
             setProgress(workDataOf(
                 KEY_PROGRESS to 0,
@@ -255,6 +257,8 @@ class GenerationWorker(
 
                             is SseStreamParser.SseEvent.Complete -> {
                                 stepTimeoutJob?.cancel()
+                                // ── Compute elapsed time (excludes cooldown) ──
+                                val timeElapsedMs = System.currentTimeMillis() - startTimeMs
                                 // Clear timeout state on successful completion
                                 queueRepository.setGenerationTimedOut(false)
                                 val bitmap = base64ToBitmap(
@@ -294,6 +298,7 @@ class GenerationWorker(
                                         sampler = task.sampler,
                                         scheduler = task.scheduler,
                                         mode = GenerationMode.TXT2IMG,
+                                        timeElapsedMs = timeElapsedMs,
                                     )
                                     // Save to history (best-effort, consistent with old QueueProcessingService
                                     // which never blocked task completion on history save failure)
@@ -325,7 +330,7 @@ class GenerationWorker(
                                     bitmap.recycle()
 
                                     if (cachePath != null) {
-                                        queueRepository.markTaskComplete(task.id, cachePath, event.seed)
+                                        queueRepository.markTaskComplete(task.id, cachePath, event.seed, timeElapsedMs)
                                         setProgress(workDataOf(
                                             KEY_PROGRESS to 100,
                                             KEY_TASK_ID to task.id,

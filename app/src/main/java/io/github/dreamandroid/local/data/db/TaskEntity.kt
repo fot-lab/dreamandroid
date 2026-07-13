@@ -97,6 +97,9 @@ data class TaskEntity(
     @ColumnInfo(name = "generation_time")
     val generationTime: String? = null,
 
+    @ColumnInfo(name = "time_elapsed_ms")
+    val timeElapsedMs: Long? = null,
+
     @ColumnInfo(name = "run_on_cpu")
     val runOnCpu: Boolean? = null,
 

@@ -983,7 +983,7 @@ private fun RecordCard(
 
                 Spacer(Modifier.height(4.dp))
 
-                // Params summary + seed
+                // Params summary
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1005,6 +1005,15 @@ private fun RecordCard(
                         )
                     }
                 }
+                // Sampler + Scheduler
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = record.samplerSchedulerSummary,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

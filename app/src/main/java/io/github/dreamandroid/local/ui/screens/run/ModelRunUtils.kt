@@ -97,4 +97,5 @@ data class GenerationParameters(
     val sampler: String = "dpm",
     val scheduler: String = "",
     val mode: GenerationMode = GenerationMode.UNKNOWN,
+    val timeElapsedMs: Long? = null,
 )

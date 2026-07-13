@@ -349,6 +349,28 @@ fun BrowseScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    // Sampler & Scheduler
+                    val samplerScheduler = buildString {
+                        append(currentItem.params.sampler)
+                        if (currentItem.params.scheduler.isNotEmpty()) {
+                            append(" · ").append(currentItem.params.scheduler)
+                        }
+                    }
+                    if (samplerScheduler.isNotEmpty()) {
+                        Text(
+                            text = samplerScheduler,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    // Time Elapsed
+                    if (currentItem.params.timeElapsedMs != null && currentItem.params.timeElapsedMs > 0) {
+                        Text(
+                            text = "Time: %.3fs".format(currentItem.params.timeElapsedMs / 1000.0),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Text(
                         text = "${currentItem.params.width}×${currentItem.params.height} · ${formatBrowseTime(currentItem.params.generationTime)}",
                         style = MaterialTheme.typography.bodySmall,

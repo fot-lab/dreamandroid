@@ -388,6 +388,7 @@ class QueueProgressCrashTest {
             resultSeed = null,
             errorMessage = null,
             progress = 0.45f,
+            timeElapsedMs = null,
         )
         val task2 = io.github.dreamandroid.local.data.db.TaskEntity(
             id = taskId2,
@@ -414,6 +415,7 @@ class QueueProgressCrashTest {
             resultSeed = null,
             errorMessage = null,
             progress = 0.72f,
+            timeElapsedMs = null,
         )
 
         kotlinx.coroutines.runBlocking {

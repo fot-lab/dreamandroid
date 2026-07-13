@@ -144,6 +144,7 @@ object HistoryMigration {
             mode = GenerationMode.UNKNOWN.name,
             upscalerId = if (isJpg) "unknown" else null,
             generationTime = json.optString("generationTime", "").ifBlank { null },
+            timeElapsedMs = null,  // legacy data has no elapsed time info
             runOnCpu = json.optBoolean("runOnCpu", false),
         )
         dao.insert(entity)

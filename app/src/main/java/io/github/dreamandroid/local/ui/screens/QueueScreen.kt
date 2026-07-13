@@ -317,6 +317,16 @@ private fun TaskCard(
                     )
                 }
 
+                // Completed task: show time elapsed
+                if (task.status == TaskStatus.COMPLETED && task.timeElapsedMs != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "%.3fs".format(task.timeElapsedMs / 1000.0),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                }
+
                 // Expanded details
                 AnimatedVisibility(
                     visible = isExpanded,
@@ -327,7 +337,6 @@ private fun TaskCard(
                         TaskDetailRow("Steps", "${task.steps}")
                         TaskDetailRow("CFG", formatCfgScale(task.cfg))
                         TaskDetailRow("Size", "${task.width}x${task.height}")
-                        TaskDetailRow("Sampler", task.sampler)
                         if (task.seed != null) TaskDetailRow("Seed", task.seed.toString())
                         if (!task.negativePrompt.isNullOrEmpty()) {
                             Text(

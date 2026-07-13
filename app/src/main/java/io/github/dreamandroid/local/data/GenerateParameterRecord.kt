@@ -44,6 +44,15 @@ data class GenerateParameterRecord(
     val paramsSummary: String
         get() = "$modelId · $steps steps · CFG ${formatCfgScale(cfg)} · ${width}×${height}"
 
+    /** Sampler + scheduler display line (only when scheduler is non-empty) */
+    val samplerSchedulerSummary: String
+        get() = buildString {
+            append(sampler)
+            if (scheduler.isNotEmpty()) {
+                append(" · ").append(scheduler)
+            }
+        }
+
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
         put("prompt", prompt)
@@ -143,6 +152,7 @@ data class GenerateParameterRecord(
         sampler = sampler,
         scheduler = scheduler,
         timestamp = timestamp,
+        timeElapsedMs = null,
         tags = """{"source":"${source.name}"}""",
     )
 }

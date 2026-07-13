@@ -49,10 +49,11 @@ data class HistoryItem(
                     runOnCpu = e.runOnCpu ?: false,
                     denoisingStrength = e.denoiseStrength ?: 0.6f,
                     useOpenCL = e.useOpenCL,
-                    sampler = e.sampler,
-                    scheduler = e.scheduler,
-                    mode = mode,
-                ),
+                sampler = e.sampler,
+                scheduler = e.scheduler,
+                mode = mode,
+                timeElapsedMs = e.timeElapsedMs,
+            ),
             )
         }
     }
@@ -142,6 +143,7 @@ class HistoryManager(private val context: Context) {
                 mode = mode.name,
                 upscalerId = upscalerId,
                 generationTime = params.generationTime,
+                timeElapsedMs = params.timeElapsedMs,
                 runOnCpu = params.runOnCpu,
             )
             try {

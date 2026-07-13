@@ -186,6 +186,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
                     width = item.params.width,
                     height = item.params.height,
                     sampler = item.params.sampler,
+                    scheduler = item.params.scheduler,
                     timestamp = item.timestamp,
                     source = RecordSource.GALLERY,
                 )
@@ -230,6 +231,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
             width = item.params.width,
             height = item.params.height,
             sampler = item.params.sampler,
+            scheduler = item.params.scheduler,
             timestamp = item.timestamp,
             source = RecordSource.GALLERY,
         )

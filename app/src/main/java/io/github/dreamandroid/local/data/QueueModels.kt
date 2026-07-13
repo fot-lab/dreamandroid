@@ -31,6 +31,7 @@ data class GenerationTask(
     val resultSeed: Long? = null,
     val errorMessage: String? = null,
     val progress: Float = 0f,
+    val timeElapsedMs: Long? = null,
 ) {
     /** Display-friendly status label with progress percentage when processing */
     val statusLabel: String
