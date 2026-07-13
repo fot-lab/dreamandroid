@@ -93,6 +93,8 @@
     <string name="sdxl_lowram_hint">SDXL 전용: 각 모델을 필요할 때만 로드하고 사용 후 해제합니다. RAM이 16GB 미만인 기기에서 필요합니다. 생성 중 미리보기가 비활성화됩니다.</string>
     <string name="queue_cooldown_time">큐 쿨다운 시간</string>
     <string name="queue_cooldown_time_hint">과열 방지를 위한 큐 작업 간 대기 시간. 0이면 대기하지 않습니다. 현재: %d초</string>
+    <string name="queue_cooling">쿨링 중</string>
+    <string name="queue_cooling_hint">과열 방지를 위해 다음 작업 전 대기 중</string>
     <string name="captured_logs_title">수집된 로그</string>
     <string name="log_saved">%1$s에 저장했습니다</string>
     <string name="log_save_failed">로그 저장 실패</string>

@@ -60,6 +60,14 @@ class QueueRepository private constructor(private val db: AppDatabase) {
     private val _queuePaused = MutableStateFlow(false)
     val queuePaused: StateFlow<Boolean> = _queuePaused
 
+    /** Cooldown seconds remaining before next task. 0 = not cooling. */
+    private val _cooldownRemainingS = MutableStateFlow(0)
+    val cooldownRemainingS: StateFlow<Int> = _cooldownRemainingS
+
+    /** Total cooldown seconds configured (for progress: elapsed/total). */
+    private val _cooldownTotalS = MutableStateFlow(0)
+    val cooldownTotalS: StateFlow<Int> = _cooldownTotalS
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // ── Init: restore from Room ──
@@ -103,6 +111,20 @@ class QueueRepository private constructor(private val db: AppDatabase) {
 
     fun setGenerationTimedOut(timedOut: Boolean) {
         _generationTimedOut.value = timedOut
+    }
+
+    // ── Cooldown state ──
+
+    /** Set cooldown progress. [remaining] counts down; [total] stays constant. */
+    fun setCooldownProgress(remaining: Int, total: Int) {
+        _cooldownRemainingS.value = remaining
+        _cooldownTotalS.value = total
+    }
+
+    /** Clear cooldown state (both fields → 0). */
+    fun clearCooldown() {
+        _cooldownRemainingS.value = 0
+        _cooldownTotalS.value = 0
     }
 
     fun setQueuePaused(paused: Boolean) {

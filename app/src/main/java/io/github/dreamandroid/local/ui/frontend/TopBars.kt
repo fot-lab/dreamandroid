@@ -204,6 +204,7 @@ fun QueueTopBar(
     processingActive: Boolean = false,
     queuePaused: Boolean = false,
     hasPendingTasks: Boolean = false,
+    cooldownRemainingS: Int = 0,
     onPause: () -> Unit = {},
     onResume: () -> Unit = {},
     // ── Queue selection mode ──────────────────────────────────
@@ -227,6 +228,7 @@ fun QueueTopBar(
                 )
             } else {
                 val statusText = when {
+                    cooldownRemainingS > 0 -> "${stringResource(R.string.queue_cooling)}: ${cooldownRemainingS}s"
                     queuePaused -> stringResource(R.string.queue_paused)
                     processingActive -> stringResource(R.string.model_running)
                     else -> null

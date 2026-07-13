@@ -132,6 +132,8 @@ fun AppContent() {
     val queueBatchGroups = remember(queueTasks) { queueViewModel.queueRepository.getBatchGroups() }
     val generationTimedOut by queueViewModel.queueRepository.generationTimedOut.collectAsState()
     val queuePaused by queueViewModel.queueRepository.queuePaused.collectAsState()
+    val cooldownRemainingS by queueViewModel.queueRepository.cooldownRemainingS.collectAsState()
+    val cooldownTotalS by queueViewModel.queueRepository.cooldownTotalS.collectAsState()
     val queueHasPending = remember(queueTasks) {
         queueViewModel.queueRepository.hasPendingTasks()
     }
@@ -492,6 +494,8 @@ fun AppContent() {
                             processingActive = queueProcessing,
                             queuePaused = queuePaused,
                             hasPendingTasks = queueHasPending,
+                            cooldownRemainingS = cooldownRemainingS,
+                            cooldownTotalS = cooldownTotalS,
                             recordRepository = recordRepository,
                         )
                         BottomTab.Generate -> AppContentTabGenerate(

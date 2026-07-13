@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.BatchGroupDisplay
@@ -38,6 +39,8 @@ fun QueueScreen(
     tasks: List<GenerationTask>,
     batchGroups: List<BatchGroupDisplay>,
     processingActive: Boolean,
+    cooldownRemainingS: Int = 0,
+    cooldownTotalS: Int = 0,
     onRemoveTask: (String) -> Unit,
     onRemoveBatch: (String) -> Unit,
     onSaveInfo: (GenerationTask) -> Unit = {},
@@ -91,6 +94,26 @@ fun QueueScreen(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // ── Cooldown indicator (lightweight, same position as processing progress) ──
+        if (cooldownRemainingS > 0) {
+            item(key = "cooldown_indicator") {
+                val progress = if (cooldownTotalS > 0) (cooldownTotalS - cooldownRemainingS).toFloat() / cooldownTotalS else 0f
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${stringResource(R.string.queue_cooling)}: ${cooldownRemainingS}s",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+            }
+        }
+
         items(batchGroups, key = { it.batchGroupId }) { group ->
             Log.d(TAG_QUEUE, "QueueScreen: rendering batchGroup id=${group.batchGroupId.take(8)} count=${group.count} prompt=${group.prompt.take(30)}")
             val isExpanded = expandedGroups[group.batchGroupId] ?: false

@@ -112,6 +112,8 @@
     <string name="health_check_max_failures_hint">Number of consecutive health check failures before auto-restarting the backend service. Current: %d</string>
     <string name="queue_cooldown_time">Queue Cooldown Time</string>
     <string name="queue_cooldown_time_hint">Pause between queue tasks to prevent overheating. 0 disables the pause. Current: %d seconds</string>
+    <string name="queue_cooling">Cooling</string>
+    <string name="queue_cooling_hint">Waiting before next task to prevent overheating</string>
     <string name="captured_logs_title">Captured logs</string>
     <string name="log_saved">Saved to %1$s</string>
     <string name="log_save_failed">Failed to save log</string>

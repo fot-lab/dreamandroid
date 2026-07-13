@@ -413,7 +413,20 @@ class GenerationWorker(
                 val cooldownS = prefs.getInt("queue_cooldown_time_s", 0)
                 if (cooldownS > 0) {
                     Log.d(TAG, "Cooldown: waiting ${cooldownS}s before next task")
-                    delay(cooldownS * 1000L)
+                    queueRepository.setProcessingActive(false)
+                    queueRepository.setCooldownProgress(cooldownS, cooldownS)
+                    for (elapsed in 0 until cooldownS) {
+                        if (isStopped) break
+                        val remaining = cooldownS - elapsed
+                        val progress = elapsed.toFloat() / cooldownS
+                        queueRepository.setCooldownProgress(remaining, cooldownS)
+                        setForeground(createForegroundInfo(
+                            "Cooling: ${remaining}s...",
+                            (progress * 100).toInt(),
+                        ))
+                        delay(1000L)
+                    }
+                    queueRepository.clearCooldown()
                 }
             }
         }

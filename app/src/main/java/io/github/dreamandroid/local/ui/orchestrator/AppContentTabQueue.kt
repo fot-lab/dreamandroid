@@ -38,6 +38,8 @@ fun AppContentTabQueue(
     processingActive: Boolean,
     queuePaused: Boolean,
     hasPendingTasks: Boolean,
+    cooldownRemainingS: Int = 0,
+    cooldownTotalS: Int = 0,
     recordRepository: RecordRepository,
 ) {
     SideEffect {
@@ -153,6 +155,7 @@ fun AppContentTabQueue(
                     processingActive = processingActive,
                     queuePaused = queuePaused,
                     hasPendingTasks = hasPendingTasks,
+                    cooldownRemainingS = cooldownRemainingS,
                     onPause = { queueViewModel.stop(context) },
                     onResume = { queueViewModel.resume(context) },
                     // Queue selection mode
@@ -177,6 +180,8 @@ fun AppContentTabQueue(
                     tasks = tasks,
                     batchGroups = batchGroups,
                     processingActive = processingActive,
+                    cooldownRemainingS = cooldownRemainingS,
+                    cooldownTotalS = cooldownTotalS,
                     onRemoveTask = { queueViewModel.removeTask(it) },
                     onRemoveBatch = { queueViewModel.removeBatch(it) },
                     recordRepository = recordRepository,
