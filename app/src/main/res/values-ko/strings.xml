@@ -239,6 +239,8 @@
     <string name="share_field_steps">스텝</string>
     <string name="share_field_cfg">CFG</string>
     <string name="share_field_seed">시드</string>
+    <string name="share_field_sampler">샘플러</string>
+    <string name="share_field_scheduler">스케줄러</string>
     <string name="share_field_denoise">디노이징 강도</string>
     <string name="share_field_mode">모드</string>
     <string name="import_params_title">공유 파라미터 적용</string>

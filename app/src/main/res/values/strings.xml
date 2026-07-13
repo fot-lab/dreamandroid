@@ -278,6 +278,8 @@
     <string name="share_field_steps">Steps</string>
     <string name="share_field_cfg">CFG</string>
     <string name="share_field_seed">Seed</string>
+    <string name="share_field_sampler">Sampler</string>
+    <string name="share_field_scheduler">Scheduler</string>
     <string name="share_field_denoise">Denoise strength</string>
     <string name="share_field_mode">Mode</string>
     <string name="import_params_title">Apply Shared Parameters</string>

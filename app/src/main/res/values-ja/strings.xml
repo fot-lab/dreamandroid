@@ -262,6 +262,8 @@
     <string name="share_field_steps">ステップ数</string>
     <string name="share_field_cfg">CFG</string>
     <string name="share_field_seed">シード</string>
+    <string name="share_field_sampler">サンプラー</string>
+    <string name="share_field_scheduler">スケジューラー</string>
     <string name="share_field_denoise">ノイズ除去強度</string>
     <string name="share_field_mode">モード</string>
     <string name="import_params_title">共有されたパラメータを適用</string>
