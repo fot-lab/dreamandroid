@@ -108,6 +108,8 @@
     <string name="health_check_retry_interval_hint">后端健康检查重试之间的等待时间。当前：%d 秒</string>
     <string name="health_check_max_failures">健康检查最大失败次数</string>
     <string name="health_check_max_failures_hint">连续健康检查失败多少次后自动重启后端服务。当前：%d 次</string>
+    <string name="queue_cooldown_time">队列冷却时间</string>
+    <string name="queue_cooldown_time_hint">队列任务之间的暂停间隔，避免处理器过热。设为 0 则不暂停。当前：%d 秒</string>
     <string name="captured_logs_title">已收集的日志</string>
     <string name="log_saved">已保存到 %1$s</string>
     <string name="log_save_failed">日志保存失败</string>

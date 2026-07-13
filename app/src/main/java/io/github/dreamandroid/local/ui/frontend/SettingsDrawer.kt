@@ -322,6 +322,21 @@ fun ColumnScope.QueueSettingsDrawerContent(modifier: Modifier = Modifier) {
             },
         ) { bitmapTimeout = it }
 
+        var cooldownTime by remember {
+            mutableIntStateOf(appPrefs.getInt("queue_cooldown_time_s", 0).coerceIn(0, 120))
+        }
+        SliderSetting(
+            title = stringResource(R.string.queue_cooldown_time),
+            hint = stringResource(R.string.queue_cooldown_time_hint, cooldownTime),
+            value = cooldownTime,
+            valueRange = 0..120,
+            steps = 23,
+            suffix = "s",
+            onValueChangeFinished = {
+                appPrefs.edit { putInt("queue_cooldown_time_s", cooldownTime) }
+            },
+        ) { cooldownTime = it }
+
         Spacer(Modifier.height(4.dp))
         HorizontalDivider()
 

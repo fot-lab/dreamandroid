@@ -90,6 +90,8 @@
     <string name="tag_import_failed">インポートに失敗しました</string>
     <string name="sdxl_lowram">SDXL 低メモリモード</string>
     <string name="sdxl_lowram_hint">SDXL 専用：各モデルを必要時にのみ読み込み、使用後に解放します。16GB 未満のデバイスでは有効化してください。生成途中のプレビューは無効になります。</string>
+    <string name="queue_cooldown_time">キュー冷却時間</string>
+    <string name="queue_cooldown_time_hint">過熱を防ぐためのキュー間の待機時間。0 にすると待機しません。現在：%d 秒</string>
     <string name="captured_logs_title">収集されたログ</string>
     <string name="log_saved">%1$s に保存しました</string>
     <string name="log_save_failed">ログの保存に失敗しました</string>

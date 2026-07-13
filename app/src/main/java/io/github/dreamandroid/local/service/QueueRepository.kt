@@ -293,6 +293,11 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         return _tasks.value.any { it.status == TaskStatus.PENDING }
     }
 
+    /** Returns the number of PENDING tasks (used for first/last detection). */
+    fun countPendingTasks(): Int {
+        return _tasks.value.count { it.status == TaskStatus.PENDING }
+    }
+
     /** Build collapsed batch groups for display */
     fun getBatchGroups(): List<BatchGroupDisplay> {
         val tasks = _tasks.value

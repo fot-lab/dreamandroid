@@ -110,6 +110,12 @@ class GenerationWorker(
         var taskRetryCount = 0
         var lastTaskId: String? = null
 
+        // Settings read once at loop start; reused across iterations
+        val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+
+        // Tracks whether the current iteration is processing the first task in the queue.
+        var isFirstTask = true
+
         while (!isStopped) {
             val task = queueRepository.getNextPending()
             if (task == null) {
@@ -117,6 +123,18 @@ class GenerationWorker(
                 queueRepository.setProcessingActive(false)
                 return Result.success()
             }
+
+            // ── Determine task position in queue (first / middle / last) ──
+            // countPendingTasks() includes this task because it is still PENDING
+            // (markTaskProcessing is called below).
+            val pendingCount = queueRepository.countPendingTasks()
+            val queuedTaskIndexIndicator = when {
+                isFirstTask && pendingCount == 1 -> -1  // first and only task
+                isFirstTask -> 1                          // first of many
+                pendingCount == 1 -> -1                   // last task
+                else -> 0                                 // middle task
+            }
+            if (isFirstTask) isFirstTask = false
 
             // Reset retry counter when a genuinely new task is picked up
             if (task.id != lastTaskId) {
@@ -161,7 +179,6 @@ class GenerationWorker(
 
             // ── 3. Execute generation via BackendManager (dual-path: SSE + polling) ──
             // Read user-configured per-step SSE timeout (accessible in catch blocks too)
-            val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             val timeoutSeconds = prefs.getInt("generation_timeout_s", 60).coerceAtLeast(10)
             val timeoutMs = timeoutSeconds * 1000L
             try {
@@ -386,6 +403,17 @@ class GenerationWorker(
                 } else {
                     queueRepository.resetTaskToPending(task.id)
                     if (!isStopped) delay(TASK_RETRY_DELAY_MS)
+                }
+            }
+
+            // ── Task cooldown: pause between consecutive tasks to prevent overheating ──
+            // queuedTaskIndexIndicator < 0 means this was the last task in the queue —
+            // skip cooldown since there is nothing next.
+            if (queuedTaskIndexIndicator >= 0 && !isStopped) {
+                val cooldownS = prefs.getInt("queue_cooldown_time_s", 0)
+                if (cooldownS > 0) {
+                    Log.d(TAG, "Cooldown: waiting ${cooldownS}s before next task")
+                    delay(cooldownS * 1000L)
                 }
             }
         }
