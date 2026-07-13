@@ -173,6 +173,7 @@ class GenerationWorker(
                 denoisingStrength = task.denoiseStrength,
                 useOpenCL = task.useOpenCL,
                 sampler = task.sampler,
+                scheduler = task.scheduler,
                 aspectRatio = task.aspectRatio,
                 seed = task.seed,
             )
@@ -291,6 +292,7 @@ class GenerationWorker(
                                         denoisingStrength = task.denoiseStrength,
                                         useOpenCL = task.useOpenCL,
                                         sampler = task.sampler,
+                                        scheduler = task.scheduler,
                                         mode = GenerationMode.TXT2IMG,
                                     )
                                     // Save to history (best-effort, consistent with old QueueProcessingService

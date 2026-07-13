@@ -142,6 +142,7 @@ class QueueCrashDebugTest {
                 denoiseStrength = 0.6f,
                 useOpenCL = false,
                 sampler = "euler",
+                scheduler = "",
                 aspectRatio = "1:1",
                 count = 1,
             )
@@ -231,6 +232,7 @@ class QueueCrashDebugTest {
             denoiseStrength = null,
             useOpenCL = false,
             sampler = "euler",
+            scheduler = "",
             timestamp = now,
             batchGroupId = java.util.UUID.randomUUID().toString(),
             batchIndex = 0,

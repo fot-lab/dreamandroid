@@ -147,6 +147,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         denoiseStrength: Float,
         useOpenCL: Boolean,
         sampler: String,
+        scheduler: String,
         aspectRatio: String,
         count: Int,
     ): String {
@@ -172,6 +173,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
                 denoiseStrength = denoiseStrength,
                 useOpenCL = useOpenCL,
                 sampler = sampler,
+                scheduler = scheduler,
                 aspectRatio = aspectRatio,
                 timestamp = now,
             )
@@ -388,6 +390,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         denoiseStrength = denoiseStrength,
         useOpenCL = useOpenCL,
         sampler = sampler,
+        scheduler = scheduler,
         timestamp = timestamp,
         batchGroupId = batchGroupId,
         batchIndex = batchIndex,
@@ -417,6 +420,7 @@ class QueueRepository private constructor(private val db: AppDatabase) {
         denoiseStrength = denoiseStrength ?: 0.6f,
         useOpenCL = useOpenCL,
         sampler = sampler,
+        scheduler = scheduler,
         aspectRatio = aspectRatio ?: "",
         status = try { TaskStatus.valueOf(status ?: "PENDING") } catch (_: Exception) { TaskStatus.PENDING },
         timestamp = timestamp,

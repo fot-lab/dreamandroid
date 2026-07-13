@@ -95,5 +95,6 @@ data class GenerationParameters(
     val denoisingStrength: Float = 0.6f,
     val useOpenCL: Boolean = false,
     val sampler: String = "dpm",
+    val scheduler: String = "",
     val mode: GenerationMode = GenerationMode.UNKNOWN,
 )

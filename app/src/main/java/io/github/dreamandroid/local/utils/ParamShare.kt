@@ -12,6 +12,7 @@ enum class ParamShareField {
     CFG_SCALE,
     SEED,
     SAMPLER,
+    SCHEDULER,
     DENOISING_STRENGTH,
     MODE,
 }
@@ -23,6 +24,7 @@ data class ImportedParams(
     val cfgScale: Float? = null,
     val seed: Long? = null,
     val sampler: String? = null,
+    val scheduler: String? = null,
     val denoisingStrength: Float? = null,
     val mode: GenerationMode? = null,
 ) {
@@ -37,6 +39,7 @@ data class ImportedParams(
         if (cfgScale != null) set += ParamShareField.CFG_SCALE
         if (seed != null) set += ParamShareField.SEED
         if (sampler != null) set += ParamShareField.SAMPLER
+        if (scheduler != null) set += ParamShareField.SCHEDULER
         if (denoisingStrength != null) set += ParamShareField.DENOISING_STRENGTH
         return set
     }
@@ -62,6 +65,7 @@ object ParamShare {
             params.seed?.let { json.put("seed", it) }
         }
         if (ParamShareField.SAMPLER in fields) json.put("sampler", params.sampler)
+        if (ParamShareField.SCHEDULER in fields) json.put("scheduler", params.scheduler)
         if (ParamShareField.DENOISING_STRENGTH in fields) {
             json.put("denoising_strength", params.denoisingStrength.toDouble())
         }
@@ -119,6 +123,7 @@ object ParamShare {
                     null
                 },
                 sampler = if (json.has("sampler")) json.optString("sampler") else null,
+                scheduler = if (json.has("scheduler")) json.optString("scheduler") else null,
                 denoisingStrength = if (json.has("denoising_strength")) {
                     json.optDouble("denoising_strength").toFloat()
                 } else if (json.has("denoise_strength")) {

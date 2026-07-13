@@ -104,6 +104,7 @@ class ModelRunState {
     var useOpenCL by mutableStateOf(false)
     var batchCounts by mutableIntStateOf(1)
     var sampler by mutableStateOf("dpm")
+    var scheduler by mutableStateOf("")
     var denoiseCurve by mutableStateOf("scaled_linear")
     var aspectRatio by mutableStateOf("1:1")
     var currentWidth by mutableIntStateOf(512)

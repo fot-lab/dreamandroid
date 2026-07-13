@@ -68,7 +68,7 @@ data class HistoryFilter(
             args.addAll(sizes)
         }
         if (!samplers.isNullOrEmpty()) {
-            where += "scheduler IN (${samplers.joinToString(",") { "?" }})"
+            where += "sampler IN (${samplers.joinToString(",") { "?" }})"
             args.addAll(samplers)
         }
         if (!devices.isNullOrEmpty()) {

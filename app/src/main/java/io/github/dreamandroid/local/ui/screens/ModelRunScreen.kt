@@ -535,6 +535,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                             denoiseStrength = state.denoiseStrength,
                                             useOpenCL = state.useOpenCL,
                                             sampler = state.sampler,
+                                            scheduler = state.scheduler,
                                             aspectRatio = state.aspectRatio,
                                             count = actualCount.coerceAtLeast(1),
                                         )
@@ -542,7 +543,7 @@ fun ModelRunScreen(modelId: String, navController: NavController, modifier: Modi
                                     }
                                 },
                                 onResetAll = {
-                                    state.steps = 20f; state.cfg = 7f; state.seed = ""; state.batchCounts = 1; state.sampler = "dpm"; state.denoiseCurve = "scaled_linear"; state.aspectRatio = "1:1"
+                                    state.steps = 20f; state.cfg = 7f; state.seed = ""; state.batchCounts = 1; state.sampler = "dpm"; state.scheduler = ""; state.denoiseCurve = "scaled_linear"; state.aspectRatio = "1:1"
                                     state.prompt = model.defaultPrompt; state.negativePrompt = model.defaultNegativePrompt
                                     state.promptFieldValue = TextFieldValue(state.prompt, TextRange(state.prompt.length))
                                     state.negativePromptFieldValue = TextFieldValue(state.negativePrompt, TextRange(state.negativePrompt.length))

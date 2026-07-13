@@ -22,6 +22,7 @@ data class GenerationTask(
     val denoiseStrength: Float,
     val useOpenCL: Boolean,
     val sampler: String,
+    val scheduler: String,
     val aspectRatio: String,
     val status: TaskStatus = TaskStatus.PENDING,
     val timestamp: Long = System.currentTimeMillis(),

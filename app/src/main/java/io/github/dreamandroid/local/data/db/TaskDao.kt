@@ -89,7 +89,7 @@ interface TaskDao {
     @Query("SELECT DISTINCT model_id FROM tasks WHERE task_type = 'HISTORY' ORDER BY model_id")
     fun observeHistoryKnownModelIds(): Flow<List<String>>
 
-    @Query("SELECT DISTINCT scheduler FROM tasks WHERE task_type = 'HISTORY' ORDER BY scheduler")
+    @Query("SELECT DISTINCT sampler FROM tasks WHERE task_type = 'HISTORY' ORDER BY sampler")
     fun observeHistoryKnownSamplers(): Flow<List<String>>
 
     @Query("SELECT DISTINCT (width || 'x' || height) FROM tasks WHERE task_type = 'HISTORY' ORDER BY width * height DESC")

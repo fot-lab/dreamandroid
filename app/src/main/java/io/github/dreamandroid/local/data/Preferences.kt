@@ -28,6 +28,7 @@ class GenerationPreferences(private val context: Context) {
 
     private fun getBatchCountsKey(modelId: String) = intPreferencesKey("${modelId}_batch_counts")
     private fun getSamplerKey(modelId: String) = stringPreferencesKey("${modelId}_sampler")
+    private fun getSchedulerKey(modelId: String) = stringPreferencesKey("${modelId}_scheduler")
     private fun getDenoiseCurveKey(modelId: String) = stringPreferencesKey("${modelId}_denoise_curve")
     private fun getAspectRatioKey(modelId: String) = stringPreferencesKey("${modelId}_aspect_ratio")
 
@@ -169,6 +170,7 @@ class GenerationPreferences(private val context: Context) {
         useOpenCL: Boolean,
         batchCounts: Int,
         sampler: String,
+        scheduler: String = "",
         denoiseCurve: String = "scaled_linear",
         aspectRatio: String = "1:1",
     ) {
@@ -185,6 +187,7 @@ class GenerationPreferences(private val context: Context) {
             preferences[getUseOpenCLKey(modelId)] = useOpenCL
             preferences[getBatchCountsKey(modelId)] = batchCounts
             preferences[getSamplerKey(modelId)] = sampler
+            preferences[getSchedulerKey(modelId)] = scheduler
             preferences[getDenoiseCurveKey(modelId)] = denoiseCurve
             preferences[getAspectRatioKey(modelId)] = aspectRatio
             // Also persist globally (screen-level) for GenerateScreen
@@ -224,6 +227,7 @@ class GenerationPreferences(private val context: Context) {
                 useOpenCL = preferences[getUseOpenCLKey(modelId)] ?: false,
                 batchCounts = preferences[getBatchCountsKey(modelId)] ?: 1,
                 sampler = preferences[getSamplerKey(modelId)] ?: "dpm",
+                scheduler = preferences[getSchedulerKey(modelId)] ?: "",
                 denoiseCurve = preferences[getDenoiseCurveKey(modelId)] ?: "scaled_linear",
                 aspectRatio = preferences[getAspectRatioKey(modelId)] ?: "1:1",
             )
@@ -242,6 +246,7 @@ class GenerationPreferences(private val context: Context) {
             preferences.remove(getUseOpenCLKey(modelId))
             preferences.remove(getBatchCountsKey(modelId))
             preferences.remove(getSamplerKey(modelId))
+            preferences.remove(getSchedulerKey(modelId))
             preferences.remove(getDenoiseCurveKey(modelId))
             preferences.remove(getAspectRatioKey(modelId))
         }
@@ -261,6 +266,7 @@ data class GenerationPrefs(
     val useOpenCL: Boolean = false,
     val batchCounts: Int = 1,
     val sampler: String = "dpm",
+    val scheduler: String = "",
     val denoiseCurve: String = "scaled_linear",
     val aspectRatio: String = "1:1",
 )

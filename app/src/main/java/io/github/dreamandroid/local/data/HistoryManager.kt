@@ -50,6 +50,7 @@ data class HistoryItem(
                     denoisingStrength = e.denoiseStrength ?: 0.6f,
                     useOpenCL = e.useOpenCL,
                     sampler = e.sampler,
+                    scheduler = e.scheduler,
                     mode = mode,
                 ),
             )
@@ -135,6 +136,7 @@ class HistoryManager(private val context: Context) {
                 },
                 useOpenCL = params.useOpenCL,
                 sampler = params.sampler,
+                scheduler = params.scheduler,
                 timestamp = timestamp,
                 imagePath = relativePath,
                 mode = mode.name,

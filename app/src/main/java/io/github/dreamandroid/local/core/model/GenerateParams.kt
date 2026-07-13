@@ -11,6 +11,7 @@ data class GenerateParams(
     val denoisingStrength: Float = 0.6f,
     val useOpenCL: Boolean = false,
     val sampler: String = "dpm",
+    val scheduler: String = "",
     val denoiseCurve: String = "scaled_linear",
     val showDiffusionProcess: Boolean = false,
     val showDiffusionStride: Int = 1,

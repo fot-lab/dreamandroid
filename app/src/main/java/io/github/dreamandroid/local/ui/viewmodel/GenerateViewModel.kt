@@ -39,6 +39,7 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
     var genSeed by mutableStateOf("")
     var genBatchCounts by mutableIntStateOf(1)
     var genSampler by mutableStateOf("dpm")
+    var genScheduler by mutableStateOf("")
     var genDenoiseCurve by mutableStateOf("scaled_linear")
     var genDenoiseStrength by mutableFloatStateOf(0.6f)
     var genUseOpenCL by mutableStateOf(false)
@@ -75,6 +76,7 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
         if (p.cfgScale != 7f) genCfg = p.cfgScale
         if (p.seed.isNotEmpty()) genSeed = p.seed
         genSampler = p.sampler
+        genScheduler = p.scheduler
         genDenoiseCurve = p.denoiseCurve
         genDenoiseStrength = p.denoisingStrength
         genUseOpenCL = p.useOpenCL
@@ -138,6 +140,7 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
             useOpenCL = genUseOpenCL,
             batchCounts = genBatchCounts,
             sampler = genSampler,
+            scheduler = genScheduler,
             denoiseCurve = genDenoiseCurve,
             aspectRatio = inferAspectRatioString(genWidth, genHeight),
         )
@@ -164,6 +167,7 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
             denoiseStrength = genDenoiseStrength,
             useOpenCL = genUseOpenCL,
             sampler = genSampler,
+            scheduler = genScheduler,
             aspectRatio = inferAspectRatioString(genWidth, genHeight),
             count = count.coerceAtLeast(1),
         )
@@ -178,6 +182,7 @@ class GenerateViewModel(application: Application) : AndroidViewModel(application
         genSeed = ""
         genBatchCounts = 1
         genSampler = "dpm"
+        genScheduler = ""
         genDenoiseCurve = "scaled_linear"
         genDenoiseStrength = 0.6f
         genUseOpenCL = false

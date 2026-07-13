@@ -10,7 +10,7 @@ import java.util.UUID
 
 @Database(
     entities = [TaskEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -204,13 +204,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v4 -> v5: Rename scheduler column → sampler (semantic fix), add real scheduler column
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Rename existing scheduler column → sampler (it always stored the sampling algorithm)
+                db.execSQL("ALTER TABLE tasks RENAME COLUMN scheduler TO sampler")
+                // Add new scheduler column for noise schedule (e.g. "karras")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN scheduler TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "dreamandroid.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 .also { INSTANCE = it }

@@ -377,6 +377,7 @@ class QueueProgressCrashTest {
             denoiseStrength = null,
             useOpenCL = false,
             sampler = "euler",
+            scheduler = "",
             timestamp = now,
             batchGroupId = batchGroupId,
             batchIndex = 0,
@@ -402,6 +403,7 @@ class QueueProgressCrashTest {
             denoiseStrength = null,
             useOpenCL = false,
             sampler = "dpm",
+            scheduler = "",
             timestamp = now + 1,
             batchGroupId = batchGroupId,
             batchIndex = 1,
@@ -564,6 +566,7 @@ class QueueProgressCrashTest {
                 denoiseStrength = 0.6f,
                 useOpenCL = false,
                 sampler = "euler",
+                scheduler = "",
                 aspectRatio = "1:1",
                 count = 1,
             )

@@ -138,6 +138,7 @@ object HistoryMigration {
             },
             useOpenCL = json.optBoolean("useOpenCL", false),
             sampler = json.optString("scheduler", "dpm"),
+            scheduler = "",  // legacy data has no noise schedule info
             timestamp = timestamp,
             imagePath = "history/$modelId/${imageFile.name}",
             mode = GenerationMode.UNKNOWN.name,
