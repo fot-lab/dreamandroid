@@ -143,7 +143,7 @@ data class Model(
     }
 
     suspend fun deleteModel(context: Context): Boolean = try {
-        val modelDir = File(getModelsDir(context), id)
+        val modelDir = File(Model.getModelsDir(context), id)
         val historyManager = HistoryManager(context)
         val generationPreferences = GenerationPreferences(context)
 
@@ -273,7 +273,7 @@ data class UpscalerModel(
      * (upscalers have no per-model history or preferences).
      */
     suspend fun deleteModel(context: Context): Boolean = try {
-        val modelDir = File(getModelsDir(context), id)
+        val modelDir = File(Model.getModelsDir(context), id)
         if (modelDir.exists() && modelDir.isDirectory) {
             val deleted = modelDir.deleteRecursively()
             Log.d("UpscalerModel", "Delete upscaler $id: $deleted")
