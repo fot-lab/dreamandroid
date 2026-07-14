@@ -158,6 +158,8 @@ fun AppContentTabModels(
                     // ── Multi-selection ──
                     modelViewSelectedModelIds = modelsViewModel.modelViewSelectedModelIds,
                     modelViewOnToggleModelSelection = { modelsViewModel.modelViewToggleModelSelection(it) },
+                    // ── Upscaler delete ──
+                    onDeleteUpscaler = { modelsViewModel.pendingUpscaleDeleteId = it },
                 )
             }
         }

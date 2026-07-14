@@ -175,6 +175,7 @@
     <string name="delete_image_confirm">이 이미지를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
     <string name="deleted">삭제됨</string>
     <string name="delete_failed_message">삭제 실패</string>
+    <string name="delete_upscale_model_confirm">업스케일 모델 \"%s\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
     <string name="batch_delete">일괄 삭제</string>
     <plurals name="batch_delete_confirm">
         <item quantity="other">선택한 이미지 %d개를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</item>

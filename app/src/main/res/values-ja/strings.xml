@@ -200,6 +200,7 @@
     <string name="delete_image_confirm">この画像を削除してもよろしいですか? この操作は元に戻せません。</string>
     <string name="deleted">削除済み</string>
     <string name="delete_failed_message">削除に失敗</string>
+    <string name="delete_upscale_model_confirm">アップスケールモデル \"%s\" を削除しますか？この操作は元に戻せません。</string>
     <string name="batch_delete">一括削除</string>
     <plurals name="batch_delete_confirm">
         <item quantity="other">選択した画像 %d 枚を削除してもよろしいですか? この操作は元に戻せません。</item>

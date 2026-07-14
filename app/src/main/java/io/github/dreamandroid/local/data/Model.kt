@@ -266,6 +266,26 @@ data class UpscalerModel(
 
         context.startForegroundService(intent)
     }
+
+    /**
+     * Delete the upscaler model directory from disk.
+     * Mirrors [Model.deleteModel] but without history/prefs cleanup
+     * (upscalers have no per-model history or preferences).
+     */
+    suspend fun deleteModel(context: Context): Boolean = try {
+        val modelDir = File(getModelsDir(context), id)
+        if (modelDir.exists() && modelDir.isDirectory) {
+            val deleted = modelDir.deleteRecursively()
+            Log.d("UpscalerModel", "Delete upscaler $id: $deleted")
+            deleted
+        } else {
+            Log.d("UpscalerModel", "Upscaler model does not exist: $id")
+            false
+        }
+    } catch (e: Exception) {
+        Log.e("UpscalerModel", "error: ${e.message}")
+        false
+    }
 }
 
 typealias ModelInfo = Model
@@ -374,6 +394,14 @@ class UpscalerRepository(private val context: Context) {
                 upscaler
             }
         }
+    }
+
+    /**
+     * Remove an upscaler from the in-memory list. Actual file deletion is
+     * done by [UpscalerModel.deleteModel]; call that first, then call this.
+     */
+    fun removeUpscalerFromList(upscalerId: String) {
+        upscalers = upscalers.filterNot { it.id == upscalerId }
     }
 }
 

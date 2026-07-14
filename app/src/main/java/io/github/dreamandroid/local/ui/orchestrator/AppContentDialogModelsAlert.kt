@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
+import io.github.dreamandroid.local.data.UpscalerRepository
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel
 import kotlinx.coroutines.launch
 
@@ -63,6 +64,39 @@ fun AppContentDialogModelsAlert(
             },
             dismissButton = {
                 TextButton(onClick = { modelsViewModel.showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    // Upscaler delete confirmation dialog
+    val pendingUpscaleId = modelsViewModel.pendingUpscaleDeleteId
+    if (pendingUpscaleId != null) {
+        val upscalerRepository = remember { UpscalerRepository(context) }
+        val upscalerName = remember(pendingUpscaleId, upscalerRepository.upscalers) {
+            upscalerRepository.upscalers.find { it.id == pendingUpscaleId }?.name
+                ?: pendingUpscaleId
+        }
+        AlertDialog(
+            onDismissRequest = { modelsViewModel.pendingUpscaleDeleteId = null },
+            title = { Text(stringResource(R.string.delete_model)) },
+            text = { Text(stringResource(R.string.delete_upscale_model_confirm, upscalerName)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            val success = modelsViewModel.deleteUpscaler(context, pendingUpscaleId)
+                            snackbarHostState.showSnackbar(
+                                if (success) context.getString(R.string.delete_success)
+                                else context.getString(R.string.delete_failed)
+                            )
+                        }
+                    },
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { modelsViewModel.pendingUpscaleDeleteId = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             },

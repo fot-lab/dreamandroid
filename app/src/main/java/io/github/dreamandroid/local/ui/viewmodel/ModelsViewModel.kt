@@ -14,6 +14,7 @@ import io.github.dreamandroid.local.DreamAndroidApplication
 import io.github.dreamandroid.local.data.Model
 import io.github.dreamandroid.local.data.ModelInfo
 import io.github.dreamandroid.local.data.ModelRepository
+import io.github.dreamandroid.local.data.UpscalerRepository
 import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.service.backend.BackendService
 import io.github.dreamandroid.local.ui.frontend.ImportingModelState
@@ -85,6 +86,8 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── Upscaler ──────────────────────────────────────────────
     var upscalerPreferences by mutableStateOf<SharedPreferences?>(null)
+    // ID of the upscaler pending delete confirmation (null = nothing pending)
+    var pendingUpscaleDeleteId by mutableStateOf<String?>(null)
 
     // ── Current Model ─────────────────────────────────────────
     var currentModel by mutableStateOf<ModelInfo?>(null)
@@ -304,6 +307,26 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
         if (success) {
             modelViewSelectedModelIds.remove(delModel.id)
             refreshModels()
+        }
+        return success
+    }
+
+    suspend fun deleteUpscaler(context: Context, upscalerId: String): Boolean {
+        pendingUpscaleDeleteId = null
+        val upscalerRepository = UpscalerRepository(context)
+        val upscaler = upscalerRepository.upscalers.find { it.id == upscalerId }
+            ?: return false
+
+        // If the target upscaler is currently loaded, unload it first
+        val currentState = backendService.state.value
+        if (currentState is BackendManager.State.Running &&
+            currentState.modelId == upscalerId) {
+            unloadModel()
+        }
+
+        val success = upscaler.deleteModel(context)
+        if (success) {
+            upscalerRepository.removeUpscalerFromList(upscalerId)
         }
         return success
     }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,6 +53,8 @@ fun ModelListTab(
     // ── Multi-selection ──
     modelViewSelectedModelIds: List<String> = emptyList(),
     modelViewOnToggleModelSelection: (String) -> Unit = {},
+    // ── Upscaler delete ──
+    onDeleteUpscaler: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val upscalerRepository = remember(refreshVersion) { UpscalerRepository(context) }
@@ -141,6 +144,7 @@ fun ModelListTab(
                         },
                         onLoad = { onLoadUpscaleModel(upscaler.id) },
                         onUnload = { onUnloadUpscaleModel() },
+                        onDelete = onDeleteUpscaler?.let { cb -> {{ cb(upscaler.id) }} },
                     )
                 }
             }
@@ -156,6 +160,7 @@ private fun UpscaleModelCardInline(
     onSelect: () -> Unit,
     onLoad: () -> Unit,
     onUnload: () -> Unit,
+    onDelete: (() -> Unit)? = null,
 ) {
     Card(
         onClick = onSelect,
@@ -205,8 +210,19 @@ private fun UpscaleModelCardInline(
                     Text(stringResource(R.string.unload_upscale_model))
                 }
             } else {
-                Button(onClick = onLoad) {
-                    Text(stringResource(R.string.load_upscale_model))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onLoad) {
+                        Text(stringResource(R.string.load_upscale_model))
+                    }
+                    if (onDelete != null) {
+                        IconButton(onClick = onDelete) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.delete_model),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
                 }
             }
         }
