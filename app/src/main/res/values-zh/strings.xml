@@ -464,7 +464,7 @@
     <string name="rename_failed">重命名失败: %s</string>
     <string name="rename_duplicate_error">已存在相同名称的模型</string>
     <string name="delete_model_confirm_single">确定要删除此模型吗？此操作无法撤销。</string>
-    <string name="delete_upscale_model_confirm">确定要删除放大模型 \"%s\" 吗？此操作无法撤销。</string>
+    <string name="delete_upscale_model_confirm_simple">确定要删除选中的放大模型吗？此操作无法撤销。</string>
     <string name="stop_generation">停止生成</string>
     <string name="added_to_queue">已添加 %d 个任务到队列</string>
     <string name="model_type_generation">生成</string>

@@ -6,13 +6,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
-import io.github.dreamandroid.local.data.UpscalerRepository
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel
 import kotlinx.coroutines.launch
 
@@ -71,23 +69,17 @@ fun AppContentDialogModelsAlert(
         )
     }
 
-    // Upscaler delete confirmation dialog
-    val pendingUpscaleId = modelsViewModel.pendingUpscaleDeleteId
-    if (pendingUpscaleId != null) {
-        val upscalerRepository = remember { UpscalerRepository(context) }
-        val upscalerName = remember(pendingUpscaleId, upscalerRepository.upscalers) {
-            upscalerRepository.upscalers.find { it.id == pendingUpscaleId }?.name
-                ?: pendingUpscaleId
-        }
+    // Upscaler delete confirmation dialog (triggered via top bar multi-select)
+    if (modelsViewModel.showUpscaleDeleteConfirm) {
         AlertDialog(
-            onDismissRequest = { modelsViewModel.pendingUpscaleDeleteId = null },
+            onDismissRequest = { modelsViewModel.showUpscaleDeleteConfirm = false },
             title = { Text(stringResource(R.string.delete_model)) },
-            text = { Text(stringResource(R.string.delete_upscale_model_confirm, upscalerName)) },
+            text = { Text(stringResource(R.string.delete_upscale_model_confirm_simple)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         scope.launch {
-                            val success = modelsViewModel.deleteUpscaler(context, pendingUpscaleId)
+                            val success = modelsViewModel.deleteUpscalers(context)
                             snackbarHostState.showSnackbar(
                                 if (success) context.getString(R.string.delete_success)
                                 else context.getString(R.string.delete_failed)
@@ -97,7 +89,7 @@ fun AppContentDialogModelsAlert(
                 ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { modelsViewModel.pendingUpscaleDeleteId = null }) {
+                TextButton(onClick = { modelsViewModel.showUpscaleDeleteConfirm = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },

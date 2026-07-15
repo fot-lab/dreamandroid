@@ -478,7 +478,7 @@
     <string name="rename_failed">Rename failed: %s</string>
     <string name="rename_duplicate_error">A model with this name already exists</string>
     <string name="delete_model_confirm_single">Are you sure to delete this model? This action cannot be undone.</string>
-    <string name="delete_upscale_model_confirm">Delete upscaler \"%s\"? This action cannot be undone.</string>
+    <string name="delete_upscale_model_confirm_simple">Delete selected upscaler model(s)? This action cannot be undone.</string>
     <string name="import_model">Import model file</string>
     <string name="import_npu_model">Import NPU model zip</string>
     <string name="import_upscale_model">Import Upscale Model</string>

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,8 +52,9 @@ fun ModelListTab(
     // ── Multi-selection ──
     modelViewSelectedModelIds: List<String> = emptyList(),
     modelViewOnToggleModelSelection: (String) -> Unit = {},
-    // ── Upscaler delete ──
-    onDeleteUpscaler: ((String) -> Unit)? = null,
+    // ── Upscale multi-selection ──
+    upscaleViewSelectedModelIds: List<String> = emptyList(),
+    upscaleViewOnToggleModelSelection: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val upscalerRepository = remember(refreshVersion) { UpscalerRepository(context) }
@@ -137,6 +137,8 @@ fun ModelListTab(
                         upscaler = upscaler,
                         isLoaded = isThisUpscalerLoaded,
                         isSelected = persistedUpscalerId == upscaler.id && !isThisUpscalerLoaded,
+                        isChecked = upscaler.id in upscaleViewSelectedModelIds,
+                        onToggle = { upscaleViewOnToggleModelSelection(upscaler.id) },
                         onSelect = {
                             context.getSharedPreferences("upscaler_prefs", android.content.Context.MODE_PRIVATE).edit {
                                 putString("upscaler_standalone_selected_upscaler", upscaler.id)
@@ -144,7 +146,6 @@ fun ModelListTab(
                         },
                         onLoad = { onLoadUpscaleModel(upscaler.id) },
                         onUnload = { onUnloadUpscaleModel() },
-                        onDelete = onDeleteUpscaler?.let { cb -> {{ cb(upscaler.id) }} },
                     )
                 }
             }
@@ -157,23 +158,28 @@ private fun UpscaleModelCardInline(
     upscaler: UpscalerModel,
     isLoaded: Boolean,
     isSelected: Boolean,
+    isChecked: Boolean,
+    onToggle: () -> Unit,
     onSelect: () -> Unit,
     onLoad: () -> Unit,
     onUnload: () -> Unit,
-    onDelete: (() -> Unit)? = null,
 ) {
+    val targetContainer = when {
+        isLoaded -> MaterialTheme.colorScheme.primaryContainer
+        isChecked -> MaterialTheme.colorScheme.secondaryContainer
+        isSelected -> MaterialTheme.colorScheme.surfaceVariant
+        else -> MaterialTheme.colorScheme.surface
+    }
+
     Card(
-        onClick = onSelect,
+        onClick = onToggle,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = when {
-                isLoaded -> MaterialTheme.colorScheme.primaryContainer
-                isSelected -> MaterialTheme.colorScheme.secondaryContainer
-                else -> MaterialTheme.colorScheme.surface
-            },
+            containerColor = targetContainer,
         ),
         border = when {
             isLoaded -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            isChecked -> BorderStroke(1.dp, MaterialTheme.colorScheme.secondary)
             isSelected -> BorderStroke(1.dp, MaterialTheme.colorScheme.secondary)
             else -> null
         },
@@ -214,15 +220,10 @@ private fun UpscaleModelCardInline(
                     Button(onClick = onLoad) {
                         Text(stringResource(R.string.load_upscale_model))
                     }
-                    if (onDelete != null) {
-                        IconButton(onClick = onDelete) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = stringResource(R.string.delete_model),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
+                    Checkbox(
+                        checked = isChecked,
+                        onCheckedChange = { onToggle() },
+                    )
                 }
             }
         }

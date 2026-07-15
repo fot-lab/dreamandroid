@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
+import io.github.dreamandroid.local.data.UpscalerRepository
 import io.github.dreamandroid.local.service.backend.BackendManager
 import io.github.dreamandroid.local.ui.frontend.AppSettingsDrawerContent
 import io.github.dreamandroid.local.ui.frontend.ModelListTab
@@ -63,6 +64,10 @@ fun AppContentTabModels(
     val customModels by derivedStateOf {
         modelsViewModel.modelRepository.models.filter { it.isCustom }
     }
+    val upscalerRepository = remember { UpscalerRepository(context) }
+    val downloadedUpscalers by derivedStateOf {
+        upscalerRepository.upscalers.filter { it.isDownloaded }
+    }
     val modelViewSelectAll: () -> Unit = {
         modelsViewModel.modelViewSelectAll(customModels)
     }
@@ -73,8 +78,18 @@ fun AppContentTabModels(
         modelsViewModel.modelViewDeselectAll()
     }
     val modelViewSelectedCount = modelsViewModel.modelViewSelectedModelIds.size
+    val upscaleViewSelectedCount = modelsViewModel.upscaleViewSelectedModelIds.size
     val modelViewLoadModel: () -> Unit = {
         modelsViewModel.modelViewSelectedModelIds.firstOrNull()?.let { loadModel(it) }
+    }
+    val upscaleViewSelectAll: () -> Unit = {
+        modelsViewModel.upscaleViewSelectAll(downloadedUpscalers)
+    }
+    val upscaleViewInvertSelection: () -> Unit = {
+        modelsViewModel.upscaleViewInvertSelection(downloadedUpscalers)
+    }
+    val upscaleViewDeselectAll: () -> Unit = {
+        modelsViewModel.upscaleViewDeselectAll()
     }
     val loadUpscaleModel: (String) -> Unit = { id ->
         scope.launch {
@@ -124,6 +139,7 @@ fun AppContentTabModels(
                 ModelsTopBar(
                     drawerState = drawerState,
                     modelViewSelectedCount = modelViewSelectedCount,
+                    upscaleViewSelectedCount = upscaleViewSelectedCount,
                     isModelLoaded = isModelLoaded,
                     isModelLoading = isModelLoading,
                     onLoadModel = modelViewLoadModel,
@@ -133,11 +149,18 @@ fun AppContentTabModels(
                     onImportUpscaleModel = { modelsViewModel.showCustomUpscaleModelDialog = true },
                     onDownloadManager = { modelsViewModel.showDownloadManager = true },
                     onRenameModel = { modelsViewModel.prepareRename() },
-                    onDeleteModel = { modelsViewModel.showDeleteConfirm = true },
+                    onDeleteModel = {
+                        if (modelViewSelectedCount > 0) modelsViewModel.showDeleteConfirm = true
+                        if (upscaleViewSelectedCount > 0) modelsViewModel.showUpscaleDeleteConfirm = true
+                    },
                     // ── ModelView multi-selection ──
                     modelViewOnSelectAll = modelViewSelectAll,
                     modelViewOnInvertSelection = modelViewInvertSelection,
                     modelViewOnDeselectAll = modelViewDeselectAll,
+                    // ── Upscale multi-selection ──
+                    upscaleViewOnSelectAll = upscaleViewSelectAll,
+                    upscaleViewOnInvertSelection = upscaleViewInvertSelection,
+                    upscaleViewOnDeselectAll = upscaleViewDeselectAll,
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -158,8 +181,9 @@ fun AppContentTabModels(
                     // ── Multi-selection ──
                     modelViewSelectedModelIds = modelsViewModel.modelViewSelectedModelIds,
                     modelViewOnToggleModelSelection = { modelsViewModel.modelViewToggleModelSelection(it) },
-                    // ── Upscaler delete ──
-                    onDeleteUpscaler = { modelsViewModel.pendingUpscaleDeleteId = it },
+                    // ── Upscale multi-selection ──
+                    upscaleViewSelectedModelIds = modelsViewModel.upscaleViewSelectedModelIds,
+                    upscaleViewOnToggleModelSelection = { modelsViewModel.upscaleViewToggleModelSelection(it) },
                 )
             }
         }

@@ -82,12 +82,38 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
     // ── Rename / Delete ───────────────────────────────────────
     var showRenameDialog by mutableStateOf(false)
     var showDeleteConfirm by mutableStateOf(false)
+    var showUpscaleDeleteConfirm by mutableStateOf(false)
     var renameText by mutableStateOf("")
 
     // ── Upscaler ──────────────────────────────────────────────
     var upscalerPreferences by mutableStateOf<SharedPreferences?>(null)
-    // ID of the upscaler pending delete confirmation (null = nothing pending)
-    var pendingUpscaleDeleteId by mutableStateOf<String?>(null)
+
+    // ── Upscale Multi-selection ──────────────────────────────
+    val upscaleViewSelectedModelIds = mutableStateListOf<String>()
+
+    fun upscaleViewToggleModelSelection(modelId: String) {
+        if (modelId in upscaleViewSelectedModelIds) {
+            upscaleViewSelectedModelIds.remove(modelId)
+        } else {
+            upscaleViewSelectedModelIds.add(modelId)
+        }
+    }
+
+    fun upscaleViewSelectAll(upscalers: List<io.github.dreamandroid.local.data.UpscalerModel>) {
+        upscaleViewSelectedModelIds.clear()
+        upscaleViewSelectedModelIds.addAll(upscalers.map { it.id })
+    }
+
+    fun upscaleViewInvertSelection(upscalers: List<io.github.dreamandroid.local.data.UpscalerModel>) {
+        val allIds = upscalers.map { it.id }.toSet()
+        val inverted = allIds - upscaleViewSelectedModelIds.toSet()
+        upscaleViewSelectedModelIds.clear()
+        upscaleViewSelectedModelIds.addAll(inverted)
+    }
+
+    fun upscaleViewDeselectAll() {
+        upscaleViewSelectedModelIds.clear()
+    }
 
     // ── Current Model ─────────────────────────────────────────
     var currentModel by mutableStateOf<ModelInfo?>(null)
@@ -293,41 +319,55 @@ class ModelsViewModel(application: Application) : AndroidViewModel(application) 
 
     suspend fun deleteModel(context: Context): Boolean {
         showDeleteConfirm = false
-        val targetId = modelViewSelectedModelIds.firstOrNull()
-        val delModel = modelRepository.models.find { it.id == targetId }
-        if (delModel == null) return false
+        val targetIds = modelViewSelectedModelIds.toList()
+        if (targetIds.isEmpty()) return false
+        var anySuccess = false
 
-        // If the target model is currently loaded in backend, unload it first
-        val currentState = backendService.state.value
-        if (currentState is BackendManager.State.Running &&
-            currentState.modelId == delModel.id) {
-            unloadModel()
+        for (targetId in targetIds) {
+            val delModel = modelRepository.models.find { it.id == targetId }
+            if (delModel == null) continue
+
+            // If the target model is currently loaded in backend, unload it first
+            val currentState = backendService.state.value
+            if (currentState is BackendManager.State.Running &&
+                currentState.modelId == delModel.id) {
+                unloadModel()
+            }
+            val success = delModel.deleteModel(context)
+            if (success) {
+                modelViewSelectedModelIds.remove(delModel.id)
+                anySuccess = true
+            }
         }
-        val success = delModel.deleteModel(context)
-        if (success) {
-            modelViewSelectedModelIds.remove(delModel.id)
-            refreshModels()
-        }
-        return success
+        if (anySuccess) refreshModels()
+        return anySuccess
     }
 
-    suspend fun deleteUpscaler(context: Context, upscalerId: String): Boolean {
-        pendingUpscaleDeleteId = null
+    suspend fun deleteUpscalers(context: Context): Boolean {
+        showUpscaleDeleteConfirm = false
+        val targetIds = upscaleViewSelectedModelIds.toList()
+        if (targetIds.isEmpty()) return false
         val upscalerRepository = UpscalerRepository(context)
-        val upscaler = upscalerRepository.upscalers.find { it.id == upscalerId }
-            ?: return false
+        var anySuccess = false
 
-        // If the target upscaler is currently loaded, unload it first
-        val currentState = backendService.state.value
-        if (currentState is BackendManager.State.Running &&
-            currentState.modelId == upscalerId) {
-            unloadModel()
-        }
+        for (upscalerId in targetIds) {
+            val upscaler = upscalerRepository.upscalers.find { it.id == upscalerId }
+                ?: continue
 
-        val success = upscaler.deleteModel(context)
-        if (success) {
-            upscalerRepository.removeUpscalerFromList(upscalerId)
+            // If the target upscaler is currently loaded, unload it first
+            val currentState = backendService.state.value
+            if (currentState is BackendManager.State.Running &&
+                currentState.modelId == upscalerId) {
+                unloadModel()
+            }
+
+            val success = upscaler.deleteModel(context)
+            if (success) {
+                upscalerRepository.removeUpscalerFromList(upscalerId)
+                upscaleViewSelectedModelIds.remove(upscalerId)
+                anySuccess = true
+            }
         }
-        return success
+        return anySuccess
     }
 }

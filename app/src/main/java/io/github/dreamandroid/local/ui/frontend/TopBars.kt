@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 fun ModelsTopBar(
     drawerState: DrawerState,
     modelViewSelectedCount: Int,
+    upscaleViewSelectedCount: Int = 0,
     isModelLoaded: Boolean,
     isModelLoading: Boolean,
     onLoadModel: () -> Unit,
@@ -40,10 +41,15 @@ fun ModelsTopBar(
     modelViewOnSelectAll: () -> Unit = {},
     modelViewOnInvertSelection: () -> Unit = {},
     modelViewOnDeselectAll: () -> Unit = {},
+    // ── Upscale multi-selection ────────────────────────────────
+    upscaleViewOnSelectAll: () -> Unit = {},
+    upscaleViewOnInvertSelection: () -> Unit = {},
+    upscaleViewOnDeselectAll: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var showImportMenu by remember { mutableStateOf(false) }
     var showModelViewMenu by remember { mutableStateOf(false) }
+    val totalSelected = modelViewSelectedCount + upscaleViewSelectedCount
     TopAppBar(
         title = {
             // Start / Stop model service — left-aligned next to drawer icon
@@ -76,17 +82,17 @@ fun ModelsTopBar(
         },
         actions = {
             when {
-                modelViewSelectedCount == 1 -> {
-                    // Edit: only when exactly 1 model is selected
+                modelViewSelectedCount == 1 && upscaleViewSelectedCount == 0 -> {
+                    // Edit: only when exactly 1 diffusion model is selected (no upscale rename)
                     IconButton(onClick = onRenameModel) {
                         Icon(Icons.Default.Edit, stringResource(R.string.rename_model))
                     }
-                    // Delete: replaces Add/+ position
+                    // Delete
                     IconButton(onClick = onDeleteModel) {
                         Icon(Icons.Default.Delete, stringResource(R.string.delete_model))
                     }
                 }
-                modelViewSelectedCount > 1 -> {
+                totalSelected >= 1 -> {
                     // Delete only
                     IconButton(onClick = onDeleteModel) {
                         Icon(Icons.Default.Delete, stringResource(R.string.delete_model))
@@ -166,6 +172,7 @@ fun ModelsTopBar(
                         onClick = {
                             showModelViewMenu = false
                             modelViewOnSelectAll()
+                            upscaleViewOnSelectAll()
                         },
                         leadingIcon = {
                             Icon(Icons.Default.SelectAll, contentDescription = null)
@@ -176,6 +183,7 @@ fun ModelsTopBar(
                         onClick = {
                             showModelViewMenu = false
                             modelViewOnInvertSelection()
+                            upscaleViewOnInvertSelection()
                         },
                         leadingIcon = {
                             Icon(Icons.Default.FlipToBack, contentDescription = null)
@@ -186,6 +194,7 @@ fun ModelsTopBar(
                         onClick = {
                             showModelViewMenu = false
                             modelViewOnDeselectAll()
+                            upscaleViewOnDeselectAll()
                         },
                         leadingIcon = {
                             Icon(Icons.Default.Deselect, contentDescription = null)
