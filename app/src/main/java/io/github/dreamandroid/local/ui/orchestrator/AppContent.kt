@@ -52,7 +52,6 @@ import io.github.dreamandroid.local.ui.viewmodel.MainViewModel
 import io.github.dreamandroid.local.ui.viewmodel.ModelsViewModel
 import io.github.dreamandroid.local.ui.viewmodel.QueueViewModel
 import io.github.dreamandroid.local.ui.screens.BrowseLayoutMode
-import io.github.dreamandroid.local.ui.screens.download.DownloadManagerScreen
 import kotlinx.coroutines.launch
 
 /**
@@ -91,9 +90,22 @@ fun AppContent() {
     var isBottomBarExpanded by remember { mutableStateOf(false) }
     var navBarHeightPx by remember { mutableFloatStateOf(0f) }
 
+    // ── Expand-screen navigation (reachable from expand bar Row 2) ──
+    //     When non-null, the content area shows the corresponding full-screen
+    //     page (Downloads / Settings / Info) instead of the tab content.
+    var activeExpandScreen by remember { mutableStateOf<ExpandScreen?>(null) }
+
     // ── ViewModels (Activity-scoped, shared across tabs) ──
     val mainViewModel: MainViewModel = viewModel()
     val modelsViewModel: ModelsViewModel = viewModel()
+
+    // ── Watch ModelsViewModel.showDownloadManager → navigate to Downloads screen ──
+    LaunchedEffect(modelsViewModel.showDownloadManager) {
+        if (modelsViewModel.showDownloadManager) {
+            activeExpandScreen = ExpandScreen.Downloads
+            modelsViewModel.showDownloadManager = false
+        }
+    }
     val generateViewModel: GenerateViewModel = viewModel()
     val queueViewModel: QueueViewModel = viewModel()
     val browseViewModel: BrowseViewModel = viewModel()
@@ -364,16 +376,26 @@ fun AppContent() {
                         ExpandableIconRow(
                             rowHeightPx = navBarHeightPx,
                             slots = listOf(
-                                ExpandableSlot(Icons.Default.Info, stringResource(R.string.nav_expand_info)),
+                                ExpandableSlot(Icons.Default.Info, stringResource(R.string.nav_expand_info),
+                                    onClick = {
+                                        activeExpandScreen = ExpandScreen.Info
+                                        isBottomBarExpanded = false
+                                    },
+                                ),
                                 ExpandableSlot(Icons.Default.Delete, stringResource(R.string.nav_expand_recycle)),
                                 ExpandableSlot(Icons.Default.Person, stringResource(R.string.nav_expand_person)),
                                 ExpandableSlot(Icons.Default.ArrowDownward, stringResource(R.string.nav_expand_download),
                                     onClick = {
-                                        modelsViewModel.showDownloadManager = true
+                                        activeExpandScreen = ExpandScreen.Downloads
                                         isBottomBarExpanded = false
                                     },
                                 ),
-                                ExpandableSlot(Icons.Default.Settings, stringResource(R.string.nav_expand_settings)),
+                                ExpandableSlot(Icons.Default.Settings, stringResource(R.string.nav_expand_settings),
+                                    onClick = {
+                                        activeExpandScreen = ExpandScreen.Settings
+                                        isBottomBarExpanded = false
+                                    },
+                                ),
                             ),
                         )
                     }
@@ -460,20 +482,23 @@ fun AppContent() {
             },
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                // ── Download Manager — content-level peer module ──
-                // Appears in the same content slot as tab screens (Queue / Models
-                // / Generate / Browse). Not shown in the main NavigationBar;
-                // reachable via + menu in Models tab or expanded bottom bar.
-                if (modelsViewModel.showDownloadManager) {
-                    DownloadManagerScreen(
-                        onClose = { modelsViewModel.showDownloadManager = false },
+                // ── Expand-screen routing ──
+                // Full-screen pages reachable from the expandable bottom bar.
+                when (activeExpandScreen) {
+                    ExpandScreen.Downloads -> AppContentTabDownloads(
+                        onBack = { activeExpandScreen = null },
                         onModelStateChanged = { modelId ->
                             modelsViewModel.modelRepository.refreshModelState(modelId)
                             modelsViewModel.modelRefreshVersion++
                         },
                     )
-                } else {
-                    when (mainViewModel.selectedTab) {
+                    ExpandScreen.Settings -> AppContentTabSettings(
+                        onBack = { activeExpandScreen = null },
+                    )
+                    ExpandScreen.Info -> AppContentTabInfo(
+                        onBack = { activeExpandScreen = null },
+                    )
+                    null -> when (mainViewModel.selectedTab) {
                         BottomTab.Models -> AppContentTabModels(
                             drawerState = drawerState,
                             snackbarHostState = snackbarHostState,
@@ -484,6 +509,7 @@ fun AppContent() {
                             isModelLoading = isModelLoading,
                             isUpscaleModelLoaded = isUpscaleModelLoaded,
                             persistedUpscalerId = persistedUpscalerId,
+                            onNavigateToDownloads = { modelsViewModel.showDownloadManager = true },
                         )
                         BottomTab.Queue -> AppContentTabQueue(
                             drawerState = drawerState,
@@ -548,6 +574,13 @@ fun AppContent() {
         }
     }
 }
+
+/**
+ * Full-screen pages reachable from the expandable bottom bar (Row 2 icons).
+ * These are not part of [BottomTab] — they appear in the same content slot
+ * as tab screens but are toggled via activeExpandScreen state.
+ */
+private enum class ExpandScreen { Downloads, Settings, Info }
 
 /**
  * A work icon that flies from [startOffset] to [endOffset] along a parabola.

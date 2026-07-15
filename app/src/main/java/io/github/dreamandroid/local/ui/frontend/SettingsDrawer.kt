@@ -11,12 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import io.github.dreamandroid.local.BuildConfig
-import io.github.dreamandroid.local.R
-import io.github.dreamandroid.local.data.DarkModePreference
-import io.github.dreamandroid.local.data.GenerationPreferences
 import androidx.core.content.edit
-import io.github.dreamandroid.local.ui.theme.*
+import io.github.dreamandroid.local.R
+import io.github.dreamandroid.local.data.GenerationPreferences
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -25,7 +22,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val themeController = LocalThemeController.current
     val appPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
     val genPrefs = remember { GenerationPreferences(context) }
     val scope = rememberCoroutineScope()
@@ -34,67 +30,6 @@ fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) {
         modifier = modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // ────── Appearance ──────
-        SectionHeader(stringResource(R.string.appearance))
-
-        // Dynamic Color
-        var dynamicColor by remember { mutableStateOf(themeController.state.dynamicColor) }
-        SwitchSetting(
-            title = stringResource(R.string.dynamic_color),
-            hint = stringResource(R.string.dynamic_color_hint),
-            checked = dynamicColor,
-            onCheckedChange = { checked ->
-                dynamicColor = checked
-                themeController.update { it.copy(dynamicColor = checked) }
-            },
-        )
-
-        // Dark Mode
-        var darkMode by remember { mutableStateOf(themeController.state.darkMode) }
-        ChipSetting(
-            title = stringResource(R.string.dark_mode),
-            options = listOf(
-                DarkModePreference.SYSTEM to stringResource(R.string.dark_mode_system),
-                DarkModePreference.LIGHT to stringResource(R.string.dark_mode_light),
-                DarkModePreference.DARK to stringResource(R.string.dark_mode_dark),
-            ),
-            selected = darkMode,
-            onSelect = { mode ->
-                darkMode = mode
-                themeController.update { it.copy(darkMode = mode) }
-            },
-        )
-
-        // OLED Pure Black (only visible when not forced light)
-        if (darkMode != DarkModePreference.LIGHT) {
-            var oledBlack by remember { mutableStateOf(themeController.state.oledBlack) }
-            SwitchSetting(
-                title = stringResource(R.string.oled_black),
-                hint = stringResource(R.string.oled_black_hint),
-                checked = oledBlack,
-                onCheckedChange = { checked ->
-                    oledBlack = checked
-                    themeController.update { it.copy(oledBlack = checked) }
-                },
-            )
-        }
-
-        // Theme Preset
-        var themePreset by remember { mutableStateOf(themeController.state.preset) }
-        ChipSetting(
-            title = stringResource(R.string.theme_preset),
-            hint = stringResource(R.string.theme_preset_hint),
-            options = ThemePreset.entries.map { it to stringResource(it.nameRes) },
-            selected = themePreset,
-            onSelect = { preset ->
-                themePreset = preset
-                themeController.update { it.copy(preset = preset) }
-            },
-        )
-
-        Spacer(Modifier.height(4.dp))
-        HorizontalDivider()
-
         // ────── Backend ──────
         SectionHeader(stringResource(R.string.backend_settings))
 
@@ -183,49 +118,8 @@ fun ColumnScope.AppSettingsDrawerContent(modifier: Modifier = Modifier) {
             }
         }
 
-        Spacer(Modifier.height(4.dp))
-        HorizontalDivider()
-
-        // ────── Debug ──────
-        SectionHeader(stringResource(R.string.debug_section))
-
-        var debugQueue by remember { mutableStateOf(appPrefs.getBoolean("debug_queue", false)) }
-        SwitchSetting(
-            title = stringResource(R.string.debug_queue),
-            hint = stringResource(R.string.debug_queue_hint),
-            checked = debugQueue,
-            onCheckedChange = { checked ->
-                debugQueue = checked
-                appPrefs.edit { putBoolean("debug_queue", checked) }
-            },
-        )
-
-        var debugModel by remember { mutableStateOf(appPrefs.getBoolean("debug_model", false)) }
-        SwitchSetting(
-            title = stringResource(R.string.debug_model),
-            hint = stringResource(R.string.debug_model_hint),
-            checked = debugModel,
-            onCheckedChange = { checked ->
-                debugModel = checked
-                appPrefs.edit { putBoolean("debug_model", checked) }
-            },
-        )
 
         Spacer(Modifier.height(4.dp))
-        HorizontalDivider()
-
-        // ────── About ──────
-        SectionHeader(stringResource(R.string.about_app))
-        Text(
-            stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            stringResource(R.string.must_read),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
     Spacer(Modifier.height(16.dp))
 }

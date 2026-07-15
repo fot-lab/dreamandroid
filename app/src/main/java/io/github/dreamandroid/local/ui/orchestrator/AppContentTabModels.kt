@@ -34,6 +34,7 @@ fun AppContentTabModels(
     isModelLoading: Boolean,
     isUpscaleModelLoaded: Boolean,
     persistedUpscalerId: String?,
+    onNavigateToDownloads: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -147,7 +148,7 @@ fun AppContentTabModels(
                     onImportModel = { modelsViewModel.showCustomModelDialog = true },
                     onImportNpuModel = { modelsViewModel.showCustomNpuModelDialog = true },
                     onImportUpscaleModel = { modelsViewModel.showCustomUpscaleModelDialog = true },
-                    onDownloadManager = { modelsViewModel.showDownloadManager = true },
+                    onDownloadManager = onNavigateToDownloads,
                     onRenameModel = { modelsViewModel.prepareRename() },
                     onDeleteModel = {
                         if (modelViewSelectedCount > 0) modelsViewModel.showDeleteConfirm = true

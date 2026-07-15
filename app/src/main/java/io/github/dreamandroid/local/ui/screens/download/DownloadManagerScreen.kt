@@ -60,6 +60,7 @@ data class DownloadableModel(
 fun DownloadManagerScreen(
     onClose: () -> Unit,
     onModelStateChanged: (String) -> Unit = {},
+    navigationIcon: @Composable (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -185,8 +186,12 @@ fun DownloadManagerScreen(
                 TopAppBar(
                     title = { Text(stringResource(R.string.download_manager_title)) },
                     navigationIcon = {
-                        IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, stringResource(R.string.close))
+                        if (navigationIcon != null) {
+                            navigationIcon()
+                        } else {
+                            IconButton(onClick = onClose) {
+                                Icon(Icons.Default.Close, stringResource(R.string.close))
+                            }
                         }
                     },
                     actions = {
