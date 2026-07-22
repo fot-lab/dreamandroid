@@ -413,7 +413,7 @@
 
     <!-- Expanded Navigation Bar -->
     <string name="nav_expand_info">情報</string>
-    <string name="nav_expand_recycle">リサイクル</string>
+    <string name="nav_expand_documents">ドキュメント</string>
     <string name="nav_expand_person">個人</string>
     <string name="nav_expand_download">ダウンロード</string>
     <string name="nav_expand_settings">設定</string>

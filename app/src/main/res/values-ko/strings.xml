@@ -404,7 +404,7 @@
 
     <!-- Expanded Navigation Bar -->
     <string name="nav_expand_info">정보</string>
-    <string name="nav_expand_recycle">재활용</string>
+    <string name="nav_expand_documents">문서</string>
     <string name="nav_expand_person">개인</string>
     <string name="nav_expand_download">다운로드</string>
     <string name="nav_expand_settings">설정</string>

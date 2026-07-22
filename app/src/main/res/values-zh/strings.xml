@@ -439,7 +439,7 @@
 
     <!-- Expanded Navigation Bar -->
     <string name="nav_expand_info">信息</string>
-    <string name="nav_expand_recycle">回收</string>
+    <string name="nav_expand_documents">文档</string>
     <string name="nav_expand_person">个人</string>
     <string name="nav_expand_download">下载</string>
     <string name="nav_expand_settings">设置</string>

@@ -16,7 +16,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -367,7 +367,7 @@ fun AppContent() {
                     }
 
                     // Row 2 — predefined system icons (immutable)
-                    // Info | RecycleBin | User | Download | Settings
+                    // Info | Documents | User | Download | Settings
                     AnimatedVisibility(
                         visible = isBottomBarExpanded,
                         enter = expandVertically(),
@@ -382,7 +382,12 @@ fun AppContent() {
                                         isBottomBarExpanded = false
                                     },
                                 ),
-                                ExpandableSlot(Icons.Default.Delete, stringResource(R.string.nav_expand_recycle)),
+                                ExpandableSlot(Icons.Default.FolderOpen, stringResource(R.string.nav_expand_documents),
+                                    onClick = {
+                                        activeExpandScreen = ExpandScreen.Documents
+                                        isBottomBarExpanded = false
+                                    },
+                                ),
                                 ExpandableSlot(Icons.Default.Person, stringResource(R.string.nav_expand_person)),
                                 ExpandableSlot(Icons.Default.ArrowDownward, stringResource(R.string.nav_expand_download),
                                     onClick = {
@@ -498,6 +503,9 @@ fun AppContent() {
                     ExpandScreen.Info -> AppContentTabInfo(
                         onBack = { activeExpandScreen = null },
                     )
+                    ExpandScreen.Documents -> AppContentTabDocuments(
+                        onBack = { activeExpandScreen = null },
+                    )
                     null -> when (mainViewModel.selectedTab) {
                         BottomTab.Models -> AppContentTabModels(
                             drawerState = drawerState,
@@ -580,7 +588,7 @@ fun AppContent() {
  * These are not part of [BottomTab] — they appear in the same content slot
  * as tab screens but are toggled via activeExpandScreen state.
  */
-private enum class ExpandScreen { Downloads, Settings, Info }
+private enum class ExpandScreen { Downloads, Settings, Info, Documents }
 
 /**
  * A work icon that flies from [startOffset] to [endOffset] along a parabola.

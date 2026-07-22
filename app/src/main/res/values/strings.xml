@@ -449,7 +449,7 @@
 
     <!-- Expanded Navigation Bar -->
     <string name="nav_expand_info">Info</string>
-    <string name="nav_expand_recycle">Recycle</string>
+    <string name="nav_expand_documents">Documents</string>
     <string name="nav_expand_person">Person</string>
     <string name="nav_expand_download">Download</string>
     <string name="nav_expand_settings">Settings</string>
