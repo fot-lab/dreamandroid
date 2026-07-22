@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Converts a raw millisecond generation time string to "yyyy-MM-dd HH:mm:ss".
@@ -726,6 +727,8 @@ private fun DetailListItem(
     }
 }
 
+private val gallerySaveSequence = AtomicLong(0L)
+
 suspend fun saveBitmapToGallery(
     context: Context,
     bitmap: android.graphics.Bitmap,
@@ -734,7 +737,8 @@ suspend fun saveBitmapToGallery(
     try {
         val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
             .format(java.util.Date())
-        val filename = "DreamHub_${modelId}_$timestamp.png"
+        val seq = gallerySaveSequence.getAndIncrement()
+        val filename = "DreamHub_${modelId}_${timestamp}_$seq.png"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
