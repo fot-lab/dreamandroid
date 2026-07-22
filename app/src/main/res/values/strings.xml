@@ -439,6 +439,7 @@
     <string name="history_filter_sort_asc">Oldest first</string>
     <string name="history_view_filter">Filter</string>
     <string name="history_filter_by_model">Filter by Model</string>
+    <string name="gallery_save_params_toggle">Save parameters alongside images</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_models">Models</string>

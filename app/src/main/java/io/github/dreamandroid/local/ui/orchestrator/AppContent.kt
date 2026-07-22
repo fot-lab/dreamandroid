@@ -559,6 +559,8 @@ fun AppContent() {
                             recordRepository = recordRepository,
                             browseLayoutMode = browseLayoutMode,
                             onToggleLayout = onToggleLayout,
+                            saveParamsEnabled = browseViewModel.saveParamsEnabled,
+                            onSaveParamsEnabledChange = { browseViewModel.saveParamsEnabled = it },
                         )
                     }
                 }

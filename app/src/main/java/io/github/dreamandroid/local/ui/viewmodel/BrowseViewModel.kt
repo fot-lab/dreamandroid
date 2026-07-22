@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 /**
  * Browse ViewModel extracted from BrowseScreen (UILA-COMP-0001).
@@ -54,6 +55,10 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     var showBatchSaveInfoDialog by mutableStateOf(false)
     var showHistoryDetailDialog by mutableStateOf<HistoryItem?>(null)
     var isPreviewMode by mutableStateOf(false)
+
+    // ── Settings ──────────────────────────────────────────────
+    /** When enabled, saves generation params as .json sidecar alongside exported images. */
+    var saveParamsEnabled by mutableStateOf(false)
 
     // ── Filter ────────────────────────────────────────────────
     /** Model IDs to filter by. Empty set = show all models. */
@@ -149,6 +154,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     suspend fun batchSaveToGallery(context: Context): Pair<Int, Int> {
         var saved = 0
         var failed = 0
+        val saveParams = saveParamsEnabled
         selectedItems.toList().forEach { item ->
             val bitmap = try {
                 withContext(Dispatchers.IO) {
@@ -156,8 +162,9 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } catch (_: Exception) { null }
             if (bitmap != null) {
+                val paramsJson = if (saveParams) buildSaveParamsJson(item) else null
                 val result = withContext(Dispatchers.IO) {
-                    saveBitmapToGallery(context, bitmap, item.modelId)
+                    saveBitmapToGallery(context, bitmap, item.modelId, saveParamsJson = paramsJson)
                 }
                 if (result) saved++ else failed++
             } else {
@@ -208,12 +215,13 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     suspend fun saveSingleToGallery(context: Context, item: HistoryItem): Boolean {
+        val paramsJson = if (saveParamsEnabled) buildSaveParamsJson(item) else null
         return withContext(Dispatchers.IO) {
             val bitmap = try {
                 BitmapFactory.decodeFile(item.imageFile.absolutePath)
             } catch (_: Exception) { null }
             if (bitmap != null) {
-                saveBitmapToGallery(context, bitmap, item.modelId)
+                saveBitmapToGallery(context, bitmap, item.modelId, saveParamsJson = paramsJson)
             } else {
                 false
             }
@@ -236,5 +244,31 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
             source = RecordSource.GALLERY,
         )
         viewModelScope.launch { recordRepository.addRecord(record) }
+    }
+
+    // ── JSON sidecar helper ───────────────────────────────────
+
+    companion object {
+        /**
+         * Builds a JSON representation of [item]'s generation params,
+         * compatible with [GenerateParameterRecord.toJson] format for import/export.
+         */
+        fun buildSaveParamsJson(item: HistoryItem): String {
+            return JSONObject().apply {
+                put("id", item.id)
+                put("prompt", item.params.prompt)
+                put("negativePrompt", item.params.negativePrompt)
+                put("modelId", item.modelId)
+                put("steps", item.params.steps)
+                put("cfg", item.params.cfgScale.toDouble())
+                if (item.params.seed != null) put("seed", item.params.seed)
+                put("width", item.params.width)
+                put("height", item.params.height)
+                put("sampler", item.params.sampler)
+                put("scheduler", item.params.scheduler)
+                put("timestamp", item.timestamp)
+                put("source", RecordSource.GALLERY.name)
+            }.toString()
+        }
     }
 }

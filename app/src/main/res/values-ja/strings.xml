@@ -403,6 +403,7 @@
     <string name="history_filter_sort_asc">古い順</string>
     <string name="history_view_filter">フィルター</string>
     <string name="history_filter_by_model">モデルで絞り込み</string>
+    <string name="gallery_save_params_toggle">画像保存時にパラメータも保存</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_models">モデル</string>

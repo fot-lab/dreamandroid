@@ -33,6 +33,8 @@ fun AppContentTabBrowse(
     recordRepository: RecordRepository,
     browseLayoutMode: BrowseLayoutMode,
     onToggleLayout: () -> Unit,
+    saveParamsEnabled: Boolean = false,
+    onSaveParamsEnabledChange: (Boolean) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val knownModelIds by browseViewModel.knownModelIds.collectAsState()
@@ -48,12 +50,14 @@ fun AppContentTabBrowse(
         drawerContent = {
             ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
                 BrowseModelFilterDrawer(
-                    knownModelIds = knownModelIds,
-                    filterModelIds = filterModelIds,
-                    onToggleModel = { browseViewModel.toggleModelFilter(it) },
-                    onSelectAll = { browseViewModel.selectAllModelFilters() },
-                    onClose = { scope.launch { drawerState.close() } },
-                )
+                knownModelIds = knownModelIds,
+                filterModelIds = filterModelIds,
+                onToggleModel = { browseViewModel.toggleModelFilter(it) },
+                onSelectAll = { browseViewModel.selectAllModelFilters() },
+                onClose = { scope.launch { drawerState.close() } },
+                saveParamsEnabled = saveParamsEnabled,
+                onSaveParamsEnabledChange = onSaveParamsEnabledChange,
+            )
             }
         },
     ) {
@@ -101,13 +105,34 @@ private fun ColumnScope.BrowseModelFilterDrawer(
     onToggleModel: (String) -> Unit,
     onSelectAll: () -> Unit,
     onClose: () -> Unit,
+    saveParamsEnabled: Boolean = false,
+    onSaveParamsEnabledChange: (Boolean) -> Unit = {},
 ) {
     val isAllSelected = filterModelIds.isEmpty()
 
+    // ── Save params toggle ──
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 28.dp, top = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.gallery_save_params_toggle),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = saveParamsEnabled,
+            onCheckedChange = onSaveParamsEnabledChange,
+        )
+    }
+    HorizontalDivider()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 28.dp, top = 8.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

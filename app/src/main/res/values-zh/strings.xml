@@ -429,6 +429,7 @@
     <string name="history_filter_sort_asc">最旧优先</string>
     <string name="history_view_filter">过滤</string>
     <string name="history_filter_by_model">按模型筛选</string>
+    <string name="gallery_save_params_toggle">保存图片的同时保存参数</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_models">模型</string>

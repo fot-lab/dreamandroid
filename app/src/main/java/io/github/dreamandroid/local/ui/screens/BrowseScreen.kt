@@ -733,12 +733,19 @@ suspend fun saveBitmapToGallery(
     context: Context,
     bitmap: android.graphics.Bitmap,
     modelId: String,
+    saveParamsJson: String? = null,
 ): Boolean = withContext(Dispatchers.IO) {
     try {
         val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
             .format(java.util.Date())
         val seq = gallerySaveSequence.getAndIncrement()
         val filename = "DreamHub_${modelId}_${timestamp}_$seq.png"
+
+        val dir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "DreamHub",
+        )
+        if (!dir.exists()) dir.mkdirs()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
@@ -752,16 +759,23 @@ suspend fun saveBitmapToGallery(
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
             } ?: return@withContext false
         } else {
-            val dir = File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                "DreamHub",
-            )
-            if (!dir.exists()) dir.mkdirs()
             val file = File(dir, filename)
             file.outputStream().use { out ->
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
             }
         }
+
+        // Write JSON sidecar if params are provided
+        if (saveParamsJson != null) {
+            try {
+                val jsonFilename = filename.replace(".png", ".json")
+                val jsonFile = File(dir, jsonFilename)
+                jsonFile.writeText(saveParamsJson)
+            } catch (_: Exception) {
+                // JSON sidecar is best-effort; don't fail the image save
+            }
+        }
+
         true
     } catch (_: Exception) {
         false

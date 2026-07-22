@@ -394,6 +394,7 @@
     <string name="history_filter_sort_asc">오래된순</string>
     <string name="history_view_filter">필터</string>
     <string name="history_filter_by_model">모델별 필터</string>
+    <string name="gallery_save_params_toggle">이미지 저장 시 파라미터도 저장</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_models">모델</string>
