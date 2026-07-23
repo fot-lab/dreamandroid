@@ -2,6 +2,8 @@ package io.github.dreamandroid.local.ui.orchestrator
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -13,14 +15,22 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
+import io.github.dreamandroid.local.data.GenerateParameterRecord
 import io.github.dreamandroid.local.data.GenerationTask
 import io.github.dreamandroid.local.data.RecordRepository
+import io.github.dreamandroid.local.data.RecordSource
 import io.github.dreamandroid.local.ui.frontend.QueueSettingsDrawerContent
 import io.github.dreamandroid.local.ui.frontend.QueueTopBar
 import io.github.dreamandroid.local.data.BatchGroupDisplay
 import io.github.dreamandroid.local.ui.queue.TabQueueScreen
 import io.github.dreamandroid.local.ui.viewmodel.QueueViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 private const val TAG_QUEUE = "QueueTabDbg"
 
@@ -83,6 +93,104 @@ fun AppContentTabQueue(
                 }
             },
         )
+    }
+
+    // ── Import error dialog ──
+    var showImportErrorDialog by remember { mutableStateOf(false) }
+    var importErrorDetails by remember { mutableStateOf("") }
+    if (showImportErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportErrorDialog = false },
+            title = { Text(stringResource(R.string.record_import)) },
+            text = { Text(importErrorDetails) },
+            confirmButton = {
+                TextButton(onClick = { showImportErrorDialog = false }) {
+                    Text(stringResource(R.string.ok))
+                }
+            },
+        )
+    }
+
+    // ── Export launcher: save selected queue tasks as JSON file ──
+    val dateFormat = remember { SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val selectedTaskIds = queueViewModel.queueGetSelectedTaskIds(batchGroups)
+                val selectedTasks = tasks.filter { it.id in selectedTaskIds }
+                val records = selectedTasks.map { task ->
+                    GenerateParameterRecord(
+                        id = task.id,
+                        prompt = task.prompt,
+                        negativePrompt = task.negativePrompt,
+                        modelId = task.modelId,
+                        steps = task.steps,
+                        cfg = task.cfg,
+                        seed = task.seed,
+                        width = task.width,
+                        height = task.height,
+                        sampler = task.sampler,
+                        scheduler = task.scheduler,
+                        timestamp = task.timestamp,
+                        source = RecordSource.QUEUE,
+                    )
+                }
+                val jsonArray = GenerateParameterRecord.listToJsonArray(records)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(jsonArray.toString(2).toByteArray(Charsets.UTF_8))
+                    }
+                }
+                queueViewModel.queueExitSelection()
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.export_success, records.size)
+                )
+            } catch (e: Exception) {
+                Log.e(TAG_QUEUE, "Export failed", e)
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.export_failed, e.message ?: "")
+                )
+            }
+        }
+    }
+
+    // ── Import launcher: pick JSON file and import records after validation ──
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val jsonString = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
+                        ?: throw Exception("Cannot read file")
+                }
+                val jsonArray = JSONArray(jsonString)
+                // Validate schema
+                val errors = validateRecordSchema(jsonArray)
+                if (errors.isNotEmpty()) {
+                    importErrorDetails = errors.joinToString("\n")
+                    showImportErrorDialog = true
+                    return@launch
+                }
+                // Convert and import
+                val records = GenerateParameterRecord.listFromJsonArray(jsonArray)
+                withContext(Dispatchers.IO) {
+                    records.forEach { recordRepository.addRecord(it) }
+                }
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.import_success, records.size)
+                )
+            } catch (e: Exception) {
+                Log.e(TAG_QUEUE, "Import failed", e)
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.import_failed, e.message ?: "")
+                )
+            }
+        }
     }
 
     // ── Batch Save Info Confirmation Dialog ──
@@ -171,6 +279,12 @@ fun AppContentTabQueue(
                     queueOnSelectAll = { queueViewModel.queueSelectAll(batchGroups) },
                     queueOnInvertSelection = { queueViewModel.queueInvertSelection(batchGroups) },
                     queueOnDeselectAll = { queueViewModel.queueDeselectAll() },
+                    queueOnExport = {
+                        exportLauncher.launch(
+                            "dreamhub_queue_${dateFormat.format(java.util.Date())}.json"
+                        )
+                    },
+                    queueOnImport = { importLauncher.launch(arrayOf("application/json")) },
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -196,4 +310,77 @@ fun AppContentTabQueue(
             }
         }
     }
+}
+
+/** Required fields for [GenerateParameterRecord] with their expected JSON types. */
+private val RECORD_REQUIRED_FIELDS = listOf(
+    "id" to "string",
+    "prompt" to "string",
+    "modelId" to "string",
+    "steps" to "number",
+    "cfg" to "number",
+    "width" to "number",
+    "height" to "number",
+    "sampler" to "string",
+    "timestamp" to "number",
+    "source" to "string",
+)
+
+/**
+ * Validates that every object in [jsonArray] matches the [GenerateParameterRecord] schema.
+ * Returns a list of human-readable error messages (empty = valid).
+ */
+private fun validateRecordSchema(jsonArray: JSONArray): List<String> {
+    val errors = mutableListOf<String>()
+
+    for (i in 0 until jsonArray.length()) {
+        val obj = jsonArray.getJSONObject(i)
+        val recordIndex = i + 1
+
+        for ((field, expectedType) in RECORD_REQUIRED_FIELDS) {
+            if (!obj.has(field)) {
+                errors.add("Record $recordIndex: missing required field '$field'")
+                continue
+            }
+            val value = obj.get(field)
+            val actualType = when {
+                value is String -> "string"
+                value is Number -> "number"
+                value is Boolean -> "boolean"
+                else -> value.javaClass.simpleName.lowercase()
+            }
+            if (actualType != expectedType) {
+                if (field == "seed" && value == null) continue
+                errors.add("Record $recordIndex: field '$field' expected $expectedType but got $actualType")
+            }
+        }
+
+        listOf("negativePrompt" to "string", "seed" to "number").forEach { (field, expectedType) ->
+            if (obj.has(field) && !obj.isNull(field)) {
+                val value = obj.get(field)
+                val actualType = when {
+                    value is String -> "string"
+                    value is Number -> "number"
+                    value is Boolean -> "boolean"
+                    else -> value.javaClass.simpleName.lowercase()
+                }
+                if (actualType != expectedType) {
+                    errors.add("Record $recordIndex: field '$field' expected $expectedType but got $actualType")
+                }
+            }
+        }
+
+        if (obj.has("source")) {
+            val sourceValue = obj.optString("source", "")
+            if (sourceValue.isNotEmpty()) {
+                try {
+                    RecordSource.valueOf(sourceValue)
+                } catch (_: IllegalArgumentException) {
+                    errors.add("Record $recordIndex: 'source' value '$sourceValue' is invalid (expected QUEUE or GALLERY)")
+                }
+            }
+        }
+    }
+
+    return errors
 }

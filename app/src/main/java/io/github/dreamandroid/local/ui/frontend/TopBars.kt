@@ -225,6 +225,8 @@ fun QueueTopBar(
     queueOnSelectAll: () -> Unit = {},
     queueOnInvertSelection: () -> Unit = {},
     queueOnDeselectAll: () -> Unit = {},
+    queueOnExport: () -> Unit = {},
+    queueOnImport: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var showQueueMenu by remember { mutableStateOf(false) }
@@ -330,6 +332,27 @@ fun QueueTopBar(
                         },
                         leadingIcon = {
                             Icon(Icons.Default.Deselect, contentDescription = null)
+                        },
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.record_export)) },
+                        onClick = {
+                            showQueueMenu = false
+                            queueOnExport()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Upload, contentDescription = null)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.record_import)) },
+                        onClick = {
+                            showQueueMenu = false
+                            queueOnImport()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Download, contentDescription = null)
                         },
                     )
                 }
