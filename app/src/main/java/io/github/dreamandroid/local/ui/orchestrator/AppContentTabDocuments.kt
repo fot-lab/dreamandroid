@@ -1,5 +1,6 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -73,6 +74,15 @@ fun AppContentTabDocuments(
 
     LaunchedEffect(Unit) {
         loadFolders()
+    }
+
+    // ── BackHandler: system back button navigates according to internal state ──
+    BackHandler(enabled = true) {
+        if (selectedFolder != null) {
+            selectedFolder = null
+        } else {
+            onBack()
+        }
     }
 
     // ── Dialogs ────────────────────────────────────────────────────
