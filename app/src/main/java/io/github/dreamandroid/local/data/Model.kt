@@ -144,10 +144,10 @@ data class Model(
 
     suspend fun deleteModel(context: Context): Boolean = try {
         val modelDir = File(Model.getModelsDir(context), id)
-        val historyManager = HistoryManager(context)
         val generationPreferences = GenerationPreferences(context)
 
-        historyManager.clearHistoryForModel(id)
+        // History records are preserved so that existing gallery images
+        // remain browsable after the model is deleted.
         generationPreferences.clearPreferencesForModel(id)
 
         if (modelDir.exists() && modelDir.isDirectory) {
