@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -769,10 +770,26 @@ suspend fun saveBitmapToGallery(
         if (saveParamsJson != null) {
             try {
                 val jsonFilename = filename.replace(".png", ".json")
-                val jsonFile = File(dir, jsonFilename)
-                jsonFile.writeText(saveParamsJson)
-            } catch (_: Exception) {
-                // JSON sidecar is best-effort; don't fail the image save
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val jsonValues = ContentValues().apply {
+                        put(MediaStore.Files.FileColumns.DISPLAY_NAME, jsonFilename)
+                        put(MediaStore.Files.FileColumns.MIME_TYPE, "application/json")
+                        put(MediaStore.Files.FileColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DreamHub")
+                    }
+                    val jsonUri = context.contentResolver.insert(
+                        MediaStore.Files.getContentUri("external"), jsonValues
+                    )
+                    jsonUri?.let {
+                        context.contentResolver.openOutputStream(it)?.use { out ->
+                            out.write(saveParamsJson.toByteArray(Charsets.UTF_8))
+                        }
+                    }
+                } else {
+                    val jsonFile = File(dir, jsonFilename)
+                    jsonFile.writeText(saveParamsJson)
+                }
+            } catch (e: Exception) {
+                Log.e("Gallery", "Failed to save JSON sidecar", e)
             }
         }
 
