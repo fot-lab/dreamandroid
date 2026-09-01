@@ -218,6 +218,9 @@
         <item quantity="other">已保存 %d 张图片</item>
     </plurals>
     <string name="saved_count_with_failed" tools:ignore="PluralsCandidate">已保存 %1$d 张，失败 %2$d 张</string>
+    <plurals name="saved_count_json_failed">
+        <item quantity="other">已保存 %1$d 张图片，但 %2$d 个参数 JSON 导出失败</item>
+    </plurals>
     <plurals name="deleted_count">
         <item quantity="other">已删除 %d 项</item>
     </plurals>
@@ -296,6 +299,7 @@
 
     <!-- Info Messages -->
     <string name="image_saved">图片已保存到相册</string>
+    <string name="image_saved_json_failed">图片已保存，但参数 JSON 导出失败</string>
     <string name="loading_model">模型加载中…</string>
 
     <!-- File Manager -->

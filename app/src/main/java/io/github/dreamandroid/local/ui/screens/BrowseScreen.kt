@@ -44,6 +44,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -139,12 +140,26 @@ fun BrowseScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            val (saved, _) = browseViewModel.batchSaveToGallery(context)
-                            Toast.makeText(
-                                context,
-                                context.resources.getQuantityString(R.plurals.saved_count, saved, saved),
-                                Toast.LENGTH_SHORT,
-                            ).show()
+                            val result = browseViewModel.batchSaveToGallery(context)
+                            val message = when {
+                                result.jsonFailed > 0 -> context.resources.getQuantityString(
+                                    R.plurals.saved_count_json_failed,
+                                    result.jsonFailed,
+                                    result.saved,
+                                    result.jsonFailed,
+                                )
+                                result.failed > 0 -> context.getString(
+                                    R.string.saved_count_with_failed,
+                                    result.saved,
+                                    result.failed,
+                                )
+                                else -> context.resources.getQuantityString(
+                                    R.plurals.saved_count,
+                                    result.saved,
+                                    result.saved,
+                                )
+                            }
+                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                         }
                     }
                 ) {
@@ -269,11 +284,15 @@ fun BrowseScreen(
                     Row {
                         IconButton(onClick = {
                             scope.launch(Dispatchers.IO) {
-                                val ok = browseViewModel.saveSingleToGallery(context, currentItem)
-                                if (ok) {
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, context.getString(R.string.image_saved), Toast.LENGTH_SHORT).show()
+                                val result = browseViewModel.saveSingleToGallery(context, currentItem)
+                                withContext(Dispatchers.Main) {
+                                    val message = when {
+                                        result.imageSaved && result.jsonError != null ->
+                                            context.getString(R.string.image_saved_json_failed)
+                                        result.imageSaved -> context.getString(R.string.image_saved)
+                                        else -> context.getString(R.string.image_save_failed)
                                     }
+                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                 }
                             }
                         }) {
@@ -730,71 +749,142 @@ private fun DetailListItem(
 
 private val gallerySaveSequence = AtomicLong(0L)
 
+/** Album folder (under a public storage root) that exported DreamHub images live in. */
+private const val DREAMHUB_ALBUM = "DreamHub"
+
+/**
+ * Outcome of exporting one image to the shared gallery.
+ *
+ * [imageSaved] describes the image only — a JSON sidecar failure never flips it to
+ * `false`, so a broken sidecar can never block the primary image export. The sidecar
+ * problem travels in [jsonError] so the UI can surface it (e.g. as a Toast).
+ */
+data class GallerySaveResult(
+    val imageSaved: Boolean,
+    /** Non-null when the params JSON sidecar could not be written; holds the reason. */
+    val jsonError: String? = null,
+)
+
+/**
+ * Writes the params JSON sidecar for an already exported image.
+ *
+ * Android 10+ scoped storage confines [MediaStore.Files] to a fixed set of primary
+ * directories, and `Pictures/` is not one of them for non-media MIME types. Inserting an
+ * `application/json` entry under `Pictures/DreamHub` therefore throws
+ * `IllegalArgumentException: Primary directory Pictures not allowed for
+ * content://media/external/file` — that is why the sidecar export always failed, while
+ * the image itself (written through [MediaStore.Images]) was unaffected.
+ *
+ * We walk a candidate chain — alongside the image first, then the platform sanctioned
+ * `Documents/` and `Download/` roots — and only report failure when every candidate fails.
+ *
+ * @return `null` on success, otherwise a human readable reason covering every attempt.
+ */
+private fun writeJsonSidecar(context: Context, jsonFilename: String, json: String): String? {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val candidates = listOf(
+            Environment.DIRECTORY_PICTURES + "/" + DREAMHUB_ALBUM,
+            Environment.DIRECTORY_DOCUMENTS + "/" + DREAMHUB_ALBUM,
+            Environment.DIRECTORY_DOWNLOADS + "/" + DREAMHUB_ALBUM,
+        )
+        val failures = ArrayList<String>(candidates.size)
+        for (relativePath in candidates) {
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.Files.FileColumns.DISPLAY_NAME, jsonFilename)
+                    put(MediaStore.Files.FileColumns.MIME_TYPE, "application/json")
+                    put(MediaStore.Files.FileColumns.RELATIVE_PATH, relativePath)
+                }
+                val uri = context.contentResolver.insert(
+                    MediaStore.Files.getContentUri("external"),
+                    values,
+                ) ?: throw IOException("MediaStore insert returned null")
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(json.toByteArray(Charsets.UTF_8))
+                } ?: throw IOException("MediaStore openOutputStream returned null")
+                return null
+            } catch (e: Exception) {
+                Log.w("Gallery", "JSON sidecar rejected at $relativePath", e)
+                failures.add("$relativePath: ${e.message}")
+            }
+        }
+        return failures.joinToString("; ")
+    }
+
+    return try {
+        val dir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            DREAMHUB_ALBUM,
+        )
+        if (!dir.exists()) dir.mkdirs()
+        File(dir, jsonFilename).writeText(json)
+        null
+    } catch (e: Exception) {
+        Log.w("Gallery", "JSON sidecar write failed", e)
+        e.message ?: e.javaClass.simpleName
+    }
+}
+
+/** Writes [bitmap] into `Pictures/DreamHub`. Returns `false` when the image is not stored. */
+private fun writeBitmapToGallery(
+    context: Context,
+    bitmap: android.graphics.Bitmap,
+    filename: String,
+): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(
+                MediaStore.Images.Media.RELATIVE_PATH,
+                Environment.DIRECTORY_PICTURES + "/" + DREAMHUB_ALBUM,
+            )
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return false
+        context.contentResolver.openOutputStream(uri)?.use { out ->
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        } ?: return false
+    } else {
+        val dir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            DREAMHUB_ALBUM,
+        )
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, filename)
+        file.outputStream().use { out ->
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        }
+    }
+    return true
+}
+
 suspend fun saveBitmapToGallery(
     context: Context,
     bitmap: android.graphics.Bitmap,
     modelId: String,
     saveParamsJson: String? = null,
-): Boolean = withContext(Dispatchers.IO) {
-    try {
-        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
-            .format(java.util.Date())
-        val seq = gallerySaveSequence.getAndIncrement()
-        val filename = "DreamHub_${modelId}_${timestamp}_$seq.png"
+): GallerySaveResult = withContext(Dispatchers.IO) {
+    val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+        .format(java.util.Date())
+    val seq = gallerySaveSequence.getAndIncrement()
+    val filename = "DreamHub_${modelId}_${timestamp}_$seq.png"
 
-        val dir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-            "DreamHub",
-        )
-        if (!dir.exists()) dir.mkdirs()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DreamHub")
-            }
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: return@withContext false
-            context.contentResolver.openOutputStream(uri)?.use { out ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-            } ?: return@withContext false
-        } else {
-            val file = File(dir, filename)
-            file.outputStream().use { out ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-            }
-        }
-
-        // Write JSON sidecar if params are provided
-        if (saveParamsJson != null) {
-            try {
-                val jsonFilename = filename.replace(".png", ".json")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val jsonValues = ContentValues().apply {
-                        put(MediaStore.Files.FileColumns.DISPLAY_NAME, jsonFilename)
-                        put(MediaStore.Files.FileColumns.MIME_TYPE, "application/json")
-                        put(MediaStore.Files.FileColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DreamHub")
-                    }
-                    val jsonUri = context.contentResolver.insert(
-                        MediaStore.Files.getContentUri("external"), jsonValues
-                    )
-                    jsonUri?.let {
-                        context.contentResolver.openOutputStream(it)?.use { out ->
-                            out.write(saveParamsJson.toByteArray(Charsets.UTF_8))
-                        }
-                    }
-                } else {
-                    val jsonFile = File(dir, jsonFilename)
-                    jsonFile.writeText(saveParamsJson)
-                }
-            } catch (e: Exception) {
-                Log.e("Gallery", "Failed to save JSON sidecar", e)
-            }
-        }
-
-        true
-    } catch (_: Exception) {
+    val imageSaved = try {
+        writeBitmapToGallery(context, bitmap, filename)
+    } catch (e: Exception) {
+        Log.w("Gallery", "Image export failed: $filename", e)
         false
     }
+    if (!imageSaved) return@withContext GallerySaveResult(imageSaved = false)
+
+    // Best effort: a sidecar problem must never turn a successful image export into a
+    // failed one — it is reported separately so the UI can toast it.
+    val jsonError = if (saveParamsJson != null) {
+        writeJsonSidecar(context, filename.substringBeforeLast(".png") + ".json", saveParamsJson)
+    } else {
+        null
+    }
+
+    GallerySaveResult(imageSaved = true, jsonError = jsonError)
 }

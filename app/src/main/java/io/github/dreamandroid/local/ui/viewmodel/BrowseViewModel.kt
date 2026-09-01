@@ -3,6 +3,7 @@ package io.github.dreamandroid.local.ui.viewmodel
 import android.app.Application
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +16,7 @@ import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.data.RecordSource
 import io.github.dreamandroid.local.data.GenerateParameterRecord
+import io.github.dreamandroid.local.ui.screens.GallerySaveResult
 import io.github.dreamandroid.local.ui.screens.saveBitmapToGallery
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +25,19 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+
+/**
+ * Aggregated outcome of a batch export to the gallery.
+ *
+ * [jsonFailed] counts images that were exported successfully but whose params JSON
+ * sidecar could not be produced. Those images are counted in [saved], never in [failed],
+ * so a sidecar problem never looks like (or causes) an image export failure.
+ */
+data class BatchSaveResult(
+    val saved: Int,
+    val failed: Int,
+    val jsonFailed: Int,
+)
 
 /**
  * Browse ViewModel extracted from BrowseScreen (UILA-COMP-0001).
@@ -151,9 +166,10 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── Batch Save to Gallery ─────────────────────────────────
 
-    suspend fun batchSaveToGallery(context: Context): Pair<Int, Int> {
+    suspend fun batchSaveToGallery(context: Context): BatchSaveResult {
         var saved = 0
         var failed = 0
+        var jsonFailed = 0
         val saveParams = saveParamsEnabled
         selectedItems.toList().forEach { item ->
             val bitmap = try {
@@ -162,11 +178,19 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } catch (_: Exception) { null }
             if (bitmap != null) {
+                // Serializing the sidecar must never abort the batch: on failure we still
+                // export the image and only record a json failure.
                 val paramsJson = if (saveParams) buildSaveParamsJson(item) else null
+                val jsonUnavailable = saveParams && paramsJson == null
                 val result = withContext(Dispatchers.IO) {
                     saveBitmapToGallery(context, bitmap, item.modelId, saveParamsJson = paramsJson)
                 }
-                if (result) saved++ else failed++
+                if (result.imageSaved) {
+                    saved++
+                    if (jsonUnavailable || result.jsonError != null) jsonFailed++
+                } else {
+                    failed++
+                }
             } else {
                 failed++
             }
@@ -174,7 +198,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
         selectedItems.clear()
         isSelectionMode = false
         showBatchSaveDialog = false
-        return Pair(saved, failed)
+        return BatchSaveResult(saved, failed, jsonFailed)
     }
 
     // ── Batch Save Params ─────────────────────────────────────
@@ -214,16 +238,21 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
         showHistoryDetailDialog = null
     }
 
-    suspend fun saveSingleToGallery(context: Context, item: HistoryItem): Boolean {
-        val paramsJson = if (saveParamsEnabled) buildSaveParamsJson(item) else null
+    suspend fun saveSingleToGallery(context: Context, item: HistoryItem): GallerySaveResult {
+        val saveParams = saveParamsEnabled
+        val paramsJson = if (saveParams) buildSaveParamsJson(item) else null
+        val jsonUnavailable = saveParams && paramsJson == null
         return withContext(Dispatchers.IO) {
             val bitmap = try {
                 BitmapFactory.decodeFile(item.imageFile.absolutePath)
             } catch (_: Exception) { null }
-            if (bitmap != null) {
-                saveBitmapToGallery(context, bitmap, item.modelId, saveParamsJson = paramsJson)
+            if (bitmap == null) return@withContext GallerySaveResult(imageSaved = false)
+
+            val result = saveBitmapToGallery(context, bitmap, item.modelId, saveParamsJson = paramsJson)
+            if (jsonUnavailable && result.jsonError == null) {
+                result.copy(jsonError = "params JSON could not be serialized")
             } else {
-                false
+                result
             }
         }
     }
@@ -252,23 +281,32 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
         /**
          * Builds a JSON representation of [item]'s generation params,
          * compatible with [GenerateParameterRecord.toJson] format for import/export.
+         *
+         * Returns `null` instead of throwing when the params cannot be serialized.
+         * Serialization is an optional add-on to the image export, so it must never
+         * abort the export itself.
          */
-        fun buildSaveParamsJson(item: HistoryItem): String {
-            return JSONObject().apply {
-                put("id", item.id)
-                put("prompt", item.params.prompt)
-                put("negativePrompt", item.params.negativePrompt)
-                put("modelId", item.modelId)
-                put("steps", item.params.steps)
-                put("cfg", item.params.cfgScale.toDouble())
-                if (item.params.seed != null) put("seed", item.params.seed)
-                put("width", item.params.width)
-                put("height", item.params.height)
-                put("sampler", item.params.sampler)
-                put("scheduler", item.params.scheduler)
-                put("timestamp", item.timestamp)
-                put("source", RecordSource.GALLERY.name)
-            }.toString()
+        fun buildSaveParamsJson(item: HistoryItem): String? {
+            return try {
+                JSONObject().apply {
+                    put("id", item.id)
+                    put("prompt", item.params.prompt)
+                    put("negativePrompt", item.params.negativePrompt)
+                    put("modelId", item.modelId)
+                    put("steps", item.params.steps)
+                    put("cfg", item.params.cfgScale.toDouble())
+                    if (item.params.seed != null) put("seed", item.params.seed)
+                    put("width", item.params.width)
+                    put("height", item.params.height)
+                    put("sampler", item.params.sampler)
+                    put("scheduler", item.params.scheduler)
+                    put("timestamp", item.timestamp)
+                    put("source", RecordSource.GALLERY.name)
+                }.toString()
+            } catch (e: Exception) {
+                Log.w("BrowseViewModel", "Failed to build params JSON for ${item.id}", e)
+                null
+            }
         }
     }
 }

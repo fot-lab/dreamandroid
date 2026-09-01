@@ -226,6 +226,10 @@
         <item quantity="other">Saved %d images</item>
     </plurals>
     <string name="saved_count_with_failed" tools:ignore="PluralsCandidate">Saved %1$d images, %2$d failed</string>
+    <plurals name="saved_count_json_failed">
+        <item quantity="one">Saved %1$d image, but %2$d JSON sidecar failed to export</item>
+        <item quantity="other">Saved %1$d images, but %2$d JSON sidecars failed to export</item>
+    </plurals>
     <plurals name="deleted_count">
         <item quantity="one">Deleted %d item</item>
         <item quantity="other">Deleted %d items</item>
@@ -305,6 +309,7 @@
 
     <!-- Info Messages -->
     <string name="image_saved">Image saved to gallery</string>
+    <string name="image_saved_json_failed">Image saved, but JSON sidecar export failed</string>
     <string name="loading_model">Loading model…</string>
 
     <!-- File Manager -->

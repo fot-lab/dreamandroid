@@ -214,6 +214,9 @@
         <item quantity="other">%d 枚を保存しました</item>
     </plurals>
     <string name="saved_count_with_failed" tools:ignore="PluralsCandidate">%1$d 枚を保存、%2$d 枚失敗</string>
+    <plurals name="saved_count_json_failed">
+        <item quantity="other">%1$d 枚を保存しましたが、%2$d 件のパラメータ JSON の書き出しに失敗しました</item>
+    </plurals>
     <plurals name="deleted_count">
         <item quantity="other">%d 個のアイテムを削除しました</item>
     </plurals>
@@ -279,6 +282,7 @@
     <string name="error_request_failed">リクエスト失敗: %s</string>
     <string name="unknown_error">不明なエラー</string>
     <string name="image_saved">画像をギャラリーに保存しました</string>
+    <string name="image_saved_json_failed">画像は保存しましたが、パラメータ JSON の書き出しに失敗しました</string>
     <string name="loading_model">モデルの読み込み中…</string>
     
     <string name="delete_file">ファイルを削除</string>

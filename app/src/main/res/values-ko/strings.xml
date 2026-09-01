@@ -189,6 +189,9 @@
         <item quantity="other">이미지 %d개를 저장했습니다</item>
     </plurals>
     <string name="saved_count_with_failed" tools:ignore="PluralsCandidate">이미지 %1$d개 저장, %2$d개 실패</string>
+    <plurals name="saved_count_json_failed">
+        <item quantity="other">이미지 %1$d개를 저장했지만 매개변수 JSON %2$d개 내보내기에 실패했습니다</item>
+    </plurals>
     <plurals name="deleted_count">
         <item quantity="other">%d개 항목을 삭제했습니다</item>
     </plurals>
@@ -260,6 +263,7 @@
 
     <!-- Info Messages -->
     <string name="image_saved">이미지를 갤러리에 저장했습니다</string>
+    <string name="image_saved_json_failed">이미지는 저장했지만 매개변수 JSON 내보내기에 실패했습니다</string>
     <string name="loading_model">모델 로드 중…</string>
 
     <!-- File Manager -->
