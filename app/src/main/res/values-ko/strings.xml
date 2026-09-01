@@ -264,6 +264,13 @@
     <!-- Info Messages -->
     <string name="image_saved">이미지를 갤러리에 저장했습니다</string>
     <string name="image_saved_json_failed">이미지는 저장했지만 매개변수 JSON 내보내기에 실패했습니다</string>
+    <string name="export_image_dir">이미지 저장 폴더</string>
+    <string name="export_params_dir">매개변수 저장 폴더</string>
+    <string name="export_dir_default_image">Pictures/DreamHub (기본값)</string>
+    <string name="export_dir_default_params">Documents/DreamHub (기본값)</string>
+    <string name="export_dir_pick">폴더 선택</string>
+    <string name="export_dir_updated">내보내기 폴더를 변경했습니다</string>
+    <string name="export_dir_pick_failed">해당 폴더에 접근할 수 없습니다</string>
     <string name="loading_model">모델 로드 중…</string>
 
     <!-- File Manager -->

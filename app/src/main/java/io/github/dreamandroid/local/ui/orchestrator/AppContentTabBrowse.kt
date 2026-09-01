@@ -1,24 +1,32 @@
 package io.github.dreamandroid.local.ui.orchestrator
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.dreamandroid.local.R
 import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.ui.frontend.BrowseTopBar
 import io.github.dreamandroid.local.ui.screens.BrowseLayoutMode
 import io.github.dreamandroid.local.ui.screens.BrowseScreen
+import io.github.dreamandroid.local.ui.screens.describeExportDir
 import io.github.dreamandroid.local.ui.viewmodel.BrowseViewModel
+import io.github.dreamandroid.local.ui.viewmodel.ExportDirKind
 import kotlinx.coroutines.launch
 
 /**
@@ -37,8 +45,35 @@ fun AppContentTabBrowse(
     onSaveParamsEnabledChange: (Boolean) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val knownModelIds by browseViewModel.knownModelIds.collectAsState()
     val filterModelIds = browseViewModel.filterModelIds
+    val imageDirUri by browseViewModel.imageDirUri.collectAsState()
+    val paramsDirUri by browseViewModel.paramsDirUri.collectAsState()
+
+    // ── Export folder pickers (SAF) ──
+    fun reportPickResult(error: String?) {
+        Toast.makeText(
+            context,
+            if (error == null) {
+                context.getString(R.string.export_dir_updated)
+            } else {
+                context.getString(R.string.export_dir_pick_failed)
+            },
+            Toast.LENGTH_LONG,
+        ).show()
+    }
+
+    val pickImageDir = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) reportPickResult(browseViewModel.onExportDirPicked(ExportDirKind.IMAGE, uri))
+    }
+    val pickParamsDir = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) reportPickResult(browseViewModel.onExportDirPicked(ExportDirKind.PARAMS, uri))
+    }
 
     // ── BackHandler: close drawer on system back press ──
     BackHandler(enabled = drawerState.isOpen) {
@@ -57,6 +92,12 @@ fun AppContentTabBrowse(
                 onClose = { scope.launch { drawerState.close() } },
                 saveParamsEnabled = saveParamsEnabled,
                 onSaveParamsEnabledChange = onSaveParamsEnabledChange,
+                imageDirLabel = describeExportDir(imageDirUri)
+                    .ifEmpty { stringResource(R.string.export_dir_default_image) },
+                paramsDirLabel = describeExportDir(paramsDirUri)
+                    .ifEmpty { stringResource(R.string.export_dir_default_params) },
+                onPickImageDir = { pickImageDir.launch(null) },
+                onPickParamsDir = { pickParamsDir.launch(null) },
             )
             }
         },
@@ -107,6 +148,10 @@ private fun ColumnScope.BrowseModelFilterDrawer(
     onClose: () -> Unit,
     saveParamsEnabled: Boolean = false,
     onSaveParamsEnabledChange: (Boolean) -> Unit = {},
+    imageDirLabel: String = "",
+    paramsDirLabel: String = "",
+    onPickImageDir: () -> Unit = {},
+    onPickParamsDir: () -> Unit = {},
 ) {
     val isAllSelected = filterModelIds.isEmpty()
 
@@ -127,6 +172,20 @@ private fun ColumnScope.BrowseModelFilterDrawer(
             onCheckedChange = onSaveParamsEnabledChange,
         )
     }
+    HorizontalDivider()
+
+    // ── Export destinations (SAF folder pickers) ──
+    ExportDirSettingRow(
+        title = stringResource(R.string.export_image_dir),
+        value = imageDirLabel,
+        onPick = onPickImageDir,
+    )
+    HorizontalDivider()
+    ExportDirSettingRow(
+        title = stringResource(R.string.export_params_dir),
+        value = paramsDirLabel,
+        onPick = onPickParamsDir,
+    )
     HorizontalDivider()
 
     Row(
@@ -198,4 +257,46 @@ private fun ColumnScope.BrowseModelFilterDrawer(
         }
     }
     Spacer(Modifier.height(16.dp))
+}
+
+// =========== Browse Drawer: Export destination row ===========
+
+/**
+ * One export-destination setting: a title, the currently effective folder and an affordance
+ * that opens the system folder picker (SAF `ACTION_OPEN_DOCUMENT_TREE`).
+ */
+@Composable
+private fun ExportDirSettingRow(
+    title: String,
+    value: String,
+    onPick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPick)
+            .padding(start = 28.dp, top = 12.dp, end = 16.dp, bottom = 12.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Default.FolderOpen,
+                contentDescription = stringResource(R.string.export_dir_pick),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
 }

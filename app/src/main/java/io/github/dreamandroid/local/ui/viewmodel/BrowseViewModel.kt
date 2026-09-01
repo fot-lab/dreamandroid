@@ -2,7 +2,9 @@ package io.github.dreamandroid.local.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -16,6 +18,7 @@ import io.github.dreamandroid.local.data.HistoryManager
 import io.github.dreamandroid.local.data.RecordRepository
 import io.github.dreamandroid.local.data.RecordSource
 import io.github.dreamandroid.local.data.GenerateParameterRecord
+import io.github.dreamandroid.local.data.GenerationPreferences
 import io.github.dreamandroid.local.ui.screens.GallerySaveResult
 import io.github.dreamandroid.local.ui.screens.saveBitmapToGallery
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +28,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+
+/** Which of the two export destinations a folder picker targets. */
+enum class ExportDirKind {
+    IMAGE,
+    PARAMS,
+}
 
 /**
  * Aggregated outcome of a batch export to the gallery.
@@ -52,9 +61,52 @@ data class BatchSaveResult(
 class BrowseViewModel(application: Application) : AndroidViewModel(application) {
 
     private val historyManager = HistoryManager(application)
+    private val generationPreferences = GenerationPreferences(application)
 
     val knownModelIds: StateFlow<List<String>> = historyManager.observeKnownModelIds()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // ── Export destinations ───────────────────────────────────
+    /** Folder picked by the user for images; `null` → built-in Pictures/DreamHub. */
+    val imageDirUri: StateFlow<String?> = generationPreferences.observeExportImageDirUri()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Folder picked by the user for params JSON; `null` → built-in Documents/DreamHub. */
+    val paramsDirUri: StateFlow<String?> = generationPreferences.observeExportParamsDirUri()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * Stores a folder picked through SAF for [kind] and takes a persistable URI grant so
+     * the app keeps write access across restarts.
+     *
+     * @return `null` on success, otherwise a failure reason for the caller to surface.
+     */
+    fun onExportDirPicked(kind: ExportDirKind, uri: Uri?): String? {
+        if (uri == null) {
+            persistExportDir(kind, null)
+            return null
+        }
+        return try {
+            getApplication<Application>().contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+            persistExportDir(kind, uri.toString())
+            null
+        } catch (e: SecurityException) {
+            Log.w("BrowseViewModel", "Persistable grant denied for $uri", e)
+            "no persistable access to that folder"
+        }
+    }
+
+    private fun persistExportDir(kind: ExportDirKind, value: String?) {
+        viewModelScope.launch {
+            when (kind) {
+                ExportDirKind.IMAGE -> generationPreferences.setExportImageDirUri(value)
+                ExportDirKind.PARAMS -> generationPreferences.setExportParamsDirUri(value)
+            }
+        }
+    }
 
     private val historyFilter = HistoryFilter(modelIds = emptySet())
     val historyItems: StateFlow<List<HistoryItem>> = historyManager.observe(historyFilter)
@@ -171,6 +223,8 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
         var failed = 0
         var jsonFailed = 0
         val saveParams = saveParamsEnabled
+        val imageDir = imageDirUri.value
+        val paramsDir = paramsDirUri.value
         selectedItems.toList().forEach { item ->
             val bitmap = try {
                 withContext(Dispatchers.IO) {
@@ -183,7 +237,14 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
                 val paramsJson = if (saveParams) buildSaveParamsJson(item) else null
                 val jsonUnavailable = saveParams && paramsJson == null
                 val result = withContext(Dispatchers.IO) {
-                    saveBitmapToGallery(context, bitmap, item.modelId, saveParamsJson = paramsJson)
+                    saveBitmapToGallery(
+                        context,
+                        bitmap,
+                        item.modelId,
+                        saveParamsJson = paramsJson,
+                        imageDirUri = imageDir,
+                        paramsDirUri = paramsDir,
+                    )
                 }
                 if (result.imageSaved) {
                     saved++
@@ -248,7 +309,14 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) { null }
             if (bitmap == null) return@withContext GallerySaveResult(imageSaved = false)
 
-            val result = saveBitmapToGallery(context, bitmap, item.modelId, saveParamsJson = paramsJson)
+            val result = saveBitmapToGallery(
+                context,
+                bitmap,
+                item.modelId,
+                saveParamsJson = paramsJson,
+                imageDirUri = imageDirUri.value,
+                paramsDirUri = paramsDirUri.value,
+            )
             if (jsonUnavailable && result.jsonError == null) {
                 result.copy(jsonError = "params JSON could not be serialized")
             } else {

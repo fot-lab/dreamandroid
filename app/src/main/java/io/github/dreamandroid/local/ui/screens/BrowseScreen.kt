@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
@@ -44,7 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
+import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -749,13 +750,19 @@ private fun DetailListItem(
 
 private val gallerySaveSequence = AtomicLong(0L)
 
-/** Album folder (under a public storage root) that exported DreamHub images live in. */
+/** Album folder used when the user has not picked a custom export folder. */
 private const val DREAMHUB_ALBUM = "DreamHub"
+
+/** Built-in destination for exported images when no folder has been picked. */
+private val DEFAULT_IMAGE_PATH = Environment.DIRECTORY_PICTURES + "/$DREAMHUB_ALBUM"
+
+/** Built-in destination for exported params JSON when no folder has been picked. */
+private val DEFAULT_PARAMS_PATH = Environment.DIRECTORY_DOCUMENTS + "/$DREAMHUB_ALBUM"
 
 /**
  * Outcome of exporting one image to the shared gallery.
  *
- * [imageSaved] describes the image only — a JSON sidecar failure never flips it to
+ * [imageSaved] describes the image only — a params JSON sidecar failure never flips it to
  * `false`, so a broken sidecar can never block the primary image export. The sidecar
  * problem travels in [jsonError] so the UI can surface it (e.g. as a Toast).
  */
@@ -765,98 +772,109 @@ data class GallerySaveResult(
     val jsonError: String? = null,
 )
 
+/** Human readable location of a stored export folder; empty when none has been picked. */
+fun describeExportDir(dirUri: String?): String {
+    if (dirUri.isNullOrBlank()) return ""
+    val uri = Uri.parse(dirUri)
+    val raw = DocumentsContract.getTreeDocumentId(uri) ?: uri.lastPathSegment.orEmpty()
+    val decoded = Uri.decode(raw)
+    return decoded.substringAfter(':', decoded).trim('/').ifEmpty { decoded }
+}
+
 /**
- * Writes the params JSON sidecar for an already exported image.
+ * Creates [displayName] inside the SAF tree the user picked and streams [write] into it.
  *
- * Android 10+ scoped storage confines [MediaStore.Files] to a fixed set of primary
- * directories, and `Pictures/` is not one of them for non-media MIME types. Inserting an
- * `application/json` entry under `Pictures/DreamHub` therefore throws
- * `IllegalArgumentException: Primary directory Pictures not allowed for
- * content://media/external/file` — that is why the sidecar export always failed, while
- * the image itself (written through [MediaStore.Images]) was unaffected.
- *
- * We walk a candidate chain — alongside the image first, then the platform sanctioned
- * `Documents/` and `Download/` roots — and only report failure when every candidate fails.
- *
- * @return `null` on success, otherwise a human readable reason covering every attempt.
+ * @return `null` on success, otherwise a human readable failure reason.
  */
-private fun writeJsonSidecar(context: Context, jsonFilename: String, json: String): String? {
+private fun writeIntoSafTree(
+    context: Context,
+    treeUri: Uri,
+    displayName: String,
+    mimeType: String,
+    write: (OutputStream) -> Unit,
+): String? = try {
+    val docUri = DocumentsContract.createDocument(
+        context.contentResolver,
+        treeUri,
+        mimeType,
+        displayName,
+    ) ?: return "could not create $displayName in the selected folder"
+    context.contentResolver.openOutputStream(docUri)?.use(write)
+        ?: return "could not open $displayName for writing"
+    null
+} catch (e: Exception) {
+    Log.w("Gallery", "SAF write failed: $displayName", e)
+    e.message ?: e.javaClass.simpleName
+}
+
+/**
+ * Creates [displayName] under [relativePath] of public storage and streams [write] into it.
+ *
+ * Android 10+ goes through MediaStore; Android 9 has no `RELATIVE_PATH` and therefore
+ * writes straight to the public directory.
+ *
+ * @return `null` on success, otherwise a human readable failure reason.
+ */
+private fun writeIntoPublicAlbum(
+    context: Context,
+    relativePath: String,
+    displayName: String,
+    mimeType: String,
+    write: (OutputStream) -> Unit,
+): String? {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val candidates = listOf(
-            Environment.DIRECTORY_PICTURES + "/" + DREAMHUB_ALBUM,
-            Environment.DIRECTORY_DOCUMENTS + "/" + DREAMHUB_ALBUM,
-            Environment.DIRECTORY_DOWNLOADS + "/" + DREAMHUB_ALBUM,
-        )
-        val failures = ArrayList<String>(candidates.size)
-        for (relativePath in candidates) {
-            try {
-                val values = ContentValues().apply {
-                    put(MediaStore.Files.FileColumns.DISPLAY_NAME, jsonFilename)
-                    put(MediaStore.Files.FileColumns.MIME_TYPE, "application/json")
-                    put(MediaStore.Files.FileColumns.RELATIVE_PATH, relativePath)
-                }
-                val uri = context.contentResolver.insert(
-                    MediaStore.Files.getContentUri("external"),
-                    values,
-                ) ?: throw IOException("MediaStore insert returned null")
-                context.contentResolver.openOutputStream(uri)?.use { out ->
-                    out.write(json.toByteArray(Charsets.UTF_8))
-                } ?: throw IOException("MediaStore openOutputStream returned null")
-                return null
-            } catch (e: Exception) {
-                Log.w("Gallery", "JSON sidecar rejected at $relativePath", e)
-                failures.add("$relativePath: ${e.message}")
-            }
+        val collection = if (mimeType.startsWith("image/")) {
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        } else {
+            MediaStore.Files.getContentUri("external")
         }
-        return failures.joinToString("; ")
+        return try {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+            }
+            val uri = context.contentResolver.insert(collection, values)
+                ?: return "MediaStore rejected $displayName under $relativePath"
+            context.contentResolver.openOutputStream(uri)?.use(write)
+                ?: return "could not open $displayName for writing"
+            null
+        } catch (e: Exception) {
+            Log.w("Gallery", "MediaStore write failed: $displayName", e)
+            e.message ?: e.javaClass.simpleName
+        }
     }
 
     return try {
-        val dir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-            DREAMHUB_ALBUM,
-        )
+        val root = Environment.getExternalStoragePublicDirectory(relativePath.substringBefore('/'))
+        val dir = File(root, relativePath.substringAfter('/'))
         if (!dir.exists()) dir.mkdirs()
-        File(dir, jsonFilename).writeText(json)
+        File(dir, displayName).outputStream().use(write)
         null
     } catch (e: Exception) {
-        Log.w("Gallery", "JSON sidecar write failed", e)
+        Log.w("Gallery", "Legacy write failed: $displayName", e)
         e.message ?: e.javaClass.simpleName
     }
 }
 
-/** Writes [bitmap] into `Pictures/DreamHub`. Returns `false` when the image is not stored. */
-private fun writeBitmapToGallery(
+/**
+ * Writes one export artifact to the folder the user picked, or to the built-in
+ * [defaultRelativePath] album when no folder has been picked.
+ */
+private fun exportFile(
     context: Context,
-    bitmap: android.graphics.Bitmap,
-    filename: String,
-): Boolean {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(
-                MediaStore.Images.Media.RELATIVE_PATH,
-                Environment.DIRECTORY_PICTURES + "/" + DREAMHUB_ALBUM,
-            )
-        }
-        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: return false
-        context.contentResolver.openOutputStream(uri)?.use { out ->
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-        } ?: return false
+    dirUri: String?,
+    defaultRelativePath: String,
+    displayName: String,
+    mimeType: String,
+    write: (OutputStream) -> Unit,
+): String? {
+    val tree = dirUri?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
+    return if (tree != null) {
+        writeIntoSafTree(context, tree, displayName, mimeType, write)
     } else {
-        val dir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-            DREAMHUB_ALBUM,
-        )
-        if (!dir.exists()) dir.mkdirs()
-        val file = File(dir, filename)
-        file.outputStream().use { out ->
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-        }
+        writeIntoPublicAlbum(context, defaultRelativePath, displayName, mimeType, write)
     }
-    return true
 }
 
 suspend fun saveBitmapToGallery(
@@ -864,24 +882,36 @@ suspend fun saveBitmapToGallery(
     bitmap: android.graphics.Bitmap,
     modelId: String,
     saveParamsJson: String? = null,
+    imageDirUri: String? = null,
+    paramsDirUri: String? = null,
 ): GallerySaveResult = withContext(Dispatchers.IO) {
     val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
         .format(java.util.Date())
     val seq = gallerySaveSequence.getAndIncrement()
     val filename = "DreamHub_${modelId}_${timestamp}_$seq.png"
 
-    val imageSaved = try {
-        writeBitmapToGallery(context, bitmap, filename)
-    } catch (e: Exception) {
-        Log.w("Gallery", "Image export failed: $filename", e)
-        false
+    val imageError = exportFile(
+        context = context,
+        dirUri = imageDirUri,
+        defaultRelativePath = DEFAULT_IMAGE_PATH,
+        displayName = filename,
+        mimeType = "image/png",
+    ) { out -> bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out) }
+    if (imageError != null) {
+        Log.w("Gallery", "Image export failed ($filename): $imageError")
+        return@withContext GallerySaveResult(imageSaved = false)
     }
-    if (!imageSaved) return@withContext GallerySaveResult(imageSaved = false)
 
-    // Best effort: a sidecar problem must never turn a successful image export into a
-    // failed one — it is reported separately so the UI can toast it.
+    // Best effort: a params sidecar problem must never turn a successful image export into
+    // a failed one — it is reported separately so the UI can toast it.
     val jsonError = if (saveParamsJson != null) {
-        writeJsonSidecar(context, filename.substringBeforeLast(".png") + ".json", saveParamsJson)
+        exportFile(
+            context = context,
+            dirUri = paramsDirUri,
+            defaultRelativePath = DEFAULT_PARAMS_PATH,
+            displayName = filename.substringBeforeLast(".png") + ".json",
+            mimeType = "application/json",
+        ) { out -> out.write(saveParamsJson.toByteArray(Charsets.UTF_8)) }
     } else {
         null
     }

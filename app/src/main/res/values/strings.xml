@@ -310,6 +310,13 @@
     <!-- Info Messages -->
     <string name="image_saved">Image saved to gallery</string>
     <string name="image_saved_json_failed">Image saved, but JSON sidecar export failed</string>
+    <string name="export_image_dir">Image save folder</string>
+    <string name="export_params_dir">Params save folder</string>
+    <string name="export_dir_default_image">Pictures/DreamHub (default)</string>
+    <string name="export_dir_default_params">Documents/DreamHub (default)</string>
+    <string name="export_dir_pick">Choose folder</string>
+    <string name="export_dir_updated">Export folder updated</string>
+    <string name="export_dir_pick_failed">Could not get access to that folder</string>
     <string name="loading_model">Loading model…</string>
 
     <!-- File Manager -->

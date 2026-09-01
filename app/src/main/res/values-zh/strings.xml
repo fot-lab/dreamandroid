@@ -300,6 +300,13 @@
     <!-- Info Messages -->
     <string name="image_saved">图片已保存到相册</string>
     <string name="image_saved_json_failed">图片已保存，但参数 JSON 导出失败</string>
+    <string name="export_image_dir">图片保存目录</string>
+    <string name="export_params_dir">参数保存目录</string>
+    <string name="export_dir_default_image">Pictures/DreamHub（默认）</string>
+    <string name="export_dir_default_params">Documents/DreamHub（默认）</string>
+    <string name="export_dir_pick">选择文件夹</string>
+    <string name="export_dir_updated">导出目录已更新</string>
+    <string name="export_dir_pick_failed">无法获取该目录的访问权限</string>
     <string name="loading_model">模型加载中…</string>
 
     <!-- File Manager -->

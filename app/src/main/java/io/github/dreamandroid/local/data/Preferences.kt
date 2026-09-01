@@ -42,6 +42,11 @@ class GenerationPreferences(private val context: Context) {
     private val CFG_FINE_GRANULARITY_KEY = booleanPreferencesKey("cfg_fine_granularity")
     private val ACCEPT_ANY_CFG_KEY = booleanPreferencesKey("accept_any_cfg")
 
+    // Export destinations chosen by the user via SAF (ACTION_OPEN_DOCUMENT_TREE).
+    // null / absent → fall back to the built-in Pictures/DreamHub & Documents/DreamHub albums.
+    private val EXPORT_IMAGE_DIR_URI_KEY = stringPreferencesKey("export_image_dir_uri")
+    private val EXPORT_PARAMS_DIR_URI_KEY = stringPreferencesKey("export_params_dir_uri")
+
     // Screen-level (global) keys — persist across model switches
     private val GLOBAL_PROMPT_KEY = stringPreferencesKey("global_prompt")
     private val GLOBAL_NEGATIVE_PROMPT_KEY = stringPreferencesKey("global_negative_prompt")
@@ -107,6 +112,34 @@ class GenerationPreferences(private val context: Context) {
 
     suspend fun setAcceptAnyCfg(value: Boolean) {
         context.dataStore.edit { it[ACCEPT_ANY_CFG_KEY] = value }
+    }
+
+    /** Folder (SAF tree URI) the user picked for exported images; null = built-in album. */
+    fun observeExportImageDirUri(): Flow<String?> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { it[EXPORT_IMAGE_DIR_URI_KEY] }
+
+    /** Folder (SAF tree URI) the user picked for exported params JSON; null = built-in album. */
+    fun observeExportParamsDirUri(): Flow<String?> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { it[EXPORT_PARAMS_DIR_URI_KEY] }
+
+    suspend fun setExportImageDirUri(uri: String?) {
+        context.dataStore.edit { preferences ->
+            if (uri.isNullOrBlank()) preferences.remove(EXPORT_IMAGE_DIR_URI_KEY)
+            else preferences[EXPORT_IMAGE_DIR_URI_KEY] = uri
+        }
+    }
+
+    suspend fun setExportParamsDirUri(uri: String?) {
+        context.dataStore.edit { preferences ->
+            if (uri.isNullOrBlank()) preferences.remove(EXPORT_PARAMS_DIR_URI_KEY)
+            else preferences[EXPORT_PARAMS_DIR_URI_KEY] = uri
+        }
     }
 
     suspend fun saveBaseUrl(url: String) {

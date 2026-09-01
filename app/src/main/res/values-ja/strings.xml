@@ -283,6 +283,13 @@
     <string name="unknown_error">不明なエラー</string>
     <string name="image_saved">画像をギャラリーに保存しました</string>
     <string name="image_saved_json_failed">画像は保存しましたが、パラメータ JSON の書き出しに失敗しました</string>
+    <string name="export_image_dir">画像の保存先フォルダー</string>
+    <string name="export_params_dir">パラメータの保存先フォルダー</string>
+    <string name="export_dir_default_image">Pictures/DreamHub（既定）</string>
+    <string name="export_dir_default_params">Documents/DreamHub（既定）</string>
+    <string name="export_dir_pick">フォルダーを選択</string>
+    <string name="export_dir_updated">保存先を更新しました</string>
+    <string name="export_dir_pick_failed">このフォルダーにアクセスできません</string>
     <string name="loading_model">モデルの読み込み中…</string>
     
     <string name="delete_file">ファイルを削除</string>
