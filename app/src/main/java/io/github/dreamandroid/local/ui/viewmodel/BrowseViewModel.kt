@@ -86,17 +86,19 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
             persistExportDir(kind, null)
             return null
         }
-        return try {
+        // A persistable grant lets the pick survive restarts, but if the provider does
+        // not offer one we must not abort: the transient picker grant still covers the
+        // current session, so saving to the chosen folder keeps working.
+        try {
             getApplication<Application>().contentResolver.takePersistableUriPermission(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
-            persistExportDir(kind, uri.toString())
-            null
         } catch (e: SecurityException) {
-            Log.w("BrowseViewModel", "Persistable grant denied for $uri", e)
-            "no persistable access to that folder"
+            Log.w("BrowseViewModel", "Persistable grant unavailable for $uri; using transient grant", e)
         }
+        persistExportDir(kind, uri.toString())
+        return null
     }
 
     private fun persistExportDir(kind: ExportDirKind, value: String?) {

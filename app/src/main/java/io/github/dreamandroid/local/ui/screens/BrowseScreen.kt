@@ -291,7 +291,8 @@ fun BrowseScreen(
                                         result.imageSaved && result.jsonError != null ->
                                             context.getString(R.string.image_saved_json_failed)
                                         result.imageSaved -> context.getString(R.string.image_saved)
-                                        else -> context.getString(R.string.image_save_failed)
+                                        else -> context.getString(R.string.image_save_failed) +
+                                            (result.imageError?.let { " ($it)" } ?: "")
                                     }
                                     Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                 }
@@ -770,6 +771,8 @@ data class GallerySaveResult(
     val imageSaved: Boolean,
     /** Non-null when the params JSON sidecar could not be written; holds the reason. */
     val jsonError: String? = null,
+    /** Non-null when the image itself could not be written; holds the reason. */
+    val imageError: String? = null,
 )
 
 /** Human readable location of a stored export folder; empty when none has been picked. */
@@ -793,9 +796,14 @@ private fun writeIntoSafTree(
     mimeType: String,
     write: (OutputStream) -> Unit,
 ): String? = try {
+    // `createDocument` needs the tree's *document* URI as the parent, not the tree URI
+    // itself. Building it from the tree document id is the framework-correct way and is
+    // what makes writes succeed on providers/emulators where a raw tree URI fails.
+    val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
+    val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
     val docUri = DocumentsContract.createDocument(
         context.contentResolver,
-        treeUri,
+        parentUri,
         mimeType,
         displayName,
     ) ?: return "could not create $displayName in the selected folder"
@@ -899,7 +907,7 @@ suspend fun saveBitmapToGallery(
     ) { out -> bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out) }
     if (imageError != null) {
         Log.w("Gallery", "Image export failed ($filename): $imageError")
-        return@withContext GallerySaveResult(imageSaved = false)
+        return@withContext GallerySaveResult(imageSaved = false, imageError = imageError)
     }
 
     // Best effort: a params sidecar problem must never turn a successful image export into
